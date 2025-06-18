@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Chatbot Widget - Test Page</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 50px;
+        }
+        
+        .header h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .content {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        
+        .section {
+            margin-bottom: 40px;
+        }
+        
+        .section h2 {
+            color: #667eea;
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+        
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin: 30px 0;
+        }
+        
+        .feature-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 25px;
+            border-left: 4px solid #667eea;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        
+        .feature-card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+        
+        .feature-card p {
+            color: #666;
+            line-height: 1.6;
+        }
+        
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            border-radius: 10px;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+        
+        .code-block .comment {
+            color: #a0aec0;
+        }
+        
+        .code-block .keyword {
+            color: #f6ad55;
+        }
+        
+        .code-block .string {
+            color: #68d391;
+        }
+        
+        .code-block .number {
+            color: #f687b3;
+        }
+        
+        .demo-section {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            margin: 30px 0;
+        }
+        
+        .demo-section h3 {
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+        
+        .button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin: 10px;
+        }
+        
+        .button:hover {
+            background: #5a67d8;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .button.secondary {
+            background: #718096;
+        }
+        
+        .button.secondary:hover {
+            background: #4a5568;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin: 10px;
+        }
+        
+        .status.success {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        
+        .status.info {
+            background: #bee3f8;
+            color: #2a4365;
+        }
+        
+        .ollama-status {
+            background: #fef5e7;
+            border: 1px solid #f6ad55;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .ollama-status h4 {
+            color: #c05621;
+            margin-bottom: 10px;
+        }
+        
+        .ollama-status ul {
+            margin-left: 20px;
+        }
+        
+        .ollama-status li {
+            margin: 5px 0;
+        }
+        
+        .footer {
+            text-align: center;
+            color: white;
+            opacity: 0.8;
+            margin-top: 50px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 RAG Chatbot Widget</h1>
+            <p>A lightweight, embeddable chatbot that connects to your local Ollama LLM</p>
+        </div>
+        
+        <div class="content">
+            <div class="section">
+                <h2>🚀 Quick Start</h2>
+                <p>This page demonstrates the RAG chatbot widget in action. The chatbot should appear in the bottom-right corner of this page.</p>
+                
+                <div class="demo-section">
+                    <h3>Chatbot Controls</h3>
+                    <button class="button" onclick="initChatbot()">Initialize Chatbot</button>
+                    <button class="button secondary" onclick="removeChatbot()">Remove Chatbot</button>
+                    <button class="button" onclick="testOllamaConnection()">Test Ollama Connection</button>
+                    <div id="status" class="status info">Ready to test</div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>✨ Features</h2>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>🔗 Ollama Integration</h3>
+                        <p>Seamlessly connects to your local Ollama LLM server for real AI responses. Supports any model you have installed.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>🎨 Customizable Theme</h3>
+                        <p>Fully customizable colors and styling to match your website's design. Easy to integrate with any brand.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>📄 Content Ingestion</h3>
+                        <p>Automatically captures page content for RAG (Retrieval-Augmented Generation) capabilities. Perfect for context-aware responses.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>📍 Flexible Positioning</h3>
+                        <p>Position the chatbot anywhere on your page - fixed bottom-right corner or attach to any DOM element.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>💬 Conversation Memory</h3>
+                        <p>Maintains conversation context across multiple messages for more coherent and helpful responses.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>📱 Responsive Design</h3>
+                        <p>Works perfectly on desktop, tablet, and mobile devices with a clean, modern interface.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>🔧 Integration Code</h2>
+                <p>Add this simple code to any webpage to embed the chatbot:</p>
+                
+                <div class="code-block">
+<span class="comment">&lt;!-- Include the chatbot script --&gt;</span>
+&lt;script src="chatbot.js"&gt;&lt;/script&gt;
+
+&lt;script&gt;
+    <span class="comment">// Initialize with custom configuration</span>
+    initRAGChatbot({
+        <span class="keyword">model</span>: <span class="string">'mistral'</span>,
+        <span class="keyword">theme</span>: {
+            <span class="keyword">primaryColor</span>: <span class="string">'#667eea'</span>
+        },
+        <span class="keyword">welcomeMessage</span>: <span class="string">'Hello! I\'m your AI assistant. How can I help you today?'</span>,
+        <span class="keyword">enableContentIngestion</span>: <span class="keyword">true</span>,
+        <span class="keyword">ingestEndpoint</span>: <span class="string">'https://yourdomain.com/api/ingest'</span>
+    });
+&lt;/script&gt;
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>⚙️ Configuration Options</h2>
+                <div class="code-block">
+{
+    <span class="comment">// Ollama model to use</span>
+    <span class="keyword">model</span>: <span class="string">'mistral'</span>,
+    
+    <span class="comment">// Theme customization</span>
+    <span class="keyword">theme</span>: {
+        <span class="keyword">primaryColor</span>: <span class="string">'#667eea'</span>
+    },
+    
+    <span class="comment">// Welcome message</span>
+    <span class="keyword">welcomeMessage</span>: <span class="string">'Hello! How can I help you?'</span>,
+    
+    <span class="comment">// Content ingestion settings</span>
+    <span class="keyword">enableContentIngestion</span>: <span class="keyword">true</span>,
+    <span class="keyword">ingestEndpoint</span>: <span class="string">'https://yourdomain.com/api/ingest'</span>,
+    
+    <span class="comment">// Custom positioning (optional)</span>
+    <span class="keyword">selector</span>: <span class="string">'#chat-container'</span>
+}
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>🔍 Ollama Setup</h2>
+                <div class="ollama-status">
+                    <h4>📋 Prerequisites</h4>
+                    <ul>
+                        <li>Install Ollama: <code>curl -fsSL https://ollama.ai/install.sh | sh</code></li>
+                        <li>Start Ollama server: <code>ollama serve</code></li>
+                        <li>Pull a model: <code>ollama pull mistral</code></li>
+                    </ul>
+                    
+                    <h4>🎯 Current Status</h4>
+                    <p>Click "Test Ollama Connection" above to check if your Ollama server is running and accessible.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Built with ❤️ for seamless AI integration</p>
+        </div>
+    </div>
+
+    <!-- Include the chatbot script -->
+    <script src="chatbot.js"></script>
+    
+    <script>
+        let chatbotInitialized = false;
+        
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+        
+        function initChatbot() {
+            try {
+                const iframe = initRAGChatbot({
+                    model: 'mistral',
+                    theme: {
+                        primaryColor: '#667eea'
+                    },
+                    welcomeMessage: 'Hello! I\'m your AI assistant powered by Ollama. How can I help you today?',
+                    enableContentIngestion: true,
+                    ingestEndpoint: 'https://httpbin.org/post', // Demo endpoint
+                    promptTypeId: 'demo'
+                });
+                
+                chatbotInitialized = true;
+                updateStatus('✅ Chatbot initialized successfully!', 'success');
+                console.log('Chatbot initialized:', iframe);
+                
+            } catch (error) {
+                updateStatus(`❌ Failed to initialize chatbot: ${error.message}`, 'error');
+                console.error('Chatbot initialization error:', error);
+            }
+        }
+        
+        function removeChatbot() {
+            const iframes = document.querySelectorAll('#rag-chatbot-iframe');
+            iframes.forEach(iframe => iframe.remove());
+            chatbotInitialized = false;
+            updateStatus('🗑️ Chatbot removed', 'info');
+        }
+        
+        async function testOllamaConnection() {
+            updateStatus('🔍 Testing Ollama connection...', 'info');
+            
+            try {
+                const response = await fetch('http://localhost:11434/api/tags');
+                if (response.ok) {
+                    const data = await response.json();
+                    const models = data.models.map(m => m.name).join(', ');
+                    updateStatus(`✅ Connected! Available models: ${models}`, 'success');
+                } else {
+                    updateStatus(`❌ Ollama responded with status: ${response.status}`, 'error');
+                }
+            } catch (error) {
+                updateStatus(`❌ Ollama connection failed: ${error.message}`, 'error');
+            }
+        }
+        
+        // Auto-initialize chatbot on page load
+        window.addEventListener('load', function() {
+            console.log('🚀 RAG Chatbot Widget test page loaded');
+            
+            // Auto-initialize after a short delay
+            setTimeout(() => {
+                initChatbot();
+            }, 1000);
+        });
+    </script>
+</body>
+</html> 

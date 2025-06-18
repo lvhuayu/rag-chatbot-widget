@@ -1,0 +1,31 @@
+{
+  "name": "rag-chatbot-widget",
+  "version": "1.0.0",
+  "description": "A lightweight, embeddable RAG chatbot widget that connects to local Ollama LLM",
+  "main": "public/chatbot.js",
+  "scripts": {
+    "dev": "serve public -p 5500",
+    "start": "serve public -p 5500"
+  },
+  "keywords": [
+    "chatbot",
+    "rag",
+    "ollama",
+    "widget",
+    "embed",
+    "llm"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "serve": "^14.2.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/rag-chatbot-widget.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/rag-chatbot-widget/issues"
+  },
+  "homepage": "https://github.com/yourusername/rag-chatbot-widget#readme"
+} 
