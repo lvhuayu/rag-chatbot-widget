@@ -1,24 +1,29 @@
 {
   "name": "rag-chatbot-widget",
   "version": "1.0.0",
-  "description": "A lightweight, embeddable RAG chatbot widget that connects to local Ollama LLM",
+  "description": "A true RAG chatbot widget with local vector database and Ollama integration",
   "main": "public/chatbot.js",
   "scripts": {
     "dev": "serve public -p 5500",
+    "build": "echo 'No build step required for vanilla JS'",
     "start": "serve public -p 5500"
   },
   "keywords": [
     "chatbot",
     "rag",
     "ollama",
-    "widget",
-    "embed",
-    "llm"
+    "vector",
+    "embeddings",
+    "ai"
   ],
   "author": "Your Name",
   "license": "MIT",
   "devDependencies": {
     "serve": "^14.2.1"
+  },
+  "dependencies": {
+    "@xenova/transformers": "^2.15.0",
+    "hnswlib-node": "^1.3.2"
   },
   "repository": {
     "type": "git",

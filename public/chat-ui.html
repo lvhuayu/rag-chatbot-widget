@@ -23,18 +23,52 @@
             flex-direction: column;
             height: 100vh;
             background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
         }
         
         .chat-header {
-            background: #007bff;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 15px 20px;
-            font-weight: 600;
-            font-size: 16px;
             border-radius: 12px 12px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         
-        .chat-messages {
+        .chat-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4ade80;
+        }
+        
+        .status-dot.offline {
+            background: #ef4444;
+        }
+        
+        .rag-status {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 500;
+        }
+        
+        .messages-container {
             flex: 1;
             overflow-y: auto;
             padding: 20px;
@@ -45,106 +79,138 @@
             margin-bottom: 15px;
             display: flex;
             align-items: flex-start;
+            gap: 10px;
         }
         
         .message.user {
-            justify-content: flex-end;
-        }
-        
-        .message.bot {
-            justify-content: flex-start;
-        }
-        
-        .message-content {
-            max-width: 80%;
-            padding: 12px 16px;
-            border-radius: 18px;
-            font-size: 14px;
-            line-height: 1.4;
-            word-wrap: break-word;
-        }
-        
-        .message.user .message-content {
-            background: #007bff;
-            color: white;
-            border-bottom-right-radius: 4px;
-        }
-        
-        .message.bot .message-content {
-            background: white;
-            color: #333;
-            border: 1px solid #e9ecef;
-            border-bottom-left-radius: 4px;
-        }
-        
-        .message.error .message-content {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-            border-bottom-left-radius: 4px;
+            flex-direction: row-reverse;
         }
         
         .message-avatar {
             width: 32px;
             height: 32px;
             border-radius: 50%;
-            margin: 0 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 12px;
-            font-weight: bold;
+            font-weight: 600;
+            font-size: 14px;
+            flex-shrink: 0;
         }
         
         .message.user .message-avatar {
-            background: #007bff;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            order: 2;
         }
         
         .message.bot .message-avatar {
-            background: #6c757d;
-            color: white;
+            background: #e5e7eb;
+            color: #374151;
         }
         
-        .message.error .message-avatar {
-            background: #dc3545;
-            color: white;
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            line-height: 1.4;
+            word-wrap: break-word;
         }
         
-        .chat-input-container {
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .message.bot .message-content {
+            background: white;
+            color: #374151;
+            border: 1px solid #e5e7eb;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .rag-context {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #92400e;
+        }
+        
+        .rag-context h4 {
+            font-size: 11px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .rag-context p {
+            margin: 2px 0;
+            opacity: 0.8;
+        }
+        
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 12px 16px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 18px;
+            border-bottom-left-radius: 4px;
+            max-width: 70%;
+        }
+        
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #9ca3af;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+        
+        .input-container {
             padding: 20px;
             background: white;
-            border-top: 1px solid #e9ecef;
+            border-top: 1px solid #e5e7eb;
             border-radius: 0 0 12px 12px;
         }
         
-        .chat-input-wrapper {
+        .input-wrapper {
             display: flex;
             gap: 10px;
             align-items: flex-end;
         }
         
-        .chat-input {
+        .message-input {
             flex: 1;
-            border: 1px solid #e9ecef;
+            border: 2px solid #e5e7eb;
             border-radius: 20px;
             padding: 12px 16px;
             font-size: 14px;
-            outline: none;
             resize: none;
-            min-height: 44px;
-            max-height: 120px;
+            outline: none;
+            transition: border-color 0.3s ease;
             font-family: inherit;
+            max-height: 100px;
+            min-height: 44px;
         }
         
-        .chat-input:focus {
-            border-color: #007bff;
-            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        .message-input:focus {
+            border-color: #667eea;
         }
         
         .send-button {
-            background: #007bff;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
             border-radius: 50%;
@@ -154,139 +220,122 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.2s ease;
-            font-size: 16px;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
         }
         
         .send-button:hover {
-            background: #0056b3;
             transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         }
         
         .send-button:disabled {
-            background: #6c757d;
+            opacity: 0.6;
             cursor: not-allowed;
             transform: none;
         }
         
-        .typing-indicator {
-            display: none;
-            padding: 12px 16px;
-            background: white;
-            border: 1px solid #e9ecef;
-            border-radius: 18px;
-            border-bottom-left-radius: 4px;
-            margin-bottom: 15px;
-            max-width: 80%;
+        .send-button svg {
+            width: 18px;
+            height: 18px;
         }
         
-        .typing-dots {
-            display: flex;
-            gap: 4px;
-        }
-        
-        .typing-dot {
-            width: 8px;
-            height: 8px;
-            background: #6c757d;
-            border-radius: 50%;
-            animation: typing 1.4s infinite ease-in-out;
-        }
-        
-        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
-        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
-        
-        @keyframes typing {
-            0%, 80%, 100% {
-                transform: scale(0.8);
-                opacity: 0.5;
-            }
-            40% {
-                transform: scale(1);
-                opacity: 1;
-            }
-        }
-        
-        .welcome-message {
-            text-align: center;
-            color: #6c757d;
-            font-size: 12px;
-            margin-bottom: 20px;
-            padding: 10px;
-            background: white;
+        .error-message {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 12px;
             border-radius: 8px;
-            border: 1px solid #e9ecef;
+            margin: 10px 0;
+            font-size: 14px;
         }
         
-        .connection-status {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 10px;
-            font-weight: bold;
-            z-index: 10;
+        .rag-info {
+            background: #ecfdf5;
+            border: 1px solid #a7f3d0;
+            color: #065f46;
+            padding: 8px 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
         
-        .connection-status.connected {
-            background: #d4edda;
-            color: #155724;
+        .rag-info svg {
+            width: 16px;
+            height: 16px;
         }
         
-        .connection-status.disconnected {
-            background: #f8d7da;
-            color: #721c24;
+        /* Scrollbar styling */
+        .messages-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .messages-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .messages-container::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+        
+        .messages-container::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
         }
     </style>
 </head>
 <body>
     <div class="chat-container">
         <div class="chat-header">
-            AI Assistant
-            <div class="connection-status" id="connectionStatus">Checking...</div>
-        </div>
-        
-        <div class="chat-messages" id="chatMessages">
-            <div class="welcome-message" id="welcomeMessage">
-                Loading...
+            <h2>🤖 RAG Assistant</h2>
+            <div class="status-indicator">
+                <div class="status-dot" id="connection-status"></div>
+                <span id="status-text">Connecting...</span>
+                <div class="rag-status" id="rag-status">RAG</div>
             </div>
         </div>
         
-        <div class="typing-indicator" id="typingIndicator">
-            <div class="typing-dots">
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-            </div>
+        <div class="messages-container" id="messages-container">
+            <!-- Messages will be added here -->
         </div>
         
-        <div class="chat-input-container">
-            <div class="chat-input-wrapper">
+        <div class="input-container">
+            <div class="input-wrapper">
                 <textarea 
-                    class="chat-input" 
-                    id="chatInput" 
-                    placeholder="Type your message..."
+                    id="message-input" 
+                    class="message-input" 
+                    placeholder="Ask me anything..."
                     rows="1"
                 ></textarea>
-                <button class="send-button" id="sendButton">
-                    ➤
+                <button id="send-button" class="send-button">
+                    <svg fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
+                    </svg>
                 </button>
             </div>
         </div>
     </div>
 
     <script>
+        // Global variables
         let config = {};
-        let isTyping = false;
         let conversationHistory = [];
+        let isTyping = false;
         let ollamaConnected = false;
         
-        // Ollama API configuration
-        const OLLAMA_ENDPOINT = 'http://localhost:11434/api/chat';
-        const DEFAULT_MODEL = 'mistral';
+        // DOM elements
+        const messagesContainer = document.getElementById('messages-container');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const connectionStatus = document.getElementById('connection-status');
+        const statusText = document.getElementById('status-text');
+        const ragStatus = document.getElementById('rag-status');
         
-        // Listen for config from parent window
+        // Listen for configuration from parent
         window.addEventListener('message', function(event) {
             if (event.data.type === 'CHATBOT_CONFIG') {
                 config = event.data.config;
@@ -294,236 +343,243 @@
             }
         });
         
+        // Initialize chat
         function initializeChat() {
-            // Apply theme color
+            // Apply theme
             if (config.theme && config.theme.primaryColor) {
                 document.documentElement.style.setProperty('--primary-color', config.theme.primaryColor);
-                
-                // Update header and button colors
-                document.querySelector('.chat-header').style.background = config.theme.primaryColor;
-                document.querySelector('.send-button').style.background = config.theme.primaryColor;
-                
-                // Update user message color
-                const style = document.createElement('style');
-                style.textContent = `
-                    .message.user .message-content {
-                        background: ${config.theme.primaryColor} !important;
-                    }
-                    .message.user .message-avatar {
-                        background: ${config.theme.primaryColor} !important;
-                    }
-                    .send-button:hover {
-                        background: ${adjustBrightness(config.theme.primaryColor, -20)} !important;
-                    }
-                    .chat-input:focus {
-                        border-color: ${config.theme.primaryColor} !important;
-                        box-shadow: 0 0 0 2px ${config.theme.primaryColor}40 !important;
-                    }
-                `;
-                document.head.appendChild(style);
             }
             
-            // Set welcome message
-            const welcomeMessage = document.getElementById('welcomeMessage');
-            welcomeMessage.textContent = config.welcomeMessage || 'Hello! How can I help you today?';
+            // Show welcome message
+            if (config.welcomeMessage) {
+                addMessage('bot', config.welcomeMessage);
+            }
             
             // Check Ollama connection
             checkOllamaConnection();
             
-            // Setup event listeners
-            setupEventListeners();
+            // Update RAG status
+            updateRAGStatus();
         }
         
+        // Check Ollama connection
         async function checkOllamaConnection() {
             try {
-                const response = await fetch(OLLAMA_ENDPOINT, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        model: config.model || DEFAULT_MODEL,
-                        messages: [
-                            { role: "system", content: "You are a helpful assistant." },
-                            { role: "user", content: "Hello" }
-                        ],
-                        stream: false
-                    })
-                });
-                
+                const response = await fetch('http://localhost:11434/api/tags');
                 if (response.ok) {
                     ollamaConnected = true;
-                    updateConnectionStatus('Connected', true);
+                    updateConnectionStatus(true);
                 } else {
-                    ollamaConnected = false;
-                    updateConnectionStatus('Disconnected', false);
+                    updateConnectionStatus(false);
                 }
             } catch (error) {
-                console.warn('Ollama connection failed:', error);
-                ollamaConnected = false;
-                updateConnectionStatus('Disconnected', false);
+                updateConnectionStatus(false);
             }
         }
         
-        function updateConnectionStatus(status, isConnected) {
-            const statusElement = document.getElementById('connectionStatus');
-            statusElement.textContent = status;
-            statusElement.className = `connection-status ${isConnected ? 'connected' : 'disconnected'}`;
+        // Update connection status
+        function updateConnectionStatus(connected) {
+            ollamaConnected = connected;
+            connectionStatus.className = `status-dot ${connected ? '' : 'offline'}`;
+            statusText.textContent = connected ? 'Connected' : 'Offline';
         }
         
-        function setupEventListeners() {
-            const chatInput = document.getElementById('chatInput');
-            const sendButton = document.getElementById('sendButton');
-            const chatMessages = document.getElementById('chatMessages');
-            
-            // Auto-resize textarea
-            chatInput.addEventListener('input', function() {
-                this.style.height = 'auto';
-                this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-            });
-            
-            // Send message on Enter (but allow Shift+Enter for new line)
-            chatInput.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                }
-            });
-            
-            // Send button click
-            sendButton.addEventListener('click', sendMessage);
-            
-            async function sendMessage() {
-                const message = chatInput.value.trim();
-                if (!message || isTyping) return;
-                
-                // Add user message
-                addMessage(message, 'user');
-                
-                // Clear input
-                chatInput.value = '';
-                chatInput.style.height = 'auto';
-                
-                // Show typing indicator
-                showTypingIndicator();
-                
-                try {
-                    // Send to Ollama API
-                    const botResponse = await sendToOllama(message);
-                    hideTypingIndicator();
-                    addMessage(botResponse, 'bot');
-                } catch (error) {
-                    hideTypingIndicator();
-                    console.error('Failed to get response from Ollama:', error);
-                    addMessage('⚠️ Failed to get response from LLM. Please check if Ollama is running.', 'error');
-                }
+        // Update RAG status
+        function updateRAGStatus() {
+            if (config.enableRAG) {
+                ragStatus.textContent = 'RAG Active';
+                ragStatus.style.background = 'rgba(34, 197, 94, 0.2)';
+            } else {
+                ragStatus.textContent = 'RAG Off';
+                ragStatus.style.background = 'rgba(239, 68, 68, 0.2)';
             }
         }
         
-        async function sendToOllama(userMessage) {
-            // Add user message to conversation history
-            conversationHistory.push({ role: "user", content: userMessage });
-            
-            // Prepare messages for API call
-            const messages = [
-                { role: "system", content: "You are a helpful assistant." },
-                ...conversationHistory
-            ];
-            
-            // Limit conversation history to prevent token overflow (keep last 10 messages)
-            if (conversationHistory.length > 10) {
-                conversationHistory = conversationHistory.slice(-10);
-            }
-            
-            const response = await fetch(OLLAMA_ENDPOINT, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    model: config.model || DEFAULT_MODEL,
-                    messages: messages,
-                    stream: false  // Ensure we get a single response, not streaming
-                })
-            });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            const responseText = await response.text();
-            console.log('Ollama raw response:', responseText);
-            
-            let data;
-            try {
-                data = JSON.parse(responseText);
-            } catch (parseError) {
-                console.error('JSON parse error:', parseError);
-                throw new Error(`Invalid JSON response from Ollama: ${parseError.message}`);
-            }
-            
-            // Add bot response to conversation history
-            conversationHistory.push({ role: "assistant", content: data.message.content });
-            
-            return data.message.content;
-        }
-        
-        function addMessage(text, sender) {
-            const chatMessages = document.getElementById('chatMessages');
+        // Add message to chat
+        function addMessage(sender, content, ragContext = null) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${sender}`;
             
             const avatar = document.createElement('div');
             avatar.className = 'message-avatar';
+            avatar.textContent = sender === 'user' ? 'U' : '🤖';
             
-            if (sender === 'user') {
-                avatar.textContent = 'U';
-            } else if (sender === 'bot') {
-                avatar.textContent = 'AI';
-            } else if (sender === 'error') {
-                avatar.textContent = '⚠️';
-            }
-            
-            const content = document.createElement('div');
-            content.className = 'message-content';
-            content.textContent = text;
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+            messageContent.textContent = content;
             
             messageDiv.appendChild(avatar);
-            messageDiv.appendChild(content);
+            messageDiv.appendChild(messageContent);
             
-            chatMessages.appendChild(messageDiv);
+            // Add RAG context if available
+            if (ragContext && ragContext.length > 0) {
+                const contextDiv = document.createElement('div');
+                contextDiv.className = 'rag-context';
+                contextDiv.innerHTML = `
+                    <h4>🔍 RAG Context Found (${ragContext.length} sources)</h4>
+                    ${ragContext.map((result, index) => 
+                        `<p><strong>Source ${index + 1}:</strong> ${result.title} (${(result.similarity * 100).toFixed(1)}% match)</p>`
+                    ).join('')}
+                `;
+                messageContent.appendChild(contextDiv);
+            }
             
-            // Scroll to bottom
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            // Add to conversation history
+            conversationHistory.push({
+                role: sender === 'user' ? 'user' : 'assistant',
+                content: content
+            });
         }
         
+        // Show typing indicator
         function showTypingIndicator() {
-            isTyping = true;
-            const indicator = document.getElementById('typingIndicator');
-            indicator.style.display = 'block';
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message bot typing-indicator';
+            typingDiv.id = 'typing-indicator';
             
-            const chatMessages = document.getElementById('chatMessages');
-            chatMessages.appendChild(indicator);
-            chatMessages.scrollTop = chatMessages.scrollHeight;
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = '🤖';
+            
+            const dots = document.createElement('div');
+            dots.innerHTML = `
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            `;
+            
+            typingDiv.appendChild(avatar);
+            typingDiv.appendChild(dots);
+            messagesContainer.appendChild(typingDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
         
+        // Hide typing indicator
         function hideTypingIndicator() {
-            isTyping = false;
-            const indicator = document.getElementById('typingIndicator');
-            indicator.style.display = 'none';
+            const typingIndicator = document.getElementById('typing-indicator');
+            if (typingIndicator) {
+                typingIndicator.remove();
+            }
         }
         
-        // Utility function to adjust color brightness
-        function adjustBrightness(hex, percent) {
-            const num = parseInt(hex.replace("#", ""), 16);
-            const amt = Math.round(2.55 * percent);
-            const R = (num >> 16) + amt;
-            const G = (num >> 8 & 0x00FF) + amt;
-            const B = (num & 0x0000FF) + amt;
-            return "#" + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
-                (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
-                (B < 255 ? B < 1 ? 0 : B : 255)).toString(16).slice(1);
+        // Send message to Ollama with RAG
+        async function sendMessageToOllama(userMessage) {
+            try {
+                let enhancedMessage = userMessage;
+                let ragResults = [];
+                
+                // Search for RAG context if enabled
+                if (config.enableRAG && window.parent.RAGChatbotAPI) {
+                    try {
+                        ragResults = await window.parent.RAGChatbotAPI.searchContext(userMessage, config);
+                        if (ragResults.length > 0) {
+                            enhancedMessage = window.parent.RAGChatbotAPI.buildPrompt(userMessage, ragResults);
+                        }
+                    } catch (error) {
+                        console.warn('RAG search failed:', error);
+                    }
+                }
+                
+                // Prepare messages for Ollama
+                const messages = [
+                    {
+                        role: 'system',
+                        content: 'You are a helpful AI assistant with access to relevant context. Provide accurate and helpful responses based on the information available.'
+                    },
+                    ...conversationHistory,
+                    {
+                        role: 'user',
+                        content: enhancedMessage
+                    }
+                ];
+                
+                const requestBody = {
+                    model: config.model || 'mistral',
+                    messages: messages,
+                    stream: false
+                };
+                
+                const response = await fetch('http://localhost:11434/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                return {
+                    content: data.message.content,
+                    ragResults: ragResults
+                };
+                
+            } catch (error) {
+                console.error('Error sending message to Ollama:', error);
+                throw error;
+            }
         }
+        
+        // Handle send button click
+        async function handleSend() {
+            const message = messageInput.value.trim();
+            if (!message || isTyping) return;
+            
+            // Add user message
+            addMessage('user', message);
+            messageInput.value = '';
+            
+            // Check if Ollama is connected
+            if (!ollamaConnected) {
+                addMessage('bot', 'Sorry, I\'m not connected to Ollama. Please make sure Ollama is running on localhost:11434.');
+                return;
+            }
+            
+            // Show typing indicator
+            isTyping = true;
+            showTypingIndicator();
+            sendButton.disabled = true;
+            
+            try {
+                const result = await sendMessageToOllama(message);
+                hideTypingIndicator();
+                addMessage('bot', result.content, result.ragResults);
+                
+            } catch (error) {
+                hideTypingIndicator();
+                addMessage('bot', 'Sorry, I encountered an error while processing your message. Please try again.');
+                console.error('Chat error:', error);
+            } finally {
+                isTyping = false;
+                sendButton.disabled = false;
+                messageInput.focus();
+            }
+        }
+        
+        // Event listeners
+        sendButton.addEventListener('click', handleSend);
+        
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+            }
+        });
+        
+        // Auto-resize textarea
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+        });
+        
+        // Initial connection check
+        setTimeout(checkOllamaConnection, 1000);
     </script>
 </body>
 </html> 
