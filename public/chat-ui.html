@@ -468,68 +468,45 @@
         // Send message to Ollama with RAG
         async function sendMessageToOllama(userMessage) {
             try {
-                let enhancedMessage = userMessage;
                 let ragResults = [];
+                let botReply = '';
                 
-                // Search for RAG context if enabled
-                if (config.enableRAG && window.parent.RAGChatbotAPI) {
-                    try {
-                        ragResults = await window.parent.RAGChatbotAPI.searchContext(userMessage, config);
-                        if (ragResults.length > 0) {
-                            enhancedMessage = window.parent.RAGChatbotAPI.buildPrompt(userMessage, ragResults);
-                        }
-                    } catch (error) {
-                        console.warn('RAG search failed:', error);
-                    }
-                }
+                const backendUrl = config.backendUrl || 'http://localhost:8001';
+                const topK = config.maxRAGResults || 3;
                 
-                // Prepare messages for Ollama
-                const messages = [
-                    {
-                        role: 'system',
-                        content: 'You are a helpful AI assistant with access to relevant context. Provide accurate and helpful responses based on the information available.'
-                    },
-                    ...conversationHistory,
-                    {
-                        role: 'user',
-                        content: enhancedMessage
-                    }
-                ];
-                
-                const requestBody = {
-                    model: config.model || 'mistral',
-                    messages: messages,
-                    stream: false
-                };
-                
-                const response = await fetch('http://localhost:11434/api/chat', {
+                const response = await fetch(`${backendUrl}/search`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(requestBody)
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: userMessage, top_k: topK })
                 });
                 
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    throw new Error(`Backend error! status: ${response.status}`);
                 }
                 
                 const data = await response.json();
+                console.log('RAG backend response:', data);
+                
+                botReply = data.context || 'No answer from backend.';
+                ragResults = data.documents || [];
+                
                 return {
-                    content: data.message.content,
+                    content: botReply,
                     ragResults: ragResults
                 };
-                
             } catch (error) {
-                console.error('Error sending message to Ollama:', error);
+                console.error('Error sending message to Python backend:', error);
                 throw error;
             }
         }
+
         
         // Handle send button click
         async function handleSend() {
             const message = messageInput.value.trim();
             if (!message || isTyping) return;
+            
+            console.log('[User Input]', message); // Log user input
             
             // Add user message
             addMessage('user', message);

@@ -28,8 +28,8 @@
         // Initialize RAG service if enabled
         if (finalConfig.enableRAG) {
             try {
-                ragService = new RAGService();
-                await ragService.initialize();
+                // ragService = new RAGService();
+                // await ragService.initialize();
                 console.log('✅ RAG service initialized successfully');
             } catch (error) {
                 console.error('❌ Failed to initialize RAG service:', error);

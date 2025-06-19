@@ -3,161 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAG Chatbot Widget - Mock Data Test</title>
-    <!-- Xenova Transformers CDN for browser embeddings -->
-    <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.15.0/dist/transformers.min.js"></script>
+    <title>Mock Content Page for RAG Chatbot</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: #f7fafc;
-            margin: 0;
-            padding: 0;
-        }
-        .container {
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 40px 20px;
-        }
-        h1 {
-            color: #667eea;
-            margin-bottom: 10px;
-        }
-        h2 {
-            color: #764ba2;
-            margin-top: 40px;
-        }
-        .section {
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.07);
-            padding: 30px;
-            margin-bottom: 30px;
-        }
-        ul, ol {
-            margin-left: 20px;
-        }
-        .highlight {
-            background: #fefcbf;
-            padding: 2px 6px;
-            border-radius: 4px;
-        }
-        .personal-info {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 12px;
-            padding: 30px;
-            margin-bottom: 30px;
-        }
-        .personal-info h2 {
-            color: white;
-            margin-top: 0;
-        }
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        .personal-info, .section { background: #f5f5f5; padding: 1em; border-radius: 8px; margin-bottom: 2em; }
+        h2 { color: #764ba2; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>RAG Chatbot Widget - Mock Data Test</h1>
-        <p>This page contains a variety of mock data for testing the chatbot's retrieval-augmented generation (RAG) capabilities. Try asking the chatbot about any of the topics below!</p>
-
-        <div class="section personal-info">
-            <h2>👤 Personal Information</h2>
-            <ul>
-                <li>Name: <span class="highlight">Huayu</span></li>
-                <li>Birth Date: <span class="highlight">March 12th, 1989</span></li>
-                <li>Age: <span class="highlight">34 years old</span> (as of 2024)</li>
-                <li>Zodiac Sign: <span class="highlight">Pisces</span></li>
-                <li>Chinese Zodiac: <span class="highlight">Snake</span></li>
-            </ul>
-        </div>
-
-        <div class="section">
-            <h2>🌍 World Capitals</h2>
-            <ul>
-                <li>France: <span class="highlight">Paris</span></li>
-                <li>Japan: <span class="highlight">Tokyo</span></li>
-                <li>Brazil: <span class="highlight">Brasília</span></li>
-                <li>Canada: <span class="highlight">Ottawa</span></li>
-                <li>Australia: <span class="highlight">Canberra</span></li>
-            </ul>
-        </div>
-
-        <div class="section">
-            <h2>🦸 Famous Superheroes</h2>
-            <ul>
-                <li>Superman (Clark Kent)</li>
-                <li>Wonder Woman (Diana Prince)</li>
-                <li>Spider-Man (Peter Parker)</li>
-                <li>Black Panther (T'Challa)</li>
-                <li>Iron Man (Tony Stark)</li>
-            </ul>
-        </div>
-
-        <div class="section">
-            <h2>🍕 Pizza Toppings Popularity</h2>
-            <ol>
-                <li>Pepperoni</li>
-                <li>Mushrooms</li>
-                <li>Onions</li>
-                <li>Sausage</li>
-                <li>Bacon</li>
-            </ol>
-        </div>
-
-        <div class="section">
-            <h2>💡 Fun Facts</h2>
-            <ul>
-                <li>Honey never spoils. Archaeologists have found edible honey in ancient Egyptian tombs.</li>
-                <li>Bananas are berries, but strawberries are not.</li>
-                <li>The unicorn is the national animal of Scotland.</li>
-                <li>Octopuses have three hearts.</li>
-                <li>Venus is the only planet that spins clockwise.</li>
-            </ul>
-        </div>
-
-        <div class="section">
-            <h2>📚 Famous Quotes</h2>
-            <ul>
-                <li>"The only limit to our realization of tomorrow is our doubts of today." – Franklin D. Roosevelt</li>
-                <li>"To be yourself in a world that is constantly trying to make you something else is the greatest accomplishment." – Ralph Waldo Emerson</li>
-                <li>"In the middle of difficulty lies opportunity." – Albert Einstein</li>
-                <li>"Success is not final, failure is not fatal: It is the courage to continue that counts." – Winston Churchill</li>
-            </ul>
-        </div>
-
-        <div class="section">
-            <h2>🧪 Science Trivia</h2>
-            <ul>
-                <li>The chemical symbol for gold is <span class="highlight">Au</span>.</li>
-                <li>Water boils at <span class="highlight">100°C</span> (212°F) at sea level.</li>
-                <li>Light travels at approximately <span class="highlight">299,792 km/s</span>.</li>
-                <li>DNA stands for <span class="highlight">Deoxyribonucleic Acid</span>.</li>
-                <li>Earth's atmosphere is composed of about <span class="highlight">78% nitrogen</span> and <span class="highlight">21% oxygen</span>.</li>
-            </ul>
-        </div>
+    <h1>Mock Content for RAG Chatbot</h1>
+    <div class="personal-info">
+        <h2>Personal Information</h2>
+        <ul>
+            <li><strong>Name:</strong> Huayu</li>
+            <li><strong>Birth Date:</strong> March 12th, 1989</li>
+            <li><strong>Age:</strong> 36</li>
+            <li><strong>Zodiac Sign:</strong> Pisces</li>
+            <li><strong>Chinese Zodiac:</strong> Snake</li>
+        </ul>
     </div>
-
-    <!-- Embed the chatbot widget -->
-    <script src="rag-service.js"></script>
-    <script src="chatbot.js"></script>
+    <div class="section">
+        <h2>Professional Experience</h2>
+        <ul>
+            <li><strong>2022–Present:</strong> Senior Software Engineer at TechNova</li>
+            <li><strong>2018–2022:</strong> Full Stack Developer at WebWorks</li>
+            <li><strong>2015–2018:</strong> Junior Developer at CodeCrafters</li>
+        </ul>
+    </div>
+    <div class="section">
+        <h2>Education</h2>
+        <ul>
+            <li><strong>MSc Computer Science</strong>, University of Example, 2015</li>
+            <li><strong>BSc Information Technology</strong>, Example State University, 2013</li>
+        </ul>
+    </div>
+    <div class="section">
+        <h2>Favorite Books</h2>
+        <ol>
+            <li>"Sapiens: A Brief History of Humankind" by Yuval Noah Harari</li>
+            <li>"The Pragmatic Programmer" by Andrew Hunt and David Thomas</li>
+            <li>"The Three-Body Problem" by Liu Cixin</li>
+            <li>"Atomic Habits" by James Clear</li>
+        </ol>
+    </div>
+    <div class="section">
+        <h2>World Capitals</h2>
+        <ul>
+            <li>France: Paris</li>
+            <li>Japan: Tokyo</li>
+            <li>Brazil: Brasília</li>
+            <li>Canada: Ottawa</li>
+            <li>Australia: Canberra</li>
+        </ul>
+    </div>
+    <div class="section">
+        <h2>Science Facts</h2>
+        <ul>
+            <li>The speed of light is approximately 299,792 kilometers per second.</li>
+            <li>Water is composed of two hydrogen atoms and one oxygen atom (H<sub>2</sub>O).</li>
+            <li>Honey never spoils and can last thousands of years.</li>
+            <li>Bananas are berries, but strawberries are not.</li>
+        </ul>
+    </div>
+    <div class="section">
+        <h2>Frequently Asked Questions</h2>
+        <dl>
+            <dt>What is RAG?</dt>
+            <dd>Retrieval-Augmented Generation (RAG) is an AI technique that combines retrieval of relevant documents with generative models to provide more accurate and grounded responses.</dd>
+            <dt>How do I use this chatbot?</dt>
+            <dd>Type your question in the chat window. The chatbot will use the content on this page and its backend knowledge to answer.</dd>
+            <dt>Can I ingest new content?</dt>
+            <dd>Yes, if enabled, you can ingest new content for the chatbot to use in its responses.</dd>
+        </dl>
+    </div>
+    <div id="chatbot-container"></div>
+    <!-- Use Python backend RAG service -->
+    <script type="module" src="chatbot_python.js"></script>
     <script>
         // Wait for DOM to be fully loaded
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initializeChatbot);
         } else {
-            // DOM is already loaded
             initializeChatbot();
         }
-        
         function initializeChatbot() {
-            // Add a small delay to ensure everything is ready
             setTimeout(() => {
                 initRAGChatbot({
                     selector: '#chatbot-container',
                     theme: { primaryColor: '#764ba2' },
-                    welcomeMessage: 'Hi! Ask me about Huayu, world capitals, superheroes, pizza, science, or quotes.',
-                    enableContentIngestion: true
+                    welcomeMessage: 'Hi! Ask me about Huayu, world capitals, superheroes, pizza, science, or anything else!',
+                    enableContentIngestion: true,
+                    enableRAG: true,
+                    backendUrl: 'http://localhost:8001'
                 });
-            }, 1000);
+            }, 100);
         }
     </script>
 </body>
