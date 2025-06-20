@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+    @apply bg-gray-100 text-gray-800;
+}
+
+h1 {
+    @apply text-3xl font-bold mb-4;
+}
+
+.upload-area {
+    @apply border-2 border-dashed border-gray-300 rounded-lg p-6 text-center;
+}
+
+.upload-area.drag-over {
+    @apply border-blue-500;
+}
+
+.file-list {
+    @apply mt-4;
+}
+
+.file-item {
+    @apply flex justify-between items-center bg-white p-2 rounded shadow mb-2;
+}
+
+.file-description {
+    @apply mt-2 text-sm text-gray-500;
+}
+
+.loading-indicator {
+    @apply flex justify-center items-center h-32;
+}
