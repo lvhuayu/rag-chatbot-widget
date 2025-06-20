@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import FileUploader from '../components/FileUploader';
 import FileList from '../components/FileList';
 import DocumentList from '../components/DocumentList';
+import axios from 'axios';
 
 export interface UploadFile {
   file: File;
@@ -10,6 +11,9 @@ export interface UploadFile {
 
 const UploadPage: React.FC = () => {
   const [files, setFiles] = useState<UploadFile[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [docLoading, setDocLoading] = useState(false);
+  const [docError, setDocError] = useState<string | null>(null);
 
   const addFiles = (newFiles: File[]) => {
     // Prevent duplicates by name + size
@@ -30,6 +34,26 @@ const UploadPage: React.FC = () => {
 
   const clearFiles = () => setFiles([]);
 
+  const fetchDocuments = useCallback(async () => {
+    setDocLoading(true);
+    setDocError(null);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/upload/documents', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      setDocuments(response.data);
+    } catch (err) {
+      setDocError('Failed to fetch documents');
+    } finally {
+      setDocLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
       <div className="container mx-auto p-4 sm:p-6 lg:p-8">
@@ -44,10 +68,10 @@ const UploadPage: React.FC = () => {
 
         <main>
           <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl ring-1 ring-slate-200/50">
-            <FileUploader files={files} addFiles={addFiles} clearFiles={clearFiles} />
+            <FileUploader files={files} addFiles={addFiles} clearFiles={clearFiles} onUploadSuccess={fetchDocuments} />
             <FileList files={files} updateDescription={updateDescription} removeFile={removeFile} />
           </div>
-          <DocumentList />
+          <DocumentList documents={documents} loading={docLoading} error={docError} refreshDocuments={fetchDocuments} />
         </main>
       </div>
     </div>

@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React from 'react';
 import { FileText, File, FileArchive } from 'lucide-react';
 
 const getFileIcon = (fileName: string) => {
@@ -9,29 +8,27 @@ const getFileIcon = (fileName: string) => {
     return <File className="h-8 w-8" />;
 };
 
-const DocumentList = () => {
-    const [documents, setDocuments] = useState([]);
-    const [error, setError] = useState<string | null>(null);
+interface DocumentListProps {
+    documents: any[];
+    loading: boolean;
+    error: string | null;
+    refreshDocuments: () => void;
+}
 
-    useEffect(() => {
-        const fetchDocuments = async () => {
-            try {
-                const token = localStorage.getItem('token');
-                const response = await axios.get('/api/upload/documents', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                setDocuments(response.data);
-            } catch (err) {
-                setError('Failed to fetch documents');
-            }
-        };
-
-        fetchDocuments();
-    }, []);
-
+const DocumentList: React.FC<DocumentListProps> = ({ documents, loading, error, refreshDocuments }) => {
     return (
         <div className="mt-6 w-full max-w-2xl">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Your Documents</h2>
+            <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-800">Your Documents</h2>
+                <button
+                    onClick={refreshDocuments}
+                    className="px-3 py-1 text-sm bg-slate-200 rounded hover:bg-slate-300 transition"
+                    disabled={loading}
+                >
+                    Refresh
+                </button>
+            </div>
+            {loading && <p className="text-sm text-gray-500">Loading documents...</p>}
             {error && <p className="text-sm text-red-600">{error}</p>}
             <ul className="space-y-4">
                 {documents.map((doc: any) => (
@@ -52,6 +49,9 @@ const DocumentList = () => {
                     </li>
                 ))}
             </ul>
+            {!loading && documents.length === 0 && !error && (
+                <p className="text-sm text-gray-500 mt-4">No documents found.</p>
+            )}
         </div>
     );
 };

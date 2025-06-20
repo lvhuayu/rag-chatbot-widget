@@ -7,9 +7,10 @@ interface FileUploaderProps {
     files: UploadFile[];
     addFiles: (files: File[]) => void;
     clearFiles: () => void;
+    onUploadSuccess?: () => void;
 }
 
-const FileUploader: React.FC<FileUploaderProps> = ({ files, addFiles, clearFiles }) => {
+const FileUploader: React.FC<FileUploaderProps> = ({ files, addFiles, clearFiles, onUploadSuccess }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -60,6 +61,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ files, addFiles, clearFiles
                 throw new Error(data.message || 'Upload failed. Please try again.');
             }
             clearFiles();
+            if (onUploadSuccess) onUploadSuccess();
         } catch (err: any) {
             setError(err.message);
         } finally {
