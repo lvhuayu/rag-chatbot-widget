@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import LoadingIndicator from './LoadingIndicator';
 import { UploadFile } from '../App';
+import { FileUp, X, Loader2 } from 'lucide-react';
 
 interface FileUploaderProps {
     files: UploadFile[];
@@ -13,34 +13,35 @@ const FileUploader: React.FC<FileUploaderProps> = ({ files, addFiles, clearFiles
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const onDrop = (acceptedFiles: File[]) => {
+    const onDrop = useCallback((acceptedFiles: File[]) => {
         if (files.length + acceptedFiles.length > 5) {
             setError('You can only upload a maximum of 5 files.');
             return;
         }
-
         const validFiles = acceptedFiles.filter(file => file.size <= 10 * 1024 * 1024);
         if (validFiles.length !== acceptedFiles.length) {
-            setError('Some files exceed the 10MB size limit.');
+            setError('One or more files exceed the 10MB size limit.');
             return;
         }
-
         addFiles(validFiles);
         setError(null);
-    };
+    }, [files, addFiles]);
 
-    const { getRootProps, getInputProps } = useDropzone({
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
-        accept: { 'application/pdf': [], 'text/plain': [], 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': [] },
+        accept: {
+            'application/pdf': ['.pdf'],
+            'text/plain': ['.txt'],
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+        },
         maxSize: 10 * 1024 * 1024,
     });
 
     const handleUpload = async () => {
         setLoading(true);
         setError(null);
-
         const formData = new FormData();
-        files.forEach((f, i) => {
+        files.forEach((f) => {
             formData.append('files', f.file);
             formData.append(`descriptions`, f.description || '');
         });
@@ -50,12 +51,10 @@ const FileUploader: React.FC<FileUploaderProps> = ({ files, addFiles, clearFiles
                 method: 'POST',
                 body: formData,
             });
-
             if (!response.ok) {
                 const data = await response.json().catch(() => ({}));
-                throw new Error(data.message || 'Upload failed');
+                throw new Error(data.message || 'Upload failed. Please try again.');
             }
-
             clearFiles();
         } catch (err: any) {
             setError(err.message);
@@ -65,18 +64,45 @@ const FileUploader: React.FC<FileUploaderProps> = ({ files, addFiles, clearFiles
     };
 
     return (
-        <div className="p-4 w-full max-w-xl">
-            <h1 className="text-xl font-bold mb-4">RAG Document Uploader</h1>
-            <div {...getRootProps()} className="border-dashed border-2 border-gray-400 p-6 mb-4 text-center cursor-pointer bg-white">
+        <div className="w-full p-6 sm:p-8">
+            <div
+                {...getRootProps()}
+                className={`relative flex flex-col items-center justify-center w-full p-10 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-300 ease-in-out
+                ${isDragActive ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-300 bg-slate-50 hover:border-indigo-400'}`}
+            >
                 <input {...getInputProps()} />
-                <p>Drag 'n' drop some files here, or click to select files</p>
-                <p className="text-sm text-gray-500">Only PDF, TXT, and DOCX files are accepted (max 10MB each, up to 5 files).</p>
+                <div className="text-center">
+                    <FileUp className="mx-auto h-12 w-12 text-slate-400" />
+                    <p className="mt-4 text-lg text-slate-600">
+                        <span className="font-semibold text-indigo-600">Click to upload</span> or drag and drop
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">Supports: PDF, TXT, DOCX (Max 10MB each)</p>
+                </div>
             </div>
-            {error && <p className="text-red-500 mb-2">{error}</p>}
-            {loading && <LoadingIndicator />}
-            <button onClick={handleUpload} className="bg-blue-500 text-white px-4 py-2 rounded mt-2" disabled={loading || files.length === 0}>
-                Upload Files
-            </button>
+
+            {error && (
+                <div className="mt-4 flex items-center justify-center text-red-600 bg-red-100 p-3 rounded-lg">
+                    <X className="h-5 w-5 mr-2 flex-shrink-0" />
+                    <span className="text-sm">{error}</span>
+                </div>
+            )}
+
+            <div className="mt-6 flex justify-end">
+                <button
+                    onClick={handleUpload}
+                    className="flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
+                    disabled={loading || files.length === 0}
+                >
+                    {loading ? (
+                        <>
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                            <span>Processing...</span>
+                        </>
+                    ) : (
+                        `Upload ${files.length} ${files.length === 1 ? 'File' : 'Files'}`
+                    )}
+                </button>
+            </div>
         </div>
     );
 };

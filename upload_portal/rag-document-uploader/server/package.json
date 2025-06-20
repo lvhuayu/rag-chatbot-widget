@@ -12,6 +12,7 @@
     "axios": "^1.10.0",
     "cors": "^2.8.5",
     "express": "^4.17.1",
+    "lucide-react": "^0.519.0",
     "mammoth": "^1.9.1",
     "multer": "^1.4.2",
     "pdf-parse": "^1.1.1"
