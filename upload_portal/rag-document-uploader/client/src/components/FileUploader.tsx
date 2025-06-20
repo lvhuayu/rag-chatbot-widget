@@ -73,21 +73,26 @@ const FileUploader: React.FC<FileUploaderProps> = ({ files, addFiles, clearFiles
         <div className="w-full p-6 sm:p-8">
             <div
                 {...getRootProps()}
-                className={`relative flex flex-col items-center justify-center w-full p-10 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-300 ease-in-out
-                ${isDragActive ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-300 bg-slate-50 hover:border-indigo-400'}`}
+                className={`relative flex flex-col items-center justify-center w-full p-10 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-300 ease-in-out backdrop-blur-sm
+                ${isDragActive 
+                    ? 'border-blue-400 bg-blue-500/20 shadow-lg shadow-blue-500/25' 
+                    : 'border-white/30 bg-white/5 hover:border-blue-400/50 hover:bg-white/10'
+                }`}
             >
                 <input {...getInputProps()} />
                 <div className="text-center">
-                    <FileUp className="mx-auto h-12 w-12 text-slate-400" />
-                    <p className="mt-4 text-lg text-slate-600">
-                        <span className="font-semibold text-indigo-600">Click to upload</span> or drag and drop
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full mb-4 shadow-lg">
+                        <FileUp className="h-8 w-8 text-white" />
+                    </div>
+                    <p className="mt-4 text-lg text-white">
+                        <span className="font-semibold text-blue-300">Click to upload</span> or drag and drop
                     </p>
-                    <p className="mt-1 text-sm text-slate-500">Supports: PDF, TXT, DOCX (Max 10MB each)</p>
+                    <p className="mt-1 text-sm text-blue-200/70">Supports: PDF, TXT, DOCX (Max 10MB each)</p>
                 </div>
             </div>
 
             {error && (
-                <div className="mt-4 flex items-center justify-center text-red-600 bg-red-100 p-3 rounded-lg">
+                <div className="mt-4 flex items-center justify-center text-red-300 bg-red-500/20 p-3 rounded-lg border border-red-500/30">
                     <X className="h-5 w-5 mr-2 flex-shrink-0" />
                     <span className="text-sm">{error}</span>
                 </div>
@@ -96,7 +101,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ files, addFiles, clearFiles
             <div className="mt-6 flex justify-end">
                 <button
                     onClick={handleUpload}
-                    className="flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
+                    className="flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-lg text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105"
                     disabled={loading || files.length === 0}
                 >
                     {loading ? (
