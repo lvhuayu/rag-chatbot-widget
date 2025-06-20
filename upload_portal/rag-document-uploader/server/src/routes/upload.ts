@@ -5,8 +5,11 @@ import fs from 'fs';
 import axios from 'axios';
 import pdf from 'pdf-parse';
 import mammoth from 'mammoth';
+import { PrismaClient } from '@prisma/client';
+import { authenticateToken, AuthRequest } from '../middleware/auth';
 
 const router = express.Router();
+const prisma = new PrismaClient();
 const uploadDir = path.join(process.cwd(), 'uploads');
 const RAG_BACKEND_URL = 'http://localhost:8001/add-document';
 
@@ -41,7 +44,7 @@ const upload = multer({
 });
 
 // Function to extract text and index the document
-async function processAndIndexFile(file: Express.Multer.File, description: string) {
+async function processAndIndexFile(file: Express.Multer.File, description: string, userId: string) {
     let content = '';
     const filePath = file.path;
 
@@ -62,33 +65,63 @@ async function processAndIndexFile(file: Express.Multer.File, description: strin
             content = `Description: ${description}\n\n${content}`;
         }
 
+        // Send to Python RAG backend
         await axios.post(RAG_BACKEND_URL, {
-            url: file.originalname, // Using filename as a substitute for URL
+            url: file.originalname,
             title: file.originalname,
             content: content,
+        });
+
+        // Save document metadata to database
+        await prisma.document.create({
+            data: {
+                userId: userId,
+                originalName: file.originalname,
+                fileSize: file.size,
+                description: description || null,
+                status: 'SUCCESS'
+            }
         });
 
         return { success: true, file: file.originalname };
     } catch (error: any) {
         console.error(`Error processing ${file.originalname}:`, error.message);
+        
+        // Save failed document metadata to database
+        await prisma.document.create({
+            data: {
+                userId: userId,
+                originalName: file.originalname,
+                fileSize: file.size,
+                description: description || null,
+                status: 'FAILED'
+            }
+        });
+
         return { success: false, file: file.originalname, error: error.message };
     } finally {
         // Clean up the uploaded file after processing
-        fs.unlinkSync(filePath);
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
     }
 }
 
-// Route for file upload
-router.post('/', upload.array('files', 5), async (req, res) => {
+// Route for file upload (now protected)
+router.post('/', authenticateToken, upload.array('files', 5), async (req: AuthRequest, res) => {
     if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
         return res.status(400).send({ message: 'No files were uploaded.' });
+    }
+
+    if (!req.user) {
+        return res.status(401).send({ message: 'User not authenticated.' });
     }
 
     const descriptions = req.body.descriptions || [];
     const files = req.files as Express.Multer.File[];
 
     const processingPromises = files.map((file, idx) =>
-        processAndIndexFile(file, descriptions[idx] || '')
+        processAndIndexFile(file, descriptions[idx] || '', req.user!.id)
     );
 
     try {
@@ -107,6 +140,25 @@ router.post('/', upload.array('files', 5), async (req, res) => {
         res.status(200).send({ message: 'All files uploaded and indexed successfully.', successful });
     } catch (error: any) {
         res.status(500).send({ message: 'An unexpected error occurred during processing.', error: error.message });
+    }
+});
+
+// Route to get user's documents
+router.get('/documents', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).send({ message: 'User not authenticated.' });
+        }
+
+        const documents = await prisma.document.findMany({
+            where: { userId: req.user.id },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        res.json(documents);
+    } catch (error) {
+        console.error('Error fetching documents:', error);
+        res.status(500).send({ message: 'Error fetching documents.' });
     }
 });
 

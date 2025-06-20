@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { UploadFile } from '../App';
+import { UploadFile } from '../pages/UploadPage';
 import { FileUp, X, Loader2 } from 'lucide-react';
 
 interface FileUploaderProps {
@@ -47,8 +47,12 @@ const FileUploader: React.FC<FileUploaderProps> = ({ files, addFiles, clearFiles
         });
 
         try {
+            const token = localStorage.getItem('token');
             const response = await fetch('/api/upload', {
                 method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
                 body: formData,
             });
             if (!response.ok) {

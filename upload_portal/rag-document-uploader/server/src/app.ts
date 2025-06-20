@@ -1,15 +1,25 @@
 import express from 'express';
 import path from 'path';
+import cors from 'cors';
 import uploadRoutes from './routes/upload';
+import authRoutes from './routes/auth';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Enable CORS for a specific origin
+app.use(cors({
+  origin: 'http://localhost:3000'
+}));
 
 // Middleware to serve static files from the uploads directory
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Middleware for parsing application/json
 app.use(express.json());
+
+// Use the auth routes
+app.use('/api/auth', authRoutes);
 
 // Use the upload routes
 app.use('/api/upload', uploadRoutes);

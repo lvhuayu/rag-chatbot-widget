@@ -1,5 +1,5 @@
 import React from 'react';
-import { UploadFile } from '../App';
+import { UploadFile } from '../pages/UploadPage';
 import { FileText, File, X, FileArchive } from 'lucide-react'; // Using FileArchive for DOCX
 
 interface FileListProps {
