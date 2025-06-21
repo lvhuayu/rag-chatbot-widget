@@ -265,37 +265,40 @@ async def authenticate_with_registered_key(request: RegisteredKeyAuthRequest):
         raise HTTPException(status_code=500, detail=f"Error authenticating with registered key: {str(e)}")
 
 @app.get("/auth/me")
-async def get_current_user(user: User = Depends(verify_token)):
-    """Get current user information"""
+async def get_current_user():
+    """Get current user information (temporarily no auth required)"""
+    # Create a default user for testing
+    default_user = User(id="test_user", username="test_user")
     return {
-        "user_id": user.id,
-        "username": user.username,
-        "public_key": public_keys.get(user.id, "Not found")
+        "user_id": default_user.id,
+        "username": default_user.username,
+        "public_key": "test_public_key"
     }
 
 @app.post("/add-document", response_model=Dict[str, Any])
-async def add_document(document: Document, user: User = Depends(verify_token)):
-    """Add a document to the RAG system (requires authentication)"""
+async def add_document(document: Document):
+    """Add a document to the RAG system (temporarily no auth required)"""
     try:
         # Generate embedding
         embedding = embedding_model.encode(document.content).tolist()
         
-        # Add to in-memory storage with user_id
+        # Add to in-memory storage with default user_id
         doc_id = str(uuid.uuid4())
+        default_user_id = "test_user"
         documents.append({
             "id": doc_id,
             "url": document.url,
             "title": document.title,
             "content": document.content,
             "timestamp": document.timestamp or datetime.now().isoformat(),
-            "user_id": user.id  # Store user_id
+            "user_id": default_user_id  # Use default user_id
         })
         embeddings.append(embedding)
         
         return {
             "success": True,
             "doc_id": doc_id,
-            "message": f"Document '{document.title}' added successfully for user {user.username}"
+            "message": f"Document '{document.title}' added successfully for test user"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error adding document: {str(e)}")
@@ -415,12 +418,10 @@ Context:
         raise HTTPException(status_code=500, detail=f"Error searching documents: {str(e)}")
 
 @app.get("/documents", response_model=List[Document])
-async def list_documents(user: User = Depends(verify_token)):
-    """List all documents for the authenticated user"""
+async def list_documents():
+    """List all documents (temporarily no auth required)"""
     try:
-        # Filter documents by user_id
-        user_documents = [doc for doc in documents if doc.get("user_id") == user.id]
-        
+        # Return all documents for testing
         return [
             Document(
                 url=doc["url"],
@@ -429,40 +430,34 @@ async def list_documents(user: User = Depends(verify_token)):
                 timestamp=doc["timestamp"],
                 user_id=doc.get("user_id")
             )
-            for doc in user_documents
+            for doc in documents
         ]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error listing documents: {str(e)}")
 
 @app.delete("/clear-documents")
-async def clear_documents(user: User = Depends(verify_token)):
-    """Clear all documents for the authenticated user"""
+async def clear_documents():
+    """Clear all documents (temporarily no auth required)"""
     try:
         global documents, embeddings
         
-        # Find indices of user's documents
-        user_indices = [i for i, doc in enumerate(documents) if doc.get("user_id") == user.id]
+        # Clear all documents for testing
+        document_count = len(documents)
+        documents.clear()
+        embeddings.clear()
         
-        # Remove user's documents and embeddings (in reverse order to maintain indices)
-        for idx in reversed(user_indices):
-            documents.pop(idx)
-            embeddings.pop(idx)
-        
-        return {"success": True, "message": f"Cleared {len(user_indices)} documents for user {user.username}"}
+        return {"success": True, "message": f"Cleared {document_count} documents"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error clearing documents: {str(e)}")
 
 @app.get("/stats")
-async def get_stats(user: User = Depends(verify_token)):
-    """Get system statistics for the authenticated user"""
+async def get_stats():
+    """Get system statistics (temporarily no auth required)"""
     try:
-        # Count user's documents
-        user_document_count = len([doc for doc in documents if doc.get("user_id") == user.id])
-        
         return {
-            "user_id": user.id,
-            "username": user.username,
-            "document_count": user_document_count,
+            "user_id": "test_user",
+            "username": "test_user",
+            "document_count": len(documents),
             "total_documents": len(documents),
             "embedding_model": "all-MiniLM-L6-v2",
             "vector_db": "In-Memory (NumPy + scikit-learn)",
