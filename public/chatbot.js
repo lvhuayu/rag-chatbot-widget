@@ -4,6 +4,10 @@
     // Global RAG service instance
     let ragService = null;
     let contentIngestionPerformed = false;
+    let authToken = null;
+    let userId = null;
+    let privateKey = null;
+    let publicKey = null;
     
     // Global function to initialize the chatbot
     window.initRAGChatbot = async function(config) {
@@ -19,11 +23,53 @@
             ingestEndpoint: 'https://yourdomain.com/api/ingest',
             enableRAG: true,
             ragThreshold: 0.7, // Minimum similarity threshold for RAG results
-            maxRAGResults: 3   // Maximum number of RAG results to include
+            maxRAGResults: 3,   // Maximum number of RAG results to include
+            backendUrl: 'http://localhost:8001', // RAG backend URL - CHANGE THIS TO YOUR BACKEND
+            ollamaUrl: 'http://localhost:11434',  // Ollama URL - CHANGE THIS IF NEEDED
+            
+            // Authentication configuration
+            auth: {
+                token: null,           // JWT token for authentication
+                username: null,        // Username for login
+                password: null,        // Password for login
+                autoLogin: false,      // Auto-login with provided credentials
+                loginEndpoint: '/api/auth/login', // Login endpoint
+                tokenKey: 'rag_chatbot_token', // Local storage key for token
+                
+                // Public/Private Key Authentication
+                useKeyAuth: true,      // Enable public/private key authentication
+                keyAuthEndpoint: '/auth/request-challenge', // Challenge endpoint
+                keyAuthVerifyEndpoint: '/auth/verify-challenge', // Verify endpoint
+                keyStorageKey: 'rag_chatbot_keys', // Local storage key for keys
+                publicKey: `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyoVzODARtoIk2jWbUGjU
+rLlrCHK4oofLuFilKZvR/+p197qj5uqhJnVL4QsCRcZl0CBRqPDfwFzubjM20O4b
+1qJvfD07emHCclqWWu49Gxwrb0nr//qVjltDNrQZvyKSObC+wXDlttHaSQ0xKzYz
+/l2VNvsSc6DxwQHtXl65obzKQOx6BhZpRL9kv6HIuAo2MTCYbPke1R4uAndormnh
+8MlJ/WPPyNNFuB2EPdHxB/Ks5cTU5MS5brrWNsEApyp6deF2lNkFF9UEjXh4GOTG
+veMY/OjJ5eLC0rY5VS8PwrnSAf8Vq2fgiYocqgz/5qk5JWs4274mCb6feTATpcZT
+iwIDAQAB
+-----END PUBLIC KEY-----`,
+                
+                // Registered Key Authentication (from upload portal)
+                useRegisteredKey: false, // Use public key from registration
+                registeredUsername: null, // Username to fetch public key for
+                uploadPortalUrl: 'http://localhost:3001', // Upload portal URL
+                publicKeyEndpoint: '/api/auth/public-key' // Public key endpoint
+            }
         };
         
         // Merge user config with defaults
         const finalConfig = Object.assign({}, defaultConfig, config);
+        
+        // Validate backend URL
+        if (!finalConfig.backendUrl || finalConfig.backendUrl === 'http://localhost:8001') {
+            console.warn('⚠️ Please configure backendUrl to point to your RAG backend server!');
+            console.warn('⚠️ Example: initRAGChatbot({ backendUrl: "https://your-backend.com" })');
+        }
+        
+        // Handle authentication
+        await handleAuthentication(finalConfig);
         
         // Initialize RAG service if enabled
         if (finalConfig.enableRAG) {
@@ -31,6 +77,14 @@
                 // ragService = new RAGService();
                 // await ragService.initialize();
                 console.log('✅ RAG service initialized successfully');
+                console.log('🔗 Backend URL:', finalConfig.backendUrl);
+                console.log('🔐 Authentication:', authToken ? 'Authenticated' : 'Not authenticated');
+                if (finalConfig.auth.useKeyAuth) {
+                    console.log('🔑 Key Auth:', publicKey ? 'Keys generated' : 'No keys');
+                }
+                if (finalConfig.auth.useRegisteredKey) {
+                    console.log('🔑 Registered Key Auth:', publicKey ? 'Key loaded' : 'No key');
+                }
             } catch (error) {
                 console.error('❌ Failed to initialize RAG service:', error);
                 finalConfig.enableRAG = false;
@@ -76,7 +130,9 @@
         iframe.onload = function() {
             iframe.contentWindow.postMessage({
                 type: 'CHATBOT_CONFIG',
-                config: finalConfig
+                config: finalConfig,
+                authToken: authToken,
+                userId: userId
             }, '*');
         };
         
@@ -86,6 +142,323 @@
         // Return iframe reference for potential future use
         return iframe;
     };
+    
+    /**
+     * Handle user authentication
+     * @param {Object} config - The chatbot configuration
+     */
+    async function handleAuthentication(config) {
+        try {
+            // Check if we have a stored token
+            const storedToken = localStorage.getItem(config.auth.tokenKey);
+            if (storedToken) {
+                authToken = storedToken;
+                console.log('✅ Using stored authentication token');
+                return;
+            }
+            
+            // Check if token is provided in config
+            if (config.auth.token) {
+                authToken = config.auth.token;
+                localStorage.setItem(config.auth.tokenKey, authToken);
+                console.log('✅ Using provided authentication token');
+                return;
+            }
+            
+            // Handle registered key authentication (from upload portal)
+            if (config.auth.useRegisteredKey) {
+                await handleRegisteredKeyAuthentication(config);
+                return;
+            }
+            
+            // Handle public/private key authentication
+            if (config.auth.useKeyAuth) {
+                await handleKeyAuthentication(config);
+                return;
+            }
+            
+            // Auto-login if credentials are provided
+            if (config.auth.autoLogin && config.auth.username && config.auth.password) {
+                await performLogin(config);
+                return;
+            }
+            
+            console.warn('⚠️ No authentication provided. Some features may be limited.');
+            
+        } catch (error) {
+            console.error('❌ Authentication error:', error);
+        }
+    }
+    
+    /**
+     * Handle registered key authentication (from upload portal)
+     * @param {Object} config - The chatbot configuration
+     */
+    async function handleRegisteredKeyAuthentication(config) {
+        try {
+            if (!config.auth.registeredUsername) {
+                throw new Error('Username is required for registered key authentication');
+            }
+            
+            // Fetch public key from upload portal
+            const publicKeyResponse = await fetch(`${config.auth.uploadPortalUrl}${config.auth.publicKeyEndpoint}/${config.auth.registeredUsername}`);
+            
+            if (!publicKeyResponse.ok) {
+                const error = await publicKeyResponse.json();
+                throw new Error(error.message || 'Failed to fetch public key');
+            }
+            
+            const publicKeyData = await publicKeyResponse.json();
+            publicKey = publicKeyData.publicKey;
+            
+            console.log('✅ Registered public key loaded for:', config.auth.registeredUsername);
+            
+            // Use simplified registered key authentication
+            const authResponse = await fetch(`${config.backendUrl}/auth/register-key`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    public_key: publicKey,
+                    username: config.auth.registeredUsername
+                })
+            });
+            
+            if (!authResponse.ok) {
+                const error = await authResponse.json();
+                throw new Error(error.detail || 'Registered key authentication failed');
+            }
+            
+            const authData = await authResponse.json();
+            
+            // Store token
+            authToken = authData.token;
+            userId = authData.user_id;
+            localStorage.setItem(config.auth.tokenKey, authToken);
+            
+            console.log('✅ Registered key authentication successful');
+            console.log('👤 User:', authData.username);
+            
+        } catch (error) {
+            console.error('❌ Registered key authentication failed:', error);
+            throw error;
+        }
+    }
+    
+    /**
+     * Handle public/private key authentication
+     * @param {Object} config - The chatbot configuration
+     */
+    async function handleKeyAuthentication(config) {
+        try {
+            // Generate or load keys
+            await generateOrLoadKeys(config);
+            
+            // Request challenge from backend
+            const challengeResponse = await requestChallenge(config);
+            
+            // Sign the challenge with private key
+            const signature = await signChallenge(challengeResponse.challenge);
+            
+            // Verify challenge and get token
+            const verifyResponse = await verifyChallenge(config, challengeResponse.challenge_id, signature);
+            
+            // Store token
+            authToken = verifyResponse.token;
+            userId = verifyResponse.user_id;
+            localStorage.setItem(config.auth.tokenKey, authToken);
+            
+            console.log('✅ Key authentication successful');
+            console.log('👤 User:', verifyResponse.username);
+            
+        } catch (error) {
+            console.error('❌ Key authentication failed:', error);
+            throw error;
+        }
+    }
+    
+    /**
+     * Generate or load public/private keys
+     * @param {Object} config - The chatbot configuration
+     */
+    async function generateOrLoadKeys(config) {
+        try {
+            // Check if keys are stored
+            const storedKeys = localStorage.getItem(config.auth.keyStorageKey);
+            if (storedKeys) {
+                const keys = JSON.parse(storedKeys);
+                privateKey = keys.privateKey;
+                publicKey = keys.publicKey;
+                console.log('✅ Loaded stored keys');
+                return;
+            }
+            
+            // Generate new keys (simplified implementation)
+            privateKey = generateRandomKey();
+            publicKey = generatePublicKey(privateKey);
+            
+            // Store keys
+            localStorage.setItem(config.auth.keyStorageKey, JSON.stringify({
+                privateKey: privateKey,
+                publicKey: publicKey
+            }));
+            
+            console.log('✅ Generated new keys');
+            
+        } catch (error) {
+            console.error('❌ Error generating keys:', error);
+            throw error;
+        }
+    }
+    
+    /**
+     * Generate a random private key
+     * @returns {string} Private key
+     */
+    function generateRandomKey() {
+        const array = new Uint8Array(32);
+        crypto.getRandomValues(array);
+        return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+    
+    /**
+     * Generate public key from private key (simplified)
+     * @param {string} privateKey - The private key
+     * @returns {string} Public key
+     */
+    function generatePublicKey(privateKey) {
+        // In a real implementation, this would use proper cryptographic functions
+        // For now, we'll use a simple hash-based approach
+        const encoder = new TextEncoder();
+        const data = encoder.encode(privateKey);
+        return crypto.subtle.digest('SHA-256', data).then(hash => {
+            return Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('');
+        });
+    }
+    
+    /**
+     * Request challenge from backend
+     * @param {Object} config - The chatbot configuration
+     * @returns {Object} Challenge response
+     */
+    async function requestChallenge(config) {
+        const challengeUrl = `${config.backendUrl}${config.auth.keyAuthEndpoint}`;
+        
+        const response = await fetch(challengeUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                public_key: publicKey,
+                username: config.auth.username || 'chatbot_user'
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Challenge request failed: ${response.status}`);
+        }
+        
+        return await response.json();
+    }
+    
+    /**
+     * Sign challenge with private key
+     * @param {string} challenge - The challenge to sign
+     * @returns {string} Signature
+     */
+    async function signChallenge(challenge) {
+        // In a real implementation, this would use proper cryptographic signing
+        // For now, we'll use a simple hash-based approach
+        const encoder = new TextEncoder();
+        const data = encoder.encode(`${publicKey}:${challenge}`);
+        const hash = await crypto.subtle.digest('SHA-256', data);
+        return Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+    
+    /**
+     * Verify challenge and get token
+     * @param {Object} config - The chatbot configuration
+     * @param {string} challengeId - The challenge ID
+     * @param {string} signature - The signature
+     * @returns {Object} Verification response
+     */
+    async function verifyChallenge(config, challengeId, signature) {
+        const verifyUrl = `${config.backendUrl}${config.auth.keyAuthVerifyEndpoint}`;
+        
+        const response = await fetch(verifyUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                challenge_id: challengeId,
+                public_key: publicKey,
+                signature: signature
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error(`Challenge verification failed: ${response.status}`);
+        }
+        
+        return await response.json();
+    }
+    
+    /**
+     * Perform login with username/password
+     * @param {Object} config - The chatbot configuration
+     */
+    async function performLogin(config) {
+        try {
+            const loginUrl = `${config.backendUrl}${config.auth.loginEndpoint}`;
+            
+            const response = await fetch(loginUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username: config.auth.username,
+                    password: config.auth.password
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Login failed: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            authToken = data.token;
+            userId = data.user?.id;
+            
+            // Store token for future use
+            localStorage.setItem(config.auth.tokenKey, authToken);
+            
+            console.log('✅ Login successful');
+            
+        } catch (error) {
+            console.error('❌ Login failed:', error);
+            throw error;
+        }
+    }
+    
+    /**
+     * Get authentication headers for API calls
+     * @returns {Object} Headers object with authentication
+     */
+    function getAuthHeaders() {
+        const headers = {
+            'Content-Type': 'application/json',
+        };
+        
+        if (authToken) {
+            headers['Authorization'] = `Bearer ${authToken}`;
+        }
+        
+        return headers;
+    }
     
     /**
      * Extract visible text content from the page body
@@ -182,17 +555,44 @@
      * @returns {Array} Relevant documents with similarity scores
      */
     async function searchRAGContext(query, config) {
-        if (!config.enableRAG || !ragService) {
+        if (!config.enableRAG) {
             return [];
         }
         
         try {
-            const results = await ragService.searchDocuments(query, config.maxRAGResults);
+            // Make authenticated request to RAG backend
+            const searchUrl = `${config.backendUrl}/search`;
+            
+            const response = await fetch(searchUrl, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                    query: query,
+                    max_results: config.maxRAGResults,
+                    threshold: config.ragThreshold
+                })
+            });
+            
+            if (!response.ok) {
+                if (response.status === 401) {
+                    console.error('❌ Authentication failed. Please login again.');
+                    // Clear invalid token
+                    localStorage.removeItem(config.auth.tokenKey);
+                    authToken = null;
+                } else {
+                    console.error('❌ RAG search failed:', response.status);
+                }
+                return [];
+            }
+            
+            const data = await response.json();
             
             // Filter by similarity threshold
-            const relevantResults = results.filter(result => 
+            const relevantResults = data.results.filter(result => 
                 result.similarity >= config.ragThreshold
             );
+            
+            console.log(`🔍 Found ${relevantResults.length} relevant documents for query: "${query}"`);
             
             return relevantResults;
             

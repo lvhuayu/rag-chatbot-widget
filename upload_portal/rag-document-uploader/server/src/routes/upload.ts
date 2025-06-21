@@ -65,11 +65,12 @@ async function processAndIndexFile(file: Express.Multer.File, description: strin
             content = `Description: ${description}\n\n${content}`;
         }
 
-        // Send to Python RAG backend
+        // Send to Python RAG backend with user_id
         await axios.post(RAG_BACKEND_URL, {
             url: file.originalname,
             title: file.originalname,
             content: content,
+            user_id: userId  // Include user_id for user-scoped storage
         });
 
         // Save document metadata to database
@@ -159,6 +160,42 @@ router.get('/documents', authenticateToken, async (req: AuthRequest, res) => {
     } catch (error) {
         console.error('Error fetching documents:', error);
         res.status(500).send({ message: 'Error fetching documents.' });
+    }
+});
+
+// Route to delete a specific document
+router.delete('/documents/:id', authenticateToken, async (req: AuthRequest, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).send({ message: 'User not authenticated.' });
+        }
+
+        const documentId = req.params.id;
+
+        // Find the document and ensure it belongs to the authenticated user
+        const document = await prisma.document.findFirst({
+            where: { 
+                id: documentId,
+                userId: req.user.id 
+            }
+        });
+
+        if (!document) {
+            return res.status(404).send({ message: 'Document not found or access denied.' });
+        }
+
+        // Delete the document from the database
+        await prisma.document.delete({
+            where: { id: documentId }
+        });
+
+        // TODO: If you want to also remove from the Python RAG backend, add that logic here
+        // Example: await axios.delete(`http://localhost:8001/remove-document/${document.originalName}`);
+
+        res.json({ message: 'Document deleted successfully.' });
+    } catch (error) {
+        console.error('Error deleting document:', error);
+        res.status(500).send({ message: 'Error deleting document.' });
     }
 });
 

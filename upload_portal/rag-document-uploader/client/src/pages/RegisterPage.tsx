@@ -10,6 +10,8 @@ const RegisterPage = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [registrationSuccess, setRegistrationSuccess] = useState(false);
+    const [publicKey, setPublicKey] = useState<string>('');
     const navigate = useNavigate();
 
     const validateForm = () => {
@@ -41,13 +43,92 @@ const RegisterPage = () => {
         try {
             const response = await axios.post('/api/auth/register', { username, password });
             localStorage.setItem('token', response.data.token);
-            navigate('/upload');
+            
+            // Store the public key and show success message
+            setPublicKey(response.data.publicKey);
+            setRegistrationSuccess(true);
+            
+            // Remove auto-redirect - let user manually navigate when ready
+            
         } catch (err: any) {
             setError(err.response?.data?.message || 'Registration failed. Please try again.');
         } finally {
             setIsLoading(false);
         }
     };
+
+    const copyPublicKey = () => {
+        navigator.clipboard.writeText(publicKey);
+        // You could add a toast notification here
+    };
+
+    if (registrationSuccess) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
+                <div className="w-full max-w-2xl">
+                    {/* Success Header */}
+                    <div className="text-center mb-8">
+                        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-green-600 to-emerald-600 rounded-full mb-4">
+                            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <h1 className="text-3xl font-bold text-gray-900 mb-2">Account Created Successfully!</h1>
+                        <p className="text-gray-600">Your public key has been generated for chatbot authentication</p>
+                    </div>
+
+                    {/* Public Key Display */}
+                    <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+                        <h2 className="text-xl font-semibold text-gray-900 mb-4">🔑 Your Public Key</h2>
+                        <p className="text-gray-600 mb-4">
+                            <strong>Important:</strong> Copy this public key and include it in your chatbot configuration to enable secure authentication.
+                        </p>
+                        
+                        <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                            <div className="flex justify-between items-start mb-2">
+                                <label className="block text-sm font-medium text-gray-700">Public Key:</label>
+                                <button
+                                    onClick={copyPublicKey}
+                                    className="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors"
+                                >
+                                    Copy
+                                </button>
+                            </div>
+                            <textarea
+                                value={publicKey}
+                                readOnly
+                                className="w-full h-32 p-3 text-sm font-mono bg-white border border-gray-200 rounded resize-none"
+                                placeholder="Public key will appear here..."
+                            />
+                        </div>
+
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <h3 className="font-semibold text-blue-900 mb-2">📋 How to use this key:</h3>
+                            <ol className="text-sm text-blue-800 space-y-1">
+                                <li>1. Copy the public key above (click the "Copy" button)</li>
+                                <li>2. In your chatbot configuration, set: <code className="bg-blue-100 px-1 rounded">useRegisteredKey: true</code></li>
+                                <li>3. Set your username: <code className="bg-blue-100 px-1 rounded">registeredUsername: '{username}'</code></li>
+                                <li>4. The chatbot will automatically use this key for authentication</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    {/* Navigation */}
+                    <div className="text-center space-y-3">
+                        <p className="text-sm text-gray-600 mb-4">
+                            Once you've copied your public key, you can proceed to upload documents.
+                        </p>
+                        <Link 
+                            to="/upload" 
+                            className="inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-200"
+                        >
+                            Continue to Upload Page
+                        </Link>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-4">
@@ -61,10 +142,11 @@ const RegisterPage = () => {
                     </div>
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">Create account</h1>
                     <p className="text-gray-600">Join RAG Portal to start uploading documents</p>
+                    <p className="text-sm text-blue-600 mt-2">🔐 Public/Private keys will be generated automatically</p>
                 </div>
 
                 {/* Registration Form */}
-                <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8">
+                <div className="bg-white rounded-lg shadow-lg p-6">
                     <form onSubmit={handleRegister} className="space-y-6">
                         {/* Username Field */}
                         <div>
@@ -163,7 +245,7 @@ const RegisterPage = () => {
                         </div>
 
                         {/* Password Match Indicator */}
-                        {confirmPassword && (
+                        {password && confirmPassword && (
                             <div className={`flex items-center space-x-2 text-sm ${password === confirmPassword ? 'text-green-600' : 'text-red-600'}`}>
                                 {password === confirmPassword ? (
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

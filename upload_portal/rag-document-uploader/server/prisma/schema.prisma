@@ -14,11 +14,13 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(cuid())
-  username  String    @unique
-  password  String
-  documents Document[]
-  createdAt DateTime  @default(now())
+  id         String    @id @default(cuid())
+  username   String    @unique
+  password   String
+  publicKey  String?   // Store the public key for chatbot authentication
+  privateKey String?   // Store the private key (encrypted)
+  documents  Document[]
+  createdAt  DateTime  @default(now())
 }
 
 model Document {

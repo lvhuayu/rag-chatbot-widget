@@ -18,7 +18,7 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 // Middleware for parsing application/json
 app.use(express.json());
 
-// Use the auth routes
+// Use the auth routes (includes admin routes)
 app.use('/api/auth', authRoutes);
 
 // Use the upload routes
@@ -27,6 +27,11 @@ app.use('/api/upload', uploadRoutes);
 // Add a root GET route for a friendly message
 app.get('/', (req, res) => {
   res.send('RAG Uploader backend is running.');
+});
+
+// Add a health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', message: 'Server is running' });
 });
 
 // Start the server
