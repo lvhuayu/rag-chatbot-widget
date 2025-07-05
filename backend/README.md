@@ -21,7 +21,7 @@ pip install -r requirements.txt
 ### 2. Run the Backend Server
 
 ```bash
-python rag_server.py
+python rag_server_simple.py
 ```
 
 The server will start on `http://localhost:8000`
