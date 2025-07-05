@@ -11,6 +11,9 @@
     
     // Global function to initialize the chatbot
     window.initRAGChatbot = async function(config) {
+        // Extract userId from various sources
+        userId = extractUserId(config);
+        
         // Default configuration
         const defaultConfig = {
             selector: null,
@@ -26,6 +29,9 @@
             maxRAGResults: 3,   // Maximum number of RAG results to include
             backendUrl: 'http://localhost:8001', // RAG backend URL - CHANGE THIS TO YOUR BACKEND
             ollamaUrl: 'http://localhost:11434',  // Ollama URL - CHANGE THIS IF NEEDED
+            
+            // Multi-tenant configuration
+            userId: userId, // Add userId to config
             
             // Authentication configuration
             auth: {
@@ -62,11 +68,22 @@ iwIDAQAB
         // Merge user config with defaults
         const finalConfig = Object.assign({}, defaultConfig, config);
         
+        // Validate userId
+        if (!finalConfig.userId) {
+            console.warn('⚠️ No userId provided. Using default user. For multi-tenant support, please provide a userId.');
+            finalConfig.userId = 'default_user';
+        }
+        
+        // Update global userId
+        userId = finalConfig.userId;
+        
         // Validate backend URL
         if (!finalConfig.backendUrl || finalConfig.backendUrl === 'http://localhost:8001') {
             console.warn('⚠️ Please configure backendUrl to point to your RAG backend server!');
             console.warn('⚠️ Example: initRAGChatbot({ backendUrl: "https://your-backend.com" })');
         }
+        
+        console.log('🔑 Multi-tenant setup:', { userId: finalConfig.userId });
         
         // Handle authentication
         await handleAuthentication(finalConfig);
@@ -79,6 +96,7 @@ iwIDAQAB
                 console.log('✅ RAG service initialized successfully');
                 console.log('🔗 Backend URL:', finalConfig.backendUrl);
                 console.log('🔐 Authentication:', authToken ? 'Authenticated' : 'Not authenticated');
+                console.log('👤 User ID:', finalConfig.userId);
                 if (finalConfig.auth.useKeyAuth) {
                     console.log('🔑 Key Auth:', publicKey ? 'Keys generated' : 'No keys');
                 }
@@ -142,6 +160,45 @@ iwIDAQAB
         // Return iframe reference for potential future use
         return iframe;
     };
+    
+    /**
+     * Extract userId from various sources
+     * @param {Object} config - The chatbot configuration
+     * @returns {string|null} The userId or null if not found
+     */
+    function extractUserId(config) {
+        // 1. Check if userId is provided in config
+        if (config && config.userId) {
+            return config.userId;
+        }
+        
+        // 2. Check if userId is provided in global config
+        if (window.__RAG_CHATBOT_CONFIG__ && window.__RAG_CHATBOT_CONFIG__.userId) {
+            return window.__RAG_CHATBOT_CONFIG__.userId;
+        }
+        
+        // 3. Check if userId is provided as data attribute on script tag
+        const currentScript = document.currentScript;
+        if (currentScript && currentScript.dataset.userId) {
+            return currentScript.dataset.userId;
+        }
+        
+        // 4. Check if userId is provided as data attribute on any script tag with chatbot.js
+        const scriptTags = document.querySelectorAll('script[src*="chatbot.js"]');
+        for (const script of scriptTags) {
+            if (script.dataset.userId) {
+                return script.dataset.userId;
+            }
+        }
+        
+        // 5. Check if userId is provided as data attribute on any element with data-rag-user-id
+        const elementWithUserId = document.querySelector('[data-rag-user-id]');
+        if (elementWithUserId) {
+            return elementWithUserId.dataset.ragUserId;
+        }
+        
+        return null;
+    }
     
     /**
      * Handle user authentication
@@ -506,7 +563,8 @@ iwIDAQAB
                 url: url,
                 title: title,
                 content: truncatedContent,
-                timestamp: timestamp
+                timestamp: timestamp,
+                user_id: config.userId // Include userId for multi-tenant support
             };
             
             // Add to RAG service if enabled
@@ -521,7 +579,8 @@ iwIDAQAB
                     url: url,
                     title: title,
                     content: truncatedContent,
-                    timestamp: timestamp
+                    timestamp: timestamp,
+                    user_id: config.userId // Include userId for multi-tenant support
                 };
                 
                 fetch(config.ingestEndpoint, {
@@ -568,8 +627,9 @@ iwIDAQAB
                 headers: getAuthHeaders(),
                 body: JSON.stringify({
                     query: query,
-                    max_results: config.maxRAGResults,
-                    threshold: config.ragThreshold
+                    top_k: config.maxRAGResults,
+                    threshold: config.ragThreshold,
+                    user_id: config.userId // Include userId for multi-tenant support
                 })
             });
             
@@ -587,12 +647,15 @@ iwIDAQAB
             
             const data = await response.json();
             
+            // Handle both old and new response formats
+            const documents = data.documents || data.results || [];
+            
             // Filter by similarity threshold
-            const relevantResults = data.results.filter(result => 
+            const relevantResults = documents.filter(result => 
                 result.similarity >= config.ragThreshold
             );
             
-            console.log(`🔍 Found ${relevantResults.length} relevant documents for query: "${query}"`);
+            console.log(`🔍 Found ${relevantResults.length} relevant documents for query: "${query}" (User: ${config.userId})`);
             
             return relevantResults;
             

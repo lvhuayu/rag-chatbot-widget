@@ -30,6 +30,7 @@ model Document {
   fileSize     Int
   description  String?
   status       String
+  ragDocId     String?  // Reference to RAG backend document ID
   createdAt    DateTime @default(now())
   user         User     @relation(fields: [userId], references: [id])
 }

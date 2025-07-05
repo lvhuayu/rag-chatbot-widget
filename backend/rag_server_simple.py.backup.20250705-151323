@@ -414,7 +414,7 @@ Answer:"""
         }
         llm_answer = None
         try:
-            ollama_response = requests.post(ollama_url, json=ollama_payload, timeout=60)
+            ollama_response = requests.post(ollama_url, json=ollama_payload, timeout=30)
             ollama_response.raise_for_status()
             llm_data = ollama_response.json()
             llm_answer = llm_data.get("response", "[No answer from LLM]")

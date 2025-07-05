@@ -30,6 +30,12 @@ const Navbar: React.FC = () => {
             Documents
           </Link>
           <Link 
+            to="/rag" 
+            className="text-gray-200 hover:text-green-300 transition-colors duration-200 font-medium px-3 py-2 rounded-lg hover:bg-gray-800/50"
+          >
+            🧠 RAG Management
+          </Link>
+          <Link 
             to="/users" 
             className="text-gray-200 hover:text-red-300 transition-colors duration-200 font-medium px-3 py-2 rounded-lg hover:bg-gray-800/50"
           >

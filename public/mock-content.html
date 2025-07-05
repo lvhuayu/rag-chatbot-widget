@@ -9,7 +9,242 @@
         .personal-info, .section { background: #f5f5f5; padding: 1em; border-radius: 8px; margin-bottom: 2em; }
         h2 { color: #764ba2; }
     </style>
-</head>
+
+    <!-- Navbar CSS Template -->
+    <!-- Navbar HTML Template -->
+<nav class="navbar">
+    <div class="nav-container">
+        <a href="index.html" class="nav-logo">🤖 RAG Chatbot</a>
+        
+        <button class="mobile-menu-toggle" onclick="toggleMobileMenu()">☰</button>
+        
+        <ul class="nav-menu" id="navMenu">
+            <li class="nav-item">
+                <a href="index.html" class="nav-link">🏠 Home</a>
+            </li>
+            
+            <li class="nav-item nav-dropdown">
+                <a href="#" class="nav-link">🧪 Demos & Examples</a>
+                <div class="nav-dropdown-content">
+                    <div class="dropdown-header">Basic Examples</div>
+                    <a href="chatbot-usage-example.html" class="dropdown-item">📝 Basic Usage Example</a>
+                    <a href="chat-ui.html" class="dropdown-item">💬 Chat UI Demo</a>
+                    <a href="mock-content.html" class="dropdown-item">📄 Mock Content Demo</a>
+                    
+                    <div class="dropdown-header">Multi-Tenant Examples</div>
+                    <a href="multi-tenant-example.html" class="dropdown-item">🏢 Multi-Tenant Demo</a>
+                    <a href="test-multi-tenant.html" class="dropdown-item">🔍 Multi-Tenant Test</a>
+                    
+                    <div class="dropdown-header">Authentication Examples</div>
+                    <a href="registered-key-example.html" class="dropdown-item">🔑 Registered Key Demo</a>
+                    <a href="test-registered-key-chatbot.html" class="dropdown-item">🔐 Registered Key Test</a>
+                    <a href="test-key-auth-chatbot.html" class="dropdown-item">🔒 Key Auth Test</a>
+                    <a href="test-authenticated-chatbot.html" class="dropdown-item">✅ Authenticated Test</a>
+                </div>
+            </li>
+            
+            <li class="nav-item nav-dropdown">
+                <a href="#" class="nav-link">🗄️ Database & Storage</a>
+                <div class="nav-dropdown-content">
+                    <div class="dropdown-header">Database Management</div>
+                    <a href="db-manager.html" class="dropdown-item">📊 Database Manager</a>
+                    
+                    <div class="dropdown-header">Storage Tools</div>
+                    <a href="add-sample-data.py" class="dropdown-item">➕ Add Sample Data</a>
+                    <a href="check-db.py" class="dropdown-item">🔍 Check Database</a>
+                    <a href="migrate_to_persistent.py" class="dropdown-item">🔄 Migration Tool</a>
+                </div>
+            </li>
+            
+            <li class="nav-item nav-dropdown">
+                <a href="#" class="nav-link">🔧 Development</a>
+                <div class="nav-dropdown-content">
+                    <div class="dropdown-header">Testing</div>
+                    <a href="test-python-backend.html" class="dropdown-item">🐍 Python Backend Test</a>
+                    <a href="test-persistent-storage.ps1" class="dropdown-item">💾 Storage Test</a>
+                    <a href="test-multi-tenant.ps1" class="dropdown-item">🏢 Multi-Tenant Test</a>
+                    
+                    <div class="dropdown-header">Scripts</div>
+                    <a href="chatbot.js" class="dropdown-item">📜 Chatbot.js</a>
+                    <a href="chatbot_python.js" class="dropdown-item">🐍 Chatbot Python.js</a>
+                    <a href="rag_service_client.js" class="dropdown-item">🔌 RAG Service Client</a>
+                    <a href="rag-service.js" class="dropdown-item">⚙️ RAG Service</a>
+                </div>
+            </li>
+            
+            <li class="nav-item">
+                <a href="https://github.com/your-repo/rag-chatbot-widget" class="nav-link">📚 Documentation</a>
+            </li>
+        </ul>
+    </div>
+</nav>
+
+
+    
+<style>
+    /* Navigation Styles */
+    .navbar {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+        transition: all 0.3s ease;
+    }
+    
+    .nav-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        height: 70px;
+    }
+    
+    .nav-logo {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #667eea;
+        text-decoration: none;
+    }
+    
+    .nav-menu {
+        display: flex;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        gap: 30px;
+    }
+    
+    .nav-item {
+        position: relative;
+    }
+    
+    .nav-link {
+        color: #333;
+        text-decoration: none;
+        font-weight: 500;
+        padding: 10px 15px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .nav-link:hover {
+        background: #667eea;
+        color: white;
+        transform: translateY(-2px);
+    }
+    
+    .nav-dropdown {
+        position: relative;
+    }
+    
+    .nav-dropdown-content {
+        position: absolute;
+        top: 100%;
+        left: 0;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        min-width: 250px;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-10px);
+        transition: all 0.3s ease;
+        padding: 10px 0;
+    }
+    
+    .nav-dropdown:hover .nav-dropdown-content {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+    }
+    
+    .dropdown-item {
+        display: block;
+        padding: 12px 20px;
+        color: #333;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        border-radius: 8px;
+        margin: 0 10px;
+    }
+    
+    .dropdown-item:hover {
+        background: #f8f9fa;
+        color: #667eea;
+        transform: translateX(5px);
+    }
+    
+    .dropdown-header {
+        padding: 8px 20px;
+        font-weight: bold;
+        color: #667eea;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    .mobile-menu-toggle {
+        display: none;
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        color: #667eea;
+        cursor: pointer;
+    }
+    
+    @media (max-width: 768px) {
+        .nav-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            flex-direction: column;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        }
+        
+        .nav-menu.active {
+            display: flex;
+        }
+        
+        .nav-dropdown-content {
+            position: static;
+            opacity: 1;
+            visibility: visible;
+            transform: none;
+            box-shadow: none;
+            margin-top: 10px;
+        }
+        
+        .mobile-menu-toggle {
+            display: block;
+        }
+    }
+    
+    /* Adjust body padding to account for fixed navbar */
+    body {
+        padding-top: 90px !important;
+    }
+    
+    /* Ensure content doesn't overlap with navbar */
+    .main-content {
+        margin-top: 20px;
+    }
+</style>
+
+
+    </head>
 <body>
     <h1>Mock Content for RAG Chatbot</h1>
     <div class="personal-info">
@@ -99,5 +334,13 @@
             }, 100);
         }
     </script>
-</body>
+
+    <!-- Mobile Menu JavaScript -->
+<script>
+function toggleMobileMenu() {
+    const navMenu = document.getElementById('navMenu');
+    navMenu.classList.toggle('active');
+}
+</script> 
+    </body>
 </html> 

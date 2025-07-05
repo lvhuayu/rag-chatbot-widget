@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
-import { FileText, File, FileArchive, Trash2, RefreshCw } from 'lucide-react';
+import { FileText, File, FileArchive, Trash2, RefreshCw, Brain } from 'lucide-react';
 
 const getFileIcon = (fileName: string) => {
     if (fileName.endsWith('.pdf')) return <File color="red" className="h-8 w-8" />;
@@ -158,6 +158,12 @@ const DocumentsPage: React.FC = () => {
                                                 </>
                                             )}
                                         </span>
+                                        {doc.ragDocId && (
+                                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-900/30 text-blue-300 border border-blue-500/30">
+                                                <Brain className="w-3 h-3 mr-1" />
+                                                RAG Indexed
+                                            </span>
+                                        )}
                                         <button
                                             onClick={() => handleDelete(doc.id)}
                                             className="ml-2 p-2 text-red-300 rounded-lg hover:bg-red-900/30 hover:text-red-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-all duration-200"

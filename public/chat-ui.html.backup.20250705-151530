@@ -515,16 +515,11 @@
                 
                 console.log('🔗 Sending request to:', backendUrl);
                 console.log('🔐 Authentication:', authToken ? 'Authenticated' : 'Not authenticated');
-                console.log('👤 User ID:', userId || 'Not provided');
                 
                 const response = await fetch(`${backendUrl}/search`, {
                     method: 'POST',
                     headers: getAuthHeaders(),
-                    body: JSON.stringify({ 
-                        query: userMessage, 
-                        top_k: topK,
-                        user_id: userId 
-                    })
+                    body: JSON.stringify({ query: userMessage, top_k: topK })
                 });
                 
                 if (!response.ok) {

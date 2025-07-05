@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import UploadPage from './pages/UploadPage';
 import DocumentsPage from './pages/DocumentsPage';
+import RAGManagementPage from './pages/RAGManagementPage';
 import UsersPage from './pages/UsersPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import Navbar from './components/Navbar';
@@ -20,6 +21,9 @@ function App() {
         </Route>
         <Route path="/documents" element={<ProtectedRoute />}>
           <Route path="/documents" element={<DocumentsPage />} />
+        </Route>
+        <Route path="/rag" element={<ProtectedRoute />}>
+          <Route path="/rag" element={<RAGManagementPage />} />
         </Route>
         <Route path="/users" element={<UsersPage />} />
         <Route path="*" element={<Navigate to="/upload" />} />
