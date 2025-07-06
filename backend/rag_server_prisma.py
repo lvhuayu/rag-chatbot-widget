@@ -1,64 +1,70 @@
-from fastapi import FastAPI, HTTPException, Depends, Header
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
-from sentence_transformers import SentenceTransformer
-import uuid
-from datetime import datetime, timedelta
-import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
+#!/usr/bin/env python3
+"""
+RAG Chatbot Backend with Prisma Storage
+Unified database using Prisma ORM for both user management and RAG documents
+"""
+
+import os
+import sys
 import json
-import requests
-import jwt
+import uuid
 import secrets
 import hashlib
-import base64
-from functools import wraps
-from rag_storage import get_storage, init_storage
+import requests
+import numpy as np
+from datetime import datetime, timedelta
+from typing import List, Dict, Any, Optional
+from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import jwt
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
 
-app = FastAPI(title="RAG Chatbot Backend (Simple)", version="1.0.0")
+# Add the parent directory to the path to import the Prisma storage
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from backend.rag_storage_prisma import PrismaRAGStorage
 
-# Enable CORS for frontend
+# Initialize FastAPI app
+app = FastAPI(title="RAG Chatbot Backend (Prisma)", version="2.0.0")
+
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your frontend domain
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# JWT Configuration
-JWT_SECRET = "your-secret-key"  # In production, use environment variable
+# Security
+security = HTTPBearer()
+JWT_SECRET = "your-secret-key-change-in-production"
 JWT_ALGORITHM = "HS256"
 
-# Security scheme
-security = HTTPBearer()
-
-# In-memory storage for challenges and public keys
-challenges = {}  # {challenge_id: {"challenge": str, "public_key": str, "timestamp": datetime}}
-public_keys = {}  # {user_id: public_key}
-user_sessions = {}  # {user_id: {"username": str, "public_key": str}}
-
-# Initialize embedding model and persistent storage
-print("Loading embedding model...")
+# Initialize storage and embedding model
+storage = PrismaRAGStorage()
 embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
 
-print("Initializing persistent SQLite storage...")
-storage = init_storage("rag_database.db")
+# In-memory storage for challenges and sessions (in production, use Redis)
+challenges = {}
+public_keys = {}
+user_sessions = {}
 
+# Pydantic models
 class Document(BaseModel):
     url: str
     title: str
     content: str
     timestamp: Optional[str] = None
-    user_id: Optional[str] = None  # Add user_id field
+    user_id: Optional[str] = None
 
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 3
     threshold: Optional[float] = 0.0
-    user_id: Optional[str] = None  # Add user_id for multi-tenant support
+    user_id: Optional[str] = None
 
 class SearchResult(BaseModel):
     document: Document
@@ -92,7 +98,6 @@ class VerifyChallengeResponse(BaseModel):
     username: str
     expires_in: int
 
-# Add new model for registered key authentication
 class RegisteredKeyAuthRequest(BaseModel):
     public_key: str
     username: str
@@ -134,7 +139,7 @@ def verify_signature(public_key: str, challenge: str, signature: str) -> bool:
 
 @app.get("/")
 async def root():
-    return {"message": "RAG Chatbot Backend API (Simple)", "status": "running"}
+    return {"message": "RAG Chatbot Backend API (Prisma)", "status": "running"}
 
 @app.get("/health")
 async def health_check():
@@ -142,7 +147,7 @@ async def health_check():
     return {
         "status": "healthy", 
         "model": "all-MiniLM-L6-v2", 
-        "storage": "SQLite Persistent",
+        "storage": "Prisma Unified Database",
         "database_info": db_info
     }
 
@@ -277,9 +282,9 @@ async def get_current_user():
     # Create a default user for testing
     default_user = User(id="test_user", username="test_user")
     return {
-        "user_id": default_user.id,
+        "id": default_user.id,
         "username": default_user.username,
-        "public_key": "test_public_key"
+        "message": "Using default test user (no authentication required)"
     }
 
 @app.post("/add-document", response_model=Dict[str, Any])
@@ -289,7 +294,7 @@ async def add_document(document: Document):
         # Generate embedding
         embedding = embedding_model.encode(document.content).tolist()
         
-        # Add to persistent storage with user_id
+        # Add to Prisma storage with user_id
         user_id = document.user_id or "default_user"
         
         # Let the storage layer handle the uniqueness check and ID generation
@@ -304,7 +309,9 @@ async def add_document(document: Document):
         )
         
         if not result["success"]:
-            raise HTTPException(status_code=500, detail="Failed to save document to storage")
+            # Log the error returned by storage
+            print(f"[ERROR] Storage add_document_with_uniqueness failed: {result.get('error')}")
+            raise HTTPException(status_code=500, detail=f"Failed to save document to storage: {result.get('error')}")
         
         action = result["action"]
         doc_id = result["doc_id"]
@@ -326,13 +333,16 @@ async def add_document(document: Document):
                 "action": "added"
             }
     except Exception as e:
+        import traceback
+        print("[EXCEPTION] Error in /add-document endpoint:")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error adding document: {str(e)}")
 
 @app.post("/search", response_model=RAGResponse)
 async def search_documents(request: SearchRequest):
     """Search for relevant documents with multi-tenant support"""
     try:
-        # Get documents from persistent storage
+        # Get documents from Prisma storage
         if request.user_id:
             # Get documents for specific user
             user_documents, user_embeddings = storage.get_documents_by_user(request.user_id)
@@ -380,6 +390,7 @@ async def search_documents(request: SearchRequest):
                     document=document,
                     similarity=float(similarity)
                 ))
+        
         # Build context
         context = None
         if search_results:
@@ -390,12 +401,14 @@ async def search_documents(request: SearchRequest):
                     f"{result.document.content}\n"
                 )
             context = "\n".join(context_parts)
+        
         # Log the search results for debugging
         print(f"[RAG SEARCH] Query: '{request.query}', Found: {len(search_results)} documents")
         for r in search_results:
             print(f"  - Title: {r.document.title}, Similarity: {r.similarity:.3f}")
         if not search_results:
             print("  - No relevant documents found.")
+        
         # --- OLLAMA INTEGRATION ---
         ollama_url = "http://localhost:11434/api/generate"
         
@@ -445,7 +458,7 @@ Answer:"""
 async def list_documents(user_id: Optional[str] = None):
     """List documents with optional user filtering"""
     try:
-        # Get documents from persistent storage
+        # Get documents from Prisma storage
         documents_list = storage.get_user_documents_list(user_id=user_id, limit=1000)
         
         # Convert to Document objects
@@ -469,35 +482,32 @@ async def list_documents(user_id: Optional[str] = None):
 async def clear_documents():
     """Clear all documents (temporarily no auth required)"""
     try:
-        # Clear all documents from persistent storage
+        # Clear all documents from Prisma storage
         success = storage.clear_all_documents()
         
         if not success:
             raise HTTPException(status_code=500, detail="Failed to clear documents from storage")
         
-        return {"success": True, "message": "Cleared all documents from persistent storage"}
+        return {"success": True, "message": "Cleared all documents from Prisma storage"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error clearing documents: {str(e)}")
 
 @app.get("/stats")
 async def get_stats(user_id: Optional[str] = None):
-    """Get system statistics with optional user filtering"""
+    """Get statistics about documents"""
     try:
-        # Get stats from persistent storage
-        stats = storage.get_user_stats(user_id)
-        
-        # Add additional system info
-        stats.update({
-            "embedding_model": "all-MiniLM-L6-v2",
-            "vector_db": "SQLite Persistent",
-            "status": "running",
-            "multi_tenant": True
-        })
-        
+        stats = storage.get_user_stats(user_id=user_id)
         return stats
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error getting stats: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
+    print("🚀 Starting RAG Chatbot Backend with Prisma Storage...")
+    print("📊 Database: Unified Prisma SQLite")
+    print("🧠 Model: all-MiniLM-L6-v2")
+    print("🔗 API: http://localhost:8001")
+    print("📚 Health: http://localhost:8001/health")
+    print("=" * 50)
+    
     uvicorn.run(app, host="0.0.0.0", port=8001) 

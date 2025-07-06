@@ -656,7 +656,7 @@
                         </div>
                         <div class="form-group">
                             <label for="addTimestamp">Timestamp:</label>
-                            <input type="text" id="addTimestamp" placeholder="2024-01-01T00:00:00">
+                            <input type="text" id="addTimestamp" placeholder="2024-01-01T00:00:00 (leave empty for current time in PST)">
                         </div>
                     </div>
                     <div class="form-group">
@@ -770,7 +770,7 @@
                                 <th>User ID</th>
                                 <th>URL</th>
                                 <th>Content Preview</th>
-                                <th>Timestamp</th>
+                                <th>Timestamp (PST)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -786,7 +786,7 @@
                             <td><span class="user-badge">${escapeHtml(doc.user_id || 'unknown')}</span></td>
                             <td><a href="${escapeHtml(doc.url)}" target="_blank">${escapeHtml(doc.url)}</a></td>
                             <td class="content-preview">${escapeHtml(contentPreview)}</td>
-                            <td>${escapeHtml(doc.timestamp || 'N/A')}</td>
+                            <td>${formatTimestampPST(doc.timestamp)}</td>
                         </tr>
                     `;
                 });
@@ -1057,7 +1057,12 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    showSuccess('Document added successfully!');
+                    const action = result.action || 'added';
+                    const message = action === 'updated' ? 
+                        'Document updated successfully!' : 
+                        'Document added successfully!';
+                    showSuccess(message);
+                    
                     // Clear form
                     document.getElementById('addUrl').value = '';
                     document.getElementById('addTitle').value = '';
@@ -1190,6 +1195,38 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        // Convert timestamp to PST
+        function formatTimestampPST(timestamp) {
+            if (!timestamp || timestamp === 'N/A') {
+                return 'N/A';
+            }
+            
+            try {
+                const date = new Date(timestamp);
+                if (isNaN(date.getTime())) {
+                    return 'Invalid Date';
+                }
+                
+                // Convert to PST (UTC-8)
+                const pstDate = new Date(date.getTime() - (8 * 60 * 60 * 1000));
+                
+                // Format as PST
+                return pstDate.toLocaleString('en-US', {
+                    timeZone: 'America/Los_Angeles',
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                }) + ' PST';
+            } catch (error) {
+                console.error('Error formatting timestamp:', error);
+                return timestamp;
+            }
         }
 
         function showError(message) {

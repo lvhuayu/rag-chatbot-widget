@@ -9,6 +9,7 @@ import json
 import numpy as np
 import pickle
 import os
+import uuid
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 import logging
@@ -71,7 +72,7 @@ class RAGStorage:
     
     def add_document(self, doc_id: str, url: str, title: str, content: str, 
                     user_id: str, embedding: List[float], timestamp: Optional[str] = None) -> bool:
-        """Add a document and its embedding to storage"""
+        """Add a document and its embedding to storage. If title exists for user, update existing document."""
         try:
             if timestamp is None:
                 timestamp = datetime.now().isoformat()
@@ -79,28 +80,138 @@ class RAGStorage:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 
-                # Insert document
+                # Check if document with same title exists for this user
                 cursor.execute('''
-                    INSERT OR REPLACE INTO documents (id, url, title, content, timestamp, user_id)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (doc_id, url, title, content, timestamp, user_id))
+                    SELECT id FROM documents 
+                    WHERE title = ? AND user_id = ?
+                ''', (title, user_id))
                 
-                # Insert embedding
-                embedding_blob = pickle.dumps(np.array(embedding))
-                embedding_dim = len(embedding)
+                existing_doc = cursor.fetchone()
                 
-                cursor.execute('''
-                    INSERT OR REPLACE INTO embeddings (id, document_id, embedding_data, embedding_dimension)
-                    VALUES (?, ?, ?, ?)
-                ''', (f"emb_{doc_id}", doc_id, embedding_blob, embedding_dim))
-                
-                conn.commit()
-                logger.info(f"Added document: {title} (User: {user_id})")
-                return True
+                if existing_doc:
+                    # Update existing document
+                    existing_id = existing_doc[0]
+                    cursor.execute('''
+                        UPDATE documents 
+                        SET url = ?, content = ?, timestamp = ?
+                        WHERE id = ?
+                    ''', (url, content, timestamp, existing_id))
+                    
+                    # Update embedding
+                    embedding_blob = pickle.dumps(np.array(embedding))
+                    embedding_dim = len(embedding)
+                    
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO embeddings (id, document_id, embedding_data, embedding_dimension)
+                        VALUES (?, ?, ?, ?)
+                    ''', (f"emb_{existing_id}", existing_id, embedding_blob, embedding_dim))
+                    
+                    conn.commit()
+                    logger.info(f"Updated existing document: {title} (User: {user_id}, ID: {existing_id})")
+                    return True
+                else:
+                    # Insert new document
+                    cursor.execute('''
+                        INSERT INTO documents (id, url, title, content, timestamp, user_id)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (doc_id, url, title, content, timestamp, user_id))
+                    
+                    # Insert embedding
+                    embedding_blob = pickle.dumps(np.array(embedding))
+                    embedding_dim = len(embedding)
+                    
+                    cursor.execute('''
+                        INSERT INTO embeddings (id, document_id, embedding_data, embedding_dimension)
+                        VALUES (?, ?, ?, ?)
+                    ''', (f"emb_{doc_id}", doc_id, embedding_blob, embedding_dim))
+                    
+                    conn.commit()
+                    logger.info(f"Added new document: {title} (User: {user_id}, ID: {doc_id})")
+                    return True
                 
         except Exception as e:
             logger.error(f"Error adding document: {e}")
             return False
+
+    def add_document_with_uniqueness(self, doc_id: Optional[str], url: str, title: str, content: str, 
+                                   user_id: str, embedding: List[float], timestamp: Optional[str] = None) -> Dict[str, Any]:
+        """Add a document and its embedding to storage. Returns result with action type and document ID."""
+        try:
+            if timestamp is None:
+                timestamp = datetime.now().isoformat()
+            
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Check if document with same title exists for this user
+                cursor.execute('''
+                    SELECT id FROM documents 
+                    WHERE title = ? AND user_id = ?
+                ''', (title, user_id))
+                
+                existing_doc = cursor.fetchone()
+                
+                if existing_doc:
+                    # Update existing document
+                    existing_id = existing_doc[0]
+                    cursor.execute('''
+                        UPDATE documents 
+                        SET url = ?, content = ?, timestamp = ?
+                        WHERE id = ?
+                    ''', (url, content, timestamp, existing_id))
+                    
+                    # Update embedding
+                    embedding_blob = pickle.dumps(np.array(embedding))
+                    embedding_dim = len(embedding)
+                    
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO embeddings (id, document_id, embedding_data, embedding_dimension)
+                        VALUES (?, ?, ?, ?)
+                    ''', (f"emb_{existing_id}", existing_id, embedding_blob, embedding_dim))
+                    
+                    conn.commit()
+                    logger.info(f"Updated existing document: {title} (User: {user_id}, ID: {existing_id})")
+                    return {
+                        "success": True,
+                        "action": "updated",
+                        "doc_id": existing_id
+                    }
+                else:
+                    # Generate new ID if not provided
+                    if doc_id is None:
+                        doc_id = str(uuid.uuid4())
+                    
+                    # Insert new document
+                    cursor.execute('''
+                        INSERT INTO documents (id, url, title, content, timestamp, user_id)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (doc_id, url, title, content, timestamp, user_id))
+                    
+                    # Insert embedding
+                    embedding_blob = pickle.dumps(np.array(embedding))
+                    embedding_dim = len(embedding)
+                    
+                    cursor.execute('''
+                        INSERT INTO embeddings (id, document_id, embedding_data, embedding_dimension)
+                        VALUES (?, ?, ?, ?)
+                    ''', (f"emb_{doc_id}", doc_id, embedding_blob, embedding_dim))
+                    
+                    conn.commit()
+                    logger.info(f"Added new document: {title} (User: {user_id}, ID: {doc_id})")
+                    return {
+                        "success": True,
+                        "action": "added",
+                        "doc_id": doc_id
+                    }
+                
+        except Exception as e:
+            logger.error(f"Error adding document: {e}")
+            return {
+                "success": False,
+                "action": "error",
+                "doc_id": None,
+                "error": str(e)
+            }
     
     def get_documents_by_user(self, user_id: str) -> Tuple[List[Dict[str, Any]], List[np.ndarray]]:
         """Get all documents and embeddings for a specific user"""
@@ -271,6 +382,34 @@ class RAGStorage:
             logger.error(f"Error getting stats: {e}")
             return {"error": str(e)}
     
+    def get_document_by_title_and_user(self, title: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """Get a document by title and user_id"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute('''
+                    SELECT id, url, title, content, timestamp, user_id
+                    FROM documents 
+                    WHERE title = ? AND user_id = ?
+                ''', (title, user_id))
+                
+                row = cursor.fetchone()
+                if row:
+                    return {
+                        "id": row[0],
+                        "url": row[1],
+                        "title": row[2],
+                        "content": row[3],
+                        "timestamp": row[4],
+                        "user_id": row[5]
+                    }
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error getting document by title and user: {e}")
+            return None
+
     def get_user_documents_list(self, user_id: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
         """Get a list of documents (with truncated content) for a user or all users"""
         try:
