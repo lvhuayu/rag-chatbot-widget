@@ -38,7 +38,7 @@ class RAGServiceClient {
         await this.initialize();
         
         try {
-            const response = await fetch(`${this.backendUrl}/add-document`, {
+            const response = await fetch(`${this.backendUrl}/add-documents`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

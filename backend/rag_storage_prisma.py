@@ -65,6 +65,7 @@ class PrismaRAGStorage:
     
     def _run_prisma_query(self, query: str, params: Dict[str, Any] = None) -> Any:
         """Run a Prisma query using Node.js"""
+        script_path = None
         try:
             # Create a temporary Node.js script to run the query
             script_content = f"""
@@ -89,17 +90,22 @@ runQuery();
             # Write script to the prisma directory
             prisma_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "prisma"))
             script_path = os.path.join(prisma_dir, "temp_prisma_query.js")
+            
+            # 确保 prisma 目录存在
+            os.makedirs(prisma_dir, exist_ok=True)
+            
             with open(script_path, 'w', encoding='utf-8') as f:
                 f.write(script_content)
+            
+            # 确保文件写入完成
+            if not os.path.exists(script_path):
+                raise Exception(f"Failed to create temporary script at {script_path}")
             
             # Run the script
             result = subprocess.run(["node", "temp_prisma_query.js"], 
                                   cwd=prisma_dir,
-                                  capture_output=True)
-            
-            # Clean up
-            if os.path.exists(script_path):
-                os.remove(script_path)
+                                  capture_output=True,
+                                  timeout=30)  # 添加超时
             
             # Decode output manually
             stdout = result.stdout.decode('utf-8', errors='ignore')
@@ -111,6 +117,9 @@ runQuery();
                 raise Exception(f"Node.js subprocess failed: {stderr}")
             
             # Parse result
+            if not stdout.strip():
+                raise Exception("Empty output from Node.js subprocess")
+                
             output = json.loads(stdout.strip())
             if not output.get('success'):
                 logger.error(f"Prisma query error: {output.get('error')}\nFull output: {stdout}")
@@ -121,6 +130,13 @@ runQuery();
         except Exception as e:
             logger.error(f"Error running Prisma query: {e}")
             raise
+        finally:
+            # Clean up - 确保在 finally 块中删除文件
+            if script_path and os.path.exists(script_path):
+                try:
+                    os.remove(script_path)
+                except Exception as cleanup_error:
+                    logger.warning(f"Failed to cleanup temporary script: {cleanup_error}")
     
     def add_document_with_uniqueness(self, doc_id: Optional[str], url: str, title: str, content: str, 
                                    user_id: str, embedding: List[float], timestamp: Optional[str] = None) -> Dict[str, Any]:
@@ -496,7 +512,35 @@ runQuery();
             
             results = self._run_prisma_query(query)
             
+            # 计算数据库文件大小
+            import os
+            db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "rag_database.db"))
+            db_size_mb = 0
+            if os.path.exists(db_path):
+                db_size_mb = round(os.path.getsize(db_path) / (1024 * 1024), 2)
+            
+            # 获取 embedding 维度（从第一个 embedding 记录）
+            embedding_dimension = "N/A"
+            try:
+                dim_query = """
+                    await prisma.rAGEmbedding.findFirst({
+                        select: {
+                            embeddingDimension: true
+                        }
+                    })
+                """
+                dim_result = self._run_prisma_query(dim_query)
+                if dim_result:
+                    embedding_dimension = dim_result.get("embeddingDimension", "N/A")
+            except:
+                pass
+            
             return {
+                "database_path": db_path,
+                "database_size_mb": db_size_mb,
+                "total_documents": results[0],
+                "unique_users": results[2],
+                "embedding_dimension": embedding_dimension,
                 "type": "Prisma SQLite",
                 "documents": results[0],
                 "embeddings": results[1],

@@ -2,16 +2,16 @@ import express from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import axios from 'axios';
 import pdf from 'pdf-parse';
 import mammoth from 'mammoth';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
-import RAGService, { RAGDocument } from '../services/ragService';
 
 const router = express.Router();
 const prisma = new PrismaClient();
 const uploadDir = path.join(process.cwd(), 'uploads');
-const ragService = new RAGService();
+const RAG_BACKEND_URL = process.env.RAG_BACKEND_URL || 'http://localhost:8001';
 
 // Ensure the uploads directory exists
 if (!fs.existsSync(uploadDir)) {
@@ -65,21 +65,17 @@ async function processAndIndexFile(file: Express.Multer.File, description: strin
             content = `Description: ${description}\n\n${content}`;
         }
 
-        // Create RAG document object
-        const ragDocument: RAGDocument = {
-            url: file.originalname,
-            title: file.originalname,
-            content: content,
-            user_id: userId,
-            timestamp: new Date().toISOString()
-        };
-
-        // Send to RAG backend using the service
-        const ragResult = await ragService.addDocument(ragDocument);
-        
-        if (!ragResult.success) {
-            throw new Error(`RAG indexing failed: ${ragResult.message}`);
-        }
+        // Send to Python RAG backend with user_id
+        await axios.post(
+            `${RAG_BACKEND_URL}/add-documents`,
+            [{
+                url: file.originalname,
+                title: file.originalname,
+                content: content,
+                user_id: userId  // Include user_id for user-scoped storage
+            }],
+            { headers: { 'Content-Type': 'application/json' } }
+        );
 
         // Save document metadata to database
         await prisma.document.create({
@@ -88,17 +84,11 @@ async function processAndIndexFile(file: Express.Multer.File, description: strin
                 originalName: file.originalname,
                 fileSize: file.size,
                 description: description || null,
-                status: 'SUCCESS',
-                ragDocId: ragResult.doc_id // Store the RAG document ID for reference
+                status: 'SUCCESS'
             }
         });
 
-        return { 
-            success: true, 
-            file: file.originalname, 
-            ragDocId: ragResult.doc_id,
-            message: ragResult.message 
-        };
+        return { success: true, file: file.originalname };
     } catch (error: any) {
         console.error(`Error processing ${file.originalname}:`, error.message);
         
@@ -165,12 +155,29 @@ router.get('/documents', authenticateToken, async (req: AuthRequest, res) => {
             return res.status(401).send({ message: 'User not authenticated.' });
         }
 
-        const documents = await prisma.document.findMany({
+        // Get documents from Python RAG backend
+        const ragResponse = await axios.get(`${RAG_BACKEND_URL}/documents?user_id=${req.user.id}`);
+        const ragDocuments = ragResponse.data;
+
+        // Also get document metadata from Prisma database
+        const prismaDocuments = await prisma.document.findMany({
             where: { userId: req.user.id },
             orderBy: { createdAt: 'desc' }
         });
 
-        res.json(documents);
+        // Combine RAG documents with Prisma metadata
+        const combinedDocuments = ragDocuments.map((ragDoc: any) => {
+            const prismaDoc = prismaDocuments.find(p => p.originalName === ragDoc.title);
+            return {
+                ...ragDoc,
+                id: prismaDoc?.id,
+                status: prismaDoc?.status || 'UNKNOWN',
+                createdAt: prismaDoc?.createdAt,
+                updatedAt: prismaDoc?.updatedAt
+            };
+        });
+
+        res.json(combinedDocuments);
     } catch (error) {
         console.error('Error fetching documents:', error);
         res.status(500).send({ message: 'Error fetching documents.' });
@@ -203,8 +210,8 @@ router.delete('/documents/:id', authenticateToken, async (req: AuthRequest, res)
             where: { id: documentId }
         });
 
-        // TODO: If you want to also remove from the RAG backend, add that logic here
-        // For now, we'll keep the document in RAG backend for consistency
+        // TODO: If you want to also remove from the Python RAG backend, add that logic here
+        // Example: await axios.delete(`http://localhost:8001/remove-document/${document.originalName}`);
 
         res.json({ message: 'Document deleted successfully.' });
     } catch (error) {
@@ -213,106 +220,4 @@ router.delete('/documents/:id', authenticateToken, async (req: AuthRequest, res)
     }
 });
 
-// Route to get RAG documents for a user
-router.get('/rag-documents', authenticateToken, async (req: AuthRequest, res) => {
-    try {
-        if (!req.user) {
-            return res.status(401).send({ message: 'User not authenticated.' });
-        }
-
-        const ragDocuments = await ragService.getUserDocuments(req.user.id);
-        res.json(ragDocuments);
-    } catch (error: any) {
-        console.error('Error fetching RAG documents:', error);
-        res.status(500).send({ message: 'Error fetching RAG documents.', error: error.message });
-    }
-});
-
-// Route to search RAG documents for a user
-router.post('/search', authenticateToken, async (req: AuthRequest, res) => {
-    try {
-        if (!req.user) {
-            return res.status(401).send({ message: 'User not authenticated.' });
-        }
-
-        const { query, top_k = 5, threshold = 0.7 } = req.body;
-
-        if (!query) {
-            return res.status(400).send({ message: 'Query is required.' });
-        }
-
-        const searchResult = await ragService.searchDocuments({
-            query,
-            top_k,
-            threshold,
-            user_id: req.user.id
-        });
-
-        res.json(searchResult);
-    } catch (error: any) {
-        console.error('Error searching RAG documents:', error);
-        res.status(500).send({ message: 'Error searching RAG documents.', error: error.message });
-    }
-});
-
-// Route to get RAG statistics for a user
-router.get('/rag-stats', authenticateToken, async (req: AuthRequest, res) => {
-    try {
-        if (!req.user) {
-            return res.status(401).send({ message: 'User not authenticated.' });
-        }
-
-        const stats = await ragService.getStats(req.user.id);
-        res.json(stats);
-    } catch (error: any) {
-        console.error('Error fetching RAG stats:', error);
-        res.status(500).send({ message: 'Error fetching RAG stats.', error: error.message });
-    }
-});
-
-// Route to get system-wide RAG statistics (admin only)
-router.get('/rag-stats/all', authenticateToken, async (req: AuthRequest, res) => {
-    try {
-        if (!req.user) {
-            return res.status(401).send({ message: 'User not authenticated.' });
-        }
-
-        // Check if user is admin (you might want to add an isAdmin field to your User model)
-        const user = await prisma.user.findUnique({
-            where: { id: req.user.id }
-        });
-
-        if (!user || user.username !== 'admin') {
-            return res.status(403).send({ message: 'Admin access required.' });
-        }
-
-        const stats = await ragService.getStats();
-        res.json(stats);
-    } catch (error: any) {
-        console.error('Error fetching system RAG stats:', error);
-        res.status(500).send({ message: 'Error fetching system RAG stats.', error: error.message });
-    }
-});
-
-// Route to get RAG system health
-router.get('/rag-health', authenticateToken, async (req: AuthRequest, res) => {
-    try {
-        const health = await ragService.getHealth();
-        res.json(health);
-    } catch (error: any) {
-        console.error('Error fetching RAG health:', error);
-        res.status(500).send({ message: 'Error fetching RAG health.', error: error.message });
-    }
-});
-
-// Route to check RAG backend availability
-router.get('/rag-available', async (req, res) => {
-    try {
-        const isAvailable = await ragService.isAvailable();
-        res.json({ available: isAvailable });
-    } catch (error: any) {
-        res.json({ available: false, error: error.message });
-    }
-});
-
-export default router;
+export default router; 

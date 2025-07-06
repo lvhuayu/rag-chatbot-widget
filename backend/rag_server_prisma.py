@@ -22,6 +22,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import jwt
+from sentence_transformers import SentenceTransformer
+import numpy as np
 
 # Add the parent directory to the path to import the Prisma storage
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -112,26 +114,14 @@ class RegisteredKeyAuthResponse(BaseModel):
     username: str
     expires_in: int
 
-def generate_simple_embedding(text: str) -> List[float]:
-    """Generate a simple embedding using character frequency (temporary)"""
-    # This is a very basic embedding - just for testing
-    freq = {}
-    for char in string.ascii_lowercase:
-        freq[char] = 0
-    
-    text_lower = text.lower()
-    for char in text_lower:
-        if char in freq:
-            freq[char] += 1
-    
-    # Normalize
-    total = sum(freq.values()) or 1
-    embedding = [freq[char] / total for char in string.ascii_lowercase]
-    
-    # Pad to 384 dimensions (like all-MiniLM-L6-v2)
-    while len(embedding) < 384:
-        embedding.append(0.0)
-    return embedding[:384]
+# 加载中文/多语言 SOTA embedding 模型（如 BAAI/bge-large-zh-v1.5）
+# 你可以根据需要更换为其他模型，如 all-MiniLM-L6-v2
+embedding_model = SentenceTransformer('BAAI/bge-large-zh-v1.5')
+
+def generate_simple_embedding(text: str) -> list:
+    """用 SOTA embedding 生成文本向量，支持中文和多语言"""
+    emb = embedding_model.encode(text, normalize_embeddings=True)
+    return emb.tolist() if isinstance(emb, np.ndarray) else list(emb)
 
 def calculate_similarity(embedding1: List[float], embedding2: List[float]) -> float:
     """Calculate cosine similarity between two embeddings"""
@@ -297,107 +287,93 @@ async def get_current_user(current_user: User = Depends(verify_token)):
     """Get current user information"""
     return current_user
 
-@app.post("/add-document", response_model=Dict[str, Any])
-async def add_document(document: Document):
-    """Add a document to the RAG system with multi-tenant support"""
-    try:
-        # Generate simple embedding
-        embedding = generate_simple_embedding(document.content)
-        
-        # Add to storage with user_id
-        user_id = document.user_id or "default_user"
-        
-        # Use the storage layer's add_document_with_uniqueness method
-        result = storage.add_document_with_uniqueness(
-            doc_id=None,  # Let storage generate ID
-            url=document.url,
-            title=document.title,
-            content=document.content,
-            user_id=user_id,
-            embedding=embedding,
-            timestamp=document.timestamp or datetime.now().isoformat()
-        )
-        
-        if not result.get("success"):
-            logger.error(f"Prisma storage error: {result.get('error')}")
-            raise HTTPException(status_code=500, detail=f"Prisma storage error: {result.get('error')}")
-        
-        action = result.get("action", "unknown")
-        doc_id = result.get("doc_id")
-        
-        if action == "updated":
-            message = f"Updated existing document: {document.title}"
-            logger.info(f"Updated existing document: {document.title} (User: {user_id}, ID: {doc_id})")
+def split_text(text, max_length=300):
+    """按中文标点或长度切分长文本为段落"""
+    import re
+    sentences = re.split(r'(。|！|!|\.|？|\?)', text)
+    chunks, chunk = [], ''
+    for s in sentences:
+        if not s: continue
+        if len(chunk) + len(s) > max_length:
+            chunks.append(chunk)
+            chunk = s
         else:
-            message = f"Added new document: {document.title}"
-            logger.info(f"Added new document: {document.title} (User: {user_id}, ID: {doc_id})")
-        
-        return {
-            "success": True,
-            "doc_id": doc_id,
-            "message": message,
-            "action": action
-        }
-            
-    except Exception as e:
-        import traceback
-        logger.error(f"Error in /add-document endpoint: {e}")
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Error adding document: {str(e)}")
+            chunk += s
+    if chunk:
+        chunks.append(chunk)
+    return [c for c in chunks if c.strip()]
+
+@app.post("/add-documents", response_model=Dict[str, Any])
+async def add_documents(documents: List[Document]):
+    """批量上传多个文档，每个文档自动分段批量入库"""
+    all_results = []
+    for doc in documents:
+        user_id = doc.user_id or "default_user"
+        url = doc.url
+        title = doc.title
+        timestamp = doc.timestamp or datetime.now().isoformat()
+        content = doc.content
+        segments = split_text(content, max_length=300)
+        results = []
+        for idx, chunk in enumerate(segments):
+            embedding = generate_simple_embedding(chunk)
+            result = storage.add_document_with_uniqueness(
+                doc_id=None,
+                url=url,
+                title=title,
+                content=chunk,
+                user_id=user_id,
+                embedding=embedding,
+                timestamp=timestamp
+            )
+            results.append(result)
+        all_results.append({
+            "title": title,
+            "segments": len(results),
+            "results": results
+        })
+    return {
+        "success": True,
+        "message": f"Batch added {len(documents)} documents.",
+        "documents": all_results
+    }
 
 @app.post("/search", response_model=RAGResponse)
 async def search_documents(request: SearchRequest):
-    """Search for relevant documents with multi-tenant support"""
+    """Search for relevant document segments with multi-tenant support, 返回 context 来源信息"""
     try:
-        # Get documents for specific user from storage
         user_documents, user_embeddings = storage.get_documents_by_user(request.user_id)
-        
         if not user_documents:
             logger.info(f"No documents available for user: {request.user_id}")
             return RAGResponse(
                 context="I don't have any information in my knowledge base to answer your question. Please contact support or check our documentation for more details.",
                 documents=[]
             )
-        
-        # Generate query embedding
         query_embedding = generate_simple_embedding(request.query)
-        
-        # Calculate similarities
         similarities = []
         for i, doc in enumerate(user_documents):
             if i < len(user_embeddings) and len(user_embeddings[i]) > 0:
                 embedding_list = user_embeddings[i].tolist() if hasattr(user_embeddings[i], 'tolist') else user_embeddings[i]
                 similarity = calculate_similarity(query_embedding, embedding_list)
-                similarities.append((doc, similarity))
-        
-        # Sort by similarity and filter by threshold
+                similarities.append((doc, similarity, i))  # i为段号
         similarities.sort(key=lambda x: x[1], reverse=True)
-        
-        # Check if the best match is too low quality
         best_similarity = similarities[0][1] if similarities else 0.0
-        quality_threshold = 0.45  # Increased quality threshold to reject nonsense queries
-        
+        quality_threshold = 0.45
         if best_similarity < quality_threshold:
             logger.info(f"Query: '{request.query}', Best similarity {best_similarity:.3f} below quality threshold {quality_threshold}")
             return RAGResponse(
                 context="I don't have enough relevant information to answer your question. Please try rephrasing your query or ask about a different topic.",
                 documents=[]
             )
-        
-        # Filter by user-specified threshold
         filtered_results = [
-            (doc, sim) for doc, sim in similarities 
+            (doc, sim, idx) for doc, sim, idx in similarities 
             if sim >= request.threshold
         ][:request.top_k]
-        
-        # Log results
-        logger.info(f"Query: '{request.query}', Found: {len(filtered_results)} documents (best: {best_similarity:.3f})")
-        for doc, sim in filtered_results:
-            logger.info(f"  - Title: {doc['title']}, Similarity: {sim:.3f}")
-        
-        # Convert to response format
+        logger.info(f"Query: '{request.query}', Found: {len(filtered_results)} segments (best: {best_similarity:.3f})")
+        for doc, sim, idx in filtered_results:
+            logger.info(f"  - Title: {doc['title']}, Segment: {idx}, Similarity: {sim:.3f}")
         search_results = []
-        for doc, similarity in filtered_results:
+        for doc, similarity, idx in filtered_results:
             search_results.append(SearchResult(
                 document=Document(
                     url=doc["url"],
@@ -408,20 +384,17 @@ async def search_documents(request: SearchRequest):
                 ),
                 similarity=similarity
             ))
-        
-        # Generate context from top results
+        # context 拼接前2条最相关段内容，带来源信息
         context = None
         if search_results:
             context_parts = []
-            for result in search_results[:2]:  # Use top 2 results for context
-                context_parts.append(f"From '{result.document.title}': {result.document.content[:200]}...")
-            context = " ".join(context_parts)
-        
+            for i, result in enumerate(search_results[:2]):
+                context_parts.append(f"[来自: {result.document.title} | 段落#{similarities[i][2]} | 相似度: {result.similarity:.2f}] {result.document.content[:200]}...")
+            context = "\n".join(context_parts)
         return RAGResponse(
             context=context,
             documents=search_results
         )
-        
     except Exception as e:
         import traceback
         logger.error(f"Error in /search endpoint: {e}")

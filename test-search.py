@@ -12,8 +12,9 @@ def test_search():
     url = "http://localhost:8001/search"
     headers = {"Content-Type": "application/json"}
     data = {
-        "query": "Hi",
-        "user_id": "cmcr0plai0006ufg8pmqchjyt"
+        "query": "网站功能",
+        "user_id": "main_page_user",
+        "threshold": 0.05
     }
     
     try:
