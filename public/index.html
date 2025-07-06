@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>True RAG Chatbot Widget - Test Page</title>
+            <title>True RAG Chatbot Widget with Minimize Feature - Test Page</title>
     <style>
         * {
             margin: 0;
@@ -507,22 +507,22 @@
     <div class="container">
         <div class="header">
             <h1>🔍 True RAG Chatbot Widget</h1>
-            <p>A complete RAG system with local vector embeddings, semantic search, and Ollama integration</p>
+            <p>A complete RAG system with local vector embeddings, semantic search, Ollama integration, and minimize feature</p>
         </div>
         
         <div class="content">
             <div class="section">
                 <h2>🚀 Quick Start</h2>
-                <p>This page demonstrates a true RAG chatbot with local vector embeddings and semantic search capabilities. The chatbot automatically ingests page content and uses it to provide contextually relevant responses.</p>
+                <p>This page demonstrates a true RAG chatbot with local vector embeddings, semantic search capabilities, and minimize feature. The chatbot automatically ingests page content and uses it to provide contextually relevant responses. You can minimize the chat window to save screen space!</p>
                 
                 <div class="demo-section">
                     <h3>RAG Chatbot Controls</h3>
-                    <button class="button" onclick="initChatbot()">Initialize RAG Chatbot</button>
+                    <button class="button" onclick="initChatbot()">Initialize RAG Chatbot with Minimize</button>
                     <button class="button secondary" onclick="removeChatbot()">Remove Chatbot</button>
                     <button class="button success" onclick="testOllamaConnection()">Test Ollama Connection</button>
                     <button class="button warning" onclick="testRAGCapabilities()">Test RAG Features</button>
                     <button class="button" onclick="showRAGStats()">Show RAG Stats</button>
-                    <div id="status" class="status info">Ready to test True RAG</div>
+                    <div id="status" class="status info">Ready to test True RAG with minimize feature</div>
                 </div>
             </div>
             
@@ -557,26 +557,57 @@
             </div>
             
             <div class="section">
+                <h2>🎯 Minimize Feature</h2>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>📱 Minimize Button</h3>
+                        <p>Click the minimize button in the top-right corner of the chat window to hide it and save screen space.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>🔵 Circular Icon</h3>
+                        <p>When minimized, the chatbot appears as a circular robot icon (🤖) in the bottom-right corner of the screen.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>✨ Smooth Animations</h3>
+                        <p>Enjoy smooth 300ms transition animations when minimizing and expanding the chat window.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>🖱️ Hover Effects</h3>
+                        <p>The circular icon has interactive hover effects that scale and enhance the shadow for better user experience.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>🔄 State Preservation</h3>
+                        <p>All chat history and configuration are preserved when minimizing and expanding the chatbot.</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>📱 Responsive Design</h3>
+                        <p>Works perfectly on all screen sizes and supports custom containers for flexible integration.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="section">
                 <h2>🔧 Integration Code</h2>
                 <p>Add these scripts to any webpage to embed the True RAG chatbot:</p>
                 
                 <div class="code-block">
 <span class="comment">&lt;!-- Include RAG service and chatbot scripts --&gt;</span>
 &lt;script src="rag-service.js"&gt;&lt;/script&gt;
-<script type="module" src="chatbot_python.js"></script>
+&lt;script src="chatbot.js"&gt;&lt;/script&gt;
 
 &lt;script&gt;
-    <span class="comment">// Initialize with True RAG configuration</span>
+    <span class="comment">// Initialize with True RAG configuration and minimize feature</span>
     initRAGChatbot({
-        <span class="keyword">model</span>: <span class="string">'mistral'</span>,
+        <span class="keyword">backendUrl</span>: <span class="string">'http://localhost:8001'</span>,
         <span class="keyword">theme</span>: {
             <span class="keyword">primaryColor</span>: <span class="string">'#667eea'</span>
         },
-        <span class="keyword">welcomeMessage</span>: <span class="string">'Hello! I\'m your AI assistant with True RAG capabilities. I can search through this page\'s content to provide relevant answers!'</span>,
+        <span class="keyword">welcomeMessage</span>: <span class="string">'Hello! I\'m your AI assistant with True RAG capabilities and minimize feature! Click the minimize button to minimize me.'</span>,
         <span class="keyword">enableRAG</span>: <span class="keyword">true</span>,
         <span class="keyword">enableContentIngestion</span>: <span class="keyword">true</span>,
         <span class="keyword">ragThreshold</span>: <span class="number">0.7</span>,
-        <span class="keyword">maxRAGResults</span>: <span class="number">3</span>
+        <span class="keyword">maxRAGResults</span>: <span class="number">3</span>,
+        <span class="keyword">userId</span>: <span class="string">'your_user_id'</span> <span class="comment">// Optional: for multi-tenant support</span>
     });
 &lt;/script&gt;
                 </div>
@@ -586,8 +617,8 @@
                 <h2>⚙️ RAG Configuration Options</h2>
                 <div class="code-block">
 {
-    <span class="comment">// Ollama model to use</span>
-    <span class="keyword">model</span>: <span class="string">'mistral'</span>,
+    <span class="comment">// Backend URL for RAG API</span>
+    <span class="keyword">backendUrl</span>: <span class="string">'http://localhost:8001'</span>,
     
     <span class="comment">// Enable True RAG capabilities</span>
     <span class="keyword">enableRAG</span>: <span class="keyword">true</span>,
@@ -605,7 +636,14 @@
     },
     
     <span class="comment">// Welcome message</span>
-    <span class="keyword">welcomeMessage</span>: <span class="string">'Hello! How can I help you?'</span>
+    <span class="keyword">welcomeMessage</span>: <span class="string">'Hello! How can I help you?'</span>,
+    
+    <span class="comment">// Multi-tenant support</span>
+    <span class="keyword">userId</span>: <span class="string">'your_user_id'</span>,  <span class="comment">// Optional: for multi-tenant support</span>
+    
+    <span class="comment">// Minimize feature is enabled by default</span>
+    <span class="comment">// Users can click the minimize button in the top-right corner</span>
+    <span class="comment">// The chatbot will appear as a circular icon when minimized</span>
 }
                 </div>
             </div>
@@ -636,10 +674,12 @@
                         <li>Ollama integration and local LLMs</li>
                         <li>Chatbot widget features and capabilities</li>
                         <li>Content ingestion and processing</li>
+                        <li>Minimize feature and user experience</li>
                     </ul>
                     <p><strong>RAG (Retrieval-Augmented Generation)</strong> is a technique that combines the power of large language models with the ability to retrieve relevant information from external knowledge sources. This approach enhances the model's responses by providing it with specific, up-to-date information that may not be part of its training data.</p>
                     <p><strong>Vector embeddings</strong> are numerical representations of text that capture semantic meaning. They allow us to perform similarity searches and find related content even when the exact words don't match. This is crucial for effective information retrieval in RAG systems.</p>
                     <p><strong>Ollama</strong> is an open-source framework that allows you to run large language models locally on your machine. It provides a simple API for interacting with various models like Mistral, Llama, and others without requiring cloud services or internet connectivity.</p>
+                    <p><strong>Minimize Feature</strong> allows users to hide the chat window and save screen space by clicking the minimize button in the top-right corner. When minimized, the chatbot appears as a circular robot icon that can be clicked to restore the full chat interface. This feature includes smooth animations and hover effects for an enhanced user experience.</p>
                 </div>
             </div>
         </div>
@@ -689,23 +729,24 @@
         
         async function initChatbot() {
             try {
-                updateStatus('🚀 Initializing True RAG chatbot...', 'info');
+                updateStatus('🚀 Initializing True RAG chatbot with minimize feature...', 'info');
                 
                 const iframe = await initRAGChatbot({
-                    model: 'mistral',
+                    backendUrl: 'http://localhost:8001',
                     theme: {
                         primaryColor: '#667eea'
                     },
-                    welcomeMessage: 'Hello! I\'m your AI assistant with True RAG capabilities. I can search through this page\'s content to provide relevant answers!',
+                    welcomeMessage: 'Hello! I\'m your AI assistant with True RAG capabilities and minimize feature! Click the minimize button in the top-right corner to minimize me. I can search through this page\'s content to provide relevant answers!',
                     enableRAG: true,
                     enableContentIngestion: true,
                     ragThreshold: 0.7,
-                    maxRAGResults: 3
+                    maxRAGResults: 3,
+                    userId: 'main_page_user' // 为主页设置用户ID
                 });
                 
                 chatbotInitialized = true;
-                updateStatus('✅ True RAG chatbot initialized successfully!', 'success');
-                console.log('RAG Chatbot initialized:', iframe);
+                updateStatus('✅ True RAG chatbot with minimize feature initialized successfully!', 'success');
+                console.log('RAG Chatbot with minimize feature initialized:', iframe);
                 
             } catch (error) {
                 updateStatus(`❌ Failed to initialize chatbot: ${error.message}`, 'error');
@@ -822,7 +863,7 @@
         
         // Auto-initialize chatbot on page load
         window.addEventListener('load', function() {
-            console.log('🚀 True RAG Chatbot Widget test page loaded');
+            console.log('🚀 True RAG Chatbot Widget with minimize feature test page loaded');
             
             // Auto-initialize after a short delay
             setTimeout(() => {

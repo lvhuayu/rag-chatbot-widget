@@ -131,17 +131,94 @@ iwIDAQAB
             z-index: 10000;
             background: white;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            transition: all 0.3s ease;
         `;
+        
+        // Create minimize button
+        const minimizeButton = document.createElement('div');
+        minimizeButton.id = 'rag-chatbot-minimize';
+        minimizeButton.innerHTML = '🤖';
+        minimizeButton.style.cssText = `
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+            z-index: 10001;
+            transition: all 0.3s ease;
+            display: none;
+        `;
+        
+        // Add hover effects
+        minimizeButton.addEventListener('mouseenter', function() {
+            this.style.transform = 'scale(1.1)';
+            this.style.boxShadow = '0 6px 25px rgba(0, 0, 0, 0.2)';
+        });
+        
+        minimizeButton.addEventListener('mouseleave', function() {
+            this.style.transform = 'scale(1)';
+            this.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.15)';
+        });
+        
+        // Minimize/Expand functionality
+        let isMinimized = false;
+        
+        function minimizeChatbot() {
+            iframe.style.transform = 'scale(0)';
+            iframe.style.opacity = '0';
+            setTimeout(() => {
+                iframe.style.display = 'none';
+                minimizeButton.style.display = 'flex';
+            }, 300);
+            isMinimized = true;
+        }
+        
+        function expandChatbot() {
+            minimizeButton.style.display = 'none';
+            iframe.style.display = 'block';
+            setTimeout(() => {
+                iframe.style.transform = 'scale(1)';
+                iframe.style.opacity = '1';
+            }, 50);
+            isMinimized = false;
+        }
+        
+        // Add click handlers
+        minimizeButton.addEventListener('click', expandChatbot);
+        
+        // Listen for minimize message from iframe
+        window.addEventListener('message', function(event) {
+            if (event.data.type === 'MINIMIZE_CHATBOT') {
+                minimizeChatbot();
+            }
+        });
         
         // If selector is provided, attach to that element instead
         if (finalConfig.selector) {
             const targetElement = document.querySelector(finalConfig.selector);
             if (targetElement) {
                 targetElement.appendChild(iframe);
+                targetElement.appendChild(minimizeButton);
                 iframe.style.position = 'relative';
                 iframe.style.bottom = 'auto';
                 iframe.style.right = 'auto';
+                minimizeButton.style.position = 'absolute';
+                minimizeButton.style.bottom = '20px';
+                minimizeButton.style.right = '20px';
             }
+        } else {
+            // Add both iframe and minimize button to page
+            document.body.appendChild(iframe);
+            document.body.appendChild(minimizeButton);
         }
         
         // Send config to iframe when it loads
@@ -153,9 +230,6 @@ iwIDAQAB
                 userId: userId
             }, '*');
         };
-        
-        // Add iframe to page
-        document.body.appendChild(iframe);
         
         // Return iframe reference for potential future use
         return iframe;
