@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-RAG Chatbot Backend with Prisma Storage
+RAG Chatbot Backend with Prisma Storage (Simple Embeddings)
 Unified database using Prisma ORM for both user management and RAG documents
+Uses simple character frequency embeddings to avoid PyTorch dependency issues
 """
 
 import os
@@ -11,7 +12,9 @@ import uuid
 import secrets
 import hashlib
 import requests
-import numpy as np
+import logging
+import string
+import math
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, Depends, status
@@ -19,12 +22,14 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import jwt
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
 
 # Add the parent directory to the path to import the Prisma storage
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.rag_storage_prisma import PrismaRAGStorage
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(title="RAG Chatbot Backend (Prisma)", version="2.0.0")
@@ -43,9 +48,8 @@ security = HTTPBearer()
 JWT_SECRET = "your-secret-key-change-in-production"
 JWT_ALGORITHM = "HS256"
 
-# Initialize storage and embedding model
+# Initialize storage
 storage = PrismaRAGStorage()
-embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
 
 # In-memory storage for challenges and sessions (in production, use Redis)
 challenges = {}
@@ -63,7 +67,7 @@ class Document(BaseModel):
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 3
-    threshold: Optional[float] = 0.0
+    threshold: Optional[float] = 0.3  # Increased default threshold
     user_id: Optional[str] = None
 
 class SearchResult(BaseModel):
@@ -108,6 +112,38 @@ class RegisteredKeyAuthResponse(BaseModel):
     username: str
     expires_in: int
 
+def generate_simple_embedding(text: str) -> List[float]:
+    """Generate a simple embedding using character frequency (temporary)"""
+    # This is a very basic embedding - just for testing
+    freq = {}
+    for char in string.ascii_lowercase:
+        freq[char] = 0
+    
+    text_lower = text.lower()
+    for char in text_lower:
+        if char in freq:
+            freq[char] += 1
+    
+    # Normalize
+    total = sum(freq.values()) or 1
+    embedding = [freq[char] / total for char in string.ascii_lowercase]
+    
+    # Pad to 384 dimensions (like all-MiniLM-L6-v2)
+    while len(embedding) < 384:
+        embedding.append(0.0)
+    return embedding[:384]
+
+def calculate_similarity(embedding1: List[float], embedding2: List[float]) -> float:
+    """Calculate cosine similarity between two embeddings"""
+    dot_product = sum(a * b for a, b in zip(embedding1, embedding2))
+    magnitude1 = math.sqrt(sum(a * a for a in embedding1))
+    magnitude2 = math.sqrt(sum(a * a for a in embedding2))
+    
+    if magnitude1 == 0 or magnitude2 == 0:
+        return 0.0
+    
+    return dot_product / (magnitude1 * magnitude2)
+
 def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
     """Verify JWT token and return user information"""
     try:
@@ -146,7 +182,7 @@ async def health_check():
     db_info = storage.get_database_info()
     return {
         "status": "healthy", 
-        "model": "all-MiniLM-L6-v2", 
+        "model": "simple-character-frequency", 
         "storage": "Prisma Unified Database",
         "database_info": db_info
     }
@@ -205,28 +241,20 @@ async def verify_challenge(request: VerifyChallengeRequest):
         if not verify_signature(request.public_key, challenge_data["challenge"], request.signature):
             raise HTTPException(status_code=400, detail="Invalid signature")
         
-        # Generate user ID and store public key
-        user_id = str(uuid.uuid4())
+        # Generate user ID from public key
+        user_id = hashlib.sha256(request.public_key.encode()).hexdigest()[:24]
         username = challenge_data.get("username", f"user_{user_id[:8]}")
         
-        public_keys[user_id] = request.public_key
-        user_sessions[user_id] = {
-            "username": username,
-            "public_key": request.public_key
-        }
-        
         # Generate JWT token
-        token_payload = {
+        payload = {
             "id": user_id,
             "username": username,
             "exp": datetime.utcnow() + timedelta(hours=24)
         }
-        token = jwt.encode(token_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+        token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
         
         # Clean up challenge
         del challenges[request.challenge_id]
-        
-        print(f"[AUTH] New user authenticated: {username} (ID: {user_id})")
         
         return VerifyChallengeResponse(
             token=token,
@@ -241,100 +269,79 @@ async def verify_challenge(request: VerifyChallengeRequest):
 
 @app.post("/auth/register-key", response_model=RegisteredKeyAuthResponse)
 async def authenticate_with_registered_key(request: RegisteredKeyAuthRequest):
-    """Authenticate using a registered public key (simplified authentication)"""
+    """Authenticate using a registered public key"""
     try:
-        # For registered keys, we trust the public key as authentication
-        # In a real implementation, you might want to verify this against a database
-        
-        # Generate user ID
-        user_id = str(uuid.uuid4())
-        username = request.username
-        
-        # Store public key
-        public_keys[user_id] = request.public_key
-        user_sessions[user_id] = {
-            "username": username,
-            "public_key": request.public_key
-        }
+        # In a real implementation, you would check against a database of registered keys
+        # For now, we'll accept any key and generate a user ID from it
+        user_id = hashlib.sha256(request.public_key.encode()).hexdigest()[:24]
         
         # Generate JWT token
-        token_payload = {
+        payload = {
             "id": user_id,
-            "username": username,
+            "username": request.username,
             "exp": datetime.utcnow() + timedelta(hours=24)
         }
-        token = jwt.encode(token_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-        
-        print(f"[AUTH] Registered key authentication: {username} (ID: {user_id})")
+        token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
         
         return RegisteredKeyAuthResponse(
             token=token,
             user_id=user_id,
-            username=username,
+            username=request.username,
             expires_in=86400  # 24 hours
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error authenticating with registered key: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error authenticating: {str(e)}")
 
 @app.get("/auth/me")
-async def get_current_user():
-    """Get current user information (temporarily no auth required)"""
-    # Create a default user for testing
-    default_user = User(id="test_user", username="test_user")
-    return {
-        "id": default_user.id,
-        "username": default_user.username,
-        "message": "Using default test user (no authentication required)"
-    }
+async def get_current_user(current_user: User = Depends(verify_token)):
+    """Get current user information"""
+    return current_user
 
 @app.post("/add-document", response_model=Dict[str, Any])
 async def add_document(document: Document):
     """Add a document to the RAG system with multi-tenant support"""
     try:
-        # Generate embedding
-        embedding = embedding_model.encode(document.content).tolist()
+        # Generate simple embedding
+        embedding = generate_simple_embedding(document.content)
         
-        # Add to Prisma storage with user_id
+        # Add to storage with user_id
         user_id = document.user_id or "default_user"
         
-        # Let the storage layer handle the uniqueness check and ID generation
+        # Use the storage layer's add_document_with_uniqueness method
         result = storage.add_document_with_uniqueness(
-            doc_id=None,  # Let storage generate ID internally
+            doc_id=None,  # Let storage generate ID
             url=document.url,
             title=document.title,
             content=document.content,
             user_id=user_id,
             embedding=embedding,
-            timestamp=document.timestamp
+            timestamp=document.timestamp or datetime.now().isoformat()
         )
         
-        if not result["success"]:
-            # Log the error returned by storage
-            print(f"[ERROR] Storage add_document_with_uniqueness failed: {result.get('error')}")
-            raise HTTPException(status_code=500, detail=f"Failed to save document to storage: {result.get('error')}")
+        if not result.get("success"):
+            logger.error(f"Prisma storage error: {result.get('error')}")
+            raise HTTPException(status_code=500, detail=f"Prisma storage error: {result.get('error')}")
         
-        action = result["action"]
-        doc_id = result["doc_id"]
+        action = result.get("action", "unknown")
+        doc_id = result.get("doc_id")
         
         if action == "updated":
-            print(f"[UPDATE DOCUMENT] Updated document '{document.title}' for user: {user_id}")
-            return {
-                "success": True,
-                "doc_id": doc_id,
-                "message": f"Document '{document.title}' updated successfully for user: {user_id}",
-                "action": "updated"
-            }
+            message = f"Updated existing document: {document.title}"
+            logger.info(f"Updated existing document: {document.title} (User: {user_id}, ID: {doc_id})")
         else:
-            print(f"[ADD DOCUMENT] Added document '{document.title}' for user: {user_id}")
-            return {
-                "success": True,
-                "doc_id": doc_id,
-                "message": f"Document '{document.title}' added successfully for user: {user_id}",
-                "action": "added"
-            }
+            message = f"Added new document: {document.title}"
+            logger.info(f"Added new document: {document.title} (User: {user_id}, ID: {doc_id})")
+        
+        return {
+            "success": True,
+            "doc_id": doc_id,
+            "message": message,
+            "action": action
+        }
+            
     except Exception as e:
         import traceback
-        print("[EXCEPTION] Error in /add-document endpoint:")
+        logger.error(f"Error in /add-document endpoint: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error adding document: {str(e)}")
 
@@ -342,172 +349,154 @@ async def add_document(document: Document):
 async def search_documents(request: SearchRequest):
     """Search for relevant documents with multi-tenant support"""
     try:
-        # Get documents from Prisma storage
-        if request.user_id:
-            # Get documents for specific user
-            user_documents, user_embeddings = storage.get_documents_by_user(request.user_id)
-            print(f"[RAG SEARCH] Query: '{request.query}', User: {request.user_id}, Available documents: {len(user_documents)}")
-        else:
-            # Get all documents if no user_id provided (backward compatibility)
-            user_documents, user_embeddings = storage.get_all_documents()
-            print(f"[RAG SEARCH] Query: '{request.query}', No user_id provided, using all documents: {len(user_documents)}")
+        # Get documents for specific user from storage
+        user_documents, user_embeddings = storage.get_documents_by_user(request.user_id)
         
         if not user_documents:
-            # No documents found for this user
-            print(f"[RAG SEARCH] No documents available for user: {request.user_id}")
-            
+            logger.info(f"No documents available for user: {request.user_id}")
             return RAGResponse(
                 context="I don't have any information in my knowledge base to answer your question. Please contact support or check our documentation for more details.",
                 documents=[]
             )
         
         # Generate query embedding
-        query_embedding = embedding_model.encode(request.query).reshape(1, -1)
+        query_embedding = generate_simple_embedding(request.query)
         
-        # Calculate similarities with user-specific documents
-        user_embeddings_array = np.array(user_embeddings)
-        similarities = cosine_similarity(query_embedding, user_embeddings_array)[0]
+        # Calculate similarities
+        similarities = []
+        for i, doc in enumerate(user_documents):
+            if i < len(user_embeddings) and len(user_embeddings[i]) > 0:
+                embedding_list = user_embeddings[i].tolist() if hasattr(user_embeddings[i], 'tolist') else user_embeddings[i]
+                similarity = calculate_similarity(query_embedding, embedding_list)
+                similarities.append((doc, similarity))
         
-        # Get top k results
-        top_indices = np.argsort(similarities)[::-1][:request.top_k]
+        # Sort by similarity and filter by threshold
+        similarities.sort(key=lambda x: x[1], reverse=True)
         
+        # Check if the best match is too low quality
+        best_similarity = similarities[0][1] if similarities else 0.0
+        quality_threshold = 0.45  # Increased quality threshold to reject nonsense queries
+        
+        if best_similarity < quality_threshold:
+            logger.info(f"Query: '{request.query}', Best similarity {best_similarity:.3f} below quality threshold {quality_threshold}")
+            return RAGResponse(
+                context="I don't have enough relevant information to answer your question. Please try rephrasing your query or ask about a different topic.",
+                documents=[]
+            )
+        
+        # Filter by user-specified threshold
+        filtered_results = [
+            (doc, sim) for doc, sim in similarities 
+            if sim >= request.threshold
+        ][:request.top_k]
+        
+        # Log results
+        logger.info(f"Query: '{request.query}', Found: {len(filtered_results)} documents (best: {best_similarity:.3f})")
+        for doc, sim in filtered_results:
+            logger.info(f"  - Title: {doc['title']}, Similarity: {sim:.3f}")
+        
+        # Convert to response format
         search_results = []
-        for local_idx in top_indices:
-            similarity = similarities[local_idx]
-            # Apply threshold filter
-            if similarity < request.threshold:
-                continue
-            if similarity > 0:  # Only include relevant results
-                doc = user_documents[local_idx]
-                document = Document(
+        for doc, similarity in filtered_results:
+            search_results.append(SearchResult(
+                document=Document(
                     url=doc["url"],
                     title=doc["title"],
                     content=doc["content"],
                     timestamp=doc["timestamp"],
-                    user_id=doc.get("user_id")
-                )
-                search_results.append(SearchResult(
-                    document=document,
-                    similarity=float(similarity)
-                ))
+                    user_id=doc["user_id"]
+                ),
+                similarity=similarity
+            ))
         
-        # Build context
+        # Generate context from top results
         context = None
         if search_results:
             context_parts = []
-            for result in search_results:
-                context_parts.append(
-                    f"[Document: {result.document.title} (similarity: {result.similarity:.3f})]\n"
-                    f"{result.document.content}\n"
-                )
-            context = "\n".join(context_parts)
-        
-        # Log the search results for debugging
-        print(f"[RAG SEARCH] Query: '{request.query}', Found: {len(search_results)} documents")
-        for r in search_results:
-            print(f"  - Title: {r.document.title}, Similarity: {r.similarity:.3f}")
-        if not search_results:
-            print("  - No relevant documents found.")
-        
-        # --- OLLAMA INTEGRATION ---
-        ollama_url = "http://localhost:11434/api/generate"
-        
-        if context and search_results:
-            # Use context from relevant documents
-            prompt = """
-You are a helpful assistant. Use the following context to answer the user's question. If the context is not sufficient, say so.
-
-Context:
-"""
-            prompt += context + "\n"
-            prompt += f"\nUser question: {request.query}\nAnswer:"
-        else:
-            # No relevant documents found - be explicit about this
-            prompt = f"""
-You are a helpful assistant for a specific business. The user has asked: {request.query}
-
-IMPORTANT: You do not have any relevant information in your knowledge base to answer this question accurately. 
-
-Please respond by saying that you don't have information about this topic, or that this service/feature is not available, rather than making assumptions or providing generic information.
-
-Answer:"""
-        
-        ollama_payload = {
-            "model": "mistral",  # You can change this to your preferred model
-            "prompt": prompt,
-            "stream": False
-        }
-        llm_answer = None
-        try:
-            ollama_response = requests.post(ollama_url, json=ollama_payload, timeout=60)
-            ollama_response.raise_for_status()
-            llm_data = ollama_response.json()
-            llm_answer = llm_data.get("response", "[No answer from LLM]")
-        except Exception as e:
-            print(f"[OLLAMA ERROR] {e}")
-            llm_answer = "[Error: Could not get response from local LLM]"
+            for result in search_results[:2]:  # Use top 2 results for context
+                context_parts.append(f"From '{result.document.title}': {result.document.content[:200]}...")
+            context = " ".join(context_parts)
         
         return RAGResponse(
-            context=llm_answer,
+            context=context,
             documents=search_results
         )
+        
     except Exception as e:
+        import traceback
+        logger.error(f"Error in /search endpoint: {e}")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error searching documents: {str(e)}")
 
 @app.get("/documents", response_model=List[Document])
 async def list_documents(user_id: Optional[str] = None):
-    """List documents with optional user filtering"""
+    """List all documents for a user or all documents if no user specified"""
     try:
-        # Get documents from Prisma storage
-        documents_list = storage.get_user_documents_list(user_id=user_id, limit=1000)
+        if user_id:
+            documents, _ = storage.get_documents_by_user(user_id)
+        else:
+            documents, _ = storage.get_all_documents()
         
-        # Convert to Document objects
-        result_documents = []
-        for doc in documents_list:
-            document = Document(
+        logger.info(f"Returning {len(documents)} documents for user: {user_id or 'all'}")
+        
+        return [
+            Document(
                 url=doc["url"],
                 title=doc["title"],
                 content=doc["content"],
                 timestamp=doc["timestamp"],
                 user_id=doc["user_id"]
             )
-            result_documents.append(document)
-        
-        print(f"[LIST DOCUMENTS] Returning {len(result_documents)} documents for user: {user_id or 'all'}")
-        return result_documents
+            for doc in documents
+        ]
     except Exception as e:
+        logger.error(f"Error listing documents: {e}")
         raise HTTPException(status_code=500, detail=f"Error listing documents: {str(e)}")
 
 @app.delete("/clear-documents")
-async def clear_documents():
-    """Clear all documents (temporarily no auth required)"""
+async def clear_documents(user_id: Optional[str] = None):
+    """Clear all documents for a user or all documents if no user specified"""
     try:
-        # Clear all documents from Prisma storage
-        success = storage.clear_all_documents()
-        
-        if not success:
-            raise HTTPException(status_code=500, detail="Failed to clear documents from storage")
-        
-        return {"success": True, "message": "Cleared all documents from Prisma storage"}
+        if user_id:
+            storage.clear_documents_by_user(user_id)
+            return {"message": f"Cleared all documents for user: {user_id}"}
+        else:
+            storage.clear_all_documents()
+            return {"message": "Cleared all documents"}
     except Exception as e:
+        logger.error(f"Error clearing documents: {e}")
         raise HTTPException(status_code=500, detail=f"Error clearing documents: {str(e)}")
 
 @app.get("/stats")
 async def get_stats(user_id: Optional[str] = None):
     """Get statistics about documents"""
     try:
-        stats = storage.get_user_stats(user_id=user_id)
+        stats = storage.get_user_stats(user_id)
         return stats
     except Exception as e:
+        logger.error(f"Error getting stats: {e}")
         raise HTTPException(status_code=500, detail=f"Error getting stats: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
+    
     print("🚀 Starting RAG Chatbot Backend with Prisma Storage...")
     print("📊 Database: Unified Prisma SQLite")
-    print("🧠 Model: all-MiniLM-L6-v2")
+    print("🧠 Model: Simple Character Frequency")
     print("🔗 API: http://localhost:8001")
     print("📚 Health: http://localhost:8001/health")
     print("=" * 50)
     
+    # Check Ollama status
+    try:
+        response = requests.get("http://localhost:11434/api/tags", timeout=5)
+        if response.status_code == 200:
+            models = response.json().get("models", [])
+            print(f"✅ Ollama is running with models: {len(models)}")
+        else:
+            print("⚠️  Ollama not responding properly")
+    except Exception as e:
+        print(f"⚠️  Ollama not accessible: {e}")
+    
+    print("🔄 Starting server...")
     uvicorn.run(app, host="0.0.0.0", port=8001) 
