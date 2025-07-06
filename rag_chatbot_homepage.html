@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>智能RAG助手 - 一行代码接入中文智能客服</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Rubik', sans-serif;
+      background: linear-gradient(135deg, #edf2ff, #e0f7fa);
+      margin: 0;
+      color: #1a202c;
+    }
+    header {
+      text-align: center;
+      padding: 100px 20px 60px;
+      color: white;
+      background: linear-gradient(120deg, #667eea, #764ba2);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    header h1 {
+      font-size: 3.2rem;
+      font-weight: 800;
+      margin-bottom: 20px;
+    }
+    header p {
+      font-size: 1.3rem;
+      font-weight: 400;
+      opacity: 0.9;
+    }
+    .container {
+      max-width: 1100px;
+      margin: auto;
+      padding: 40px 20px;
+    }
+    .button {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 14px 30px;
+      border-radius: 30px;
+      font-size: 1rem;
+      margin: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .button:hover {
+      background: #5a67d8;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 30px;
+      margin: 50px 0;
+    }
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+      border-top: 5px solid #667eea;
+      transition: all 0.3s ease;
+    }
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.12);
+    }
+    .card h3 {
+      color: #3c366b;
+      font-size: 1.4rem;
+      margin-bottom: 15px;
+    }
+    .card p {
+      font-size: 1rem;
+      color: #4a5568;
+      line-height: 1.6;
+    }
+    section h2 {
+      text-align: center;
+      font-size: 2rem;
+      font-weight: 700;
+      color: #4a5568;
+      margin-bottom: 20px;
+    }
+    pre {
+      background: #2d3748;
+      color: #e2e8f0;
+      padding: 25px;
+      border-radius: 12px;
+      overflow-x: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    footer {
+      text-align: center;
+      padding: 50px 20px;
+      background: #1a202c;
+      color: white;
+      font-size: 1rem;
+    }
+    .qrcode {
+      text-align: center;
+      margin-top: 50px;
+    }
+    .qrcode img {
+      max-width: 180px;
+      border-radius: 8px;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    }
+    a {
+      color: #90cdf4;
+    }
+  </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+      <div class="nav-container">
+          <a href="index.html" class="nav-logo">🤖 智能RAG助手</a>
+          <ul class="nav-menu">
+              <li><a href="index.html" class="nav-link">🏠 首页</a></li>
+              <li><a href="chat-ui.html" class="nav-link">💬 在线体验</a></li>
+              <li><a href="db-manager.html" class="nav-link">📊 数据管理</a></li>
+          </ul>
+      </div>
+  </nav>
+
+  <header>
+    <h1>💬 一行代码，即刻拥有中文智能客服</h1>
+    <p>本地部署 · 私有数据 · 智能语义理解</p>
+    <button class="button" onclick="scrollToDemo()">🚀 立即体验</button>
+  </header>
+
+  <div class="container">
+    <section>
+      <h2>⚡ 三大核心能力</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>🧩 一行接入</h3>
+          <p>将代码嵌入网站，无需额外开发，3分钟上线聊天机器人。</p>
+        </div>
+        <div class="card">
+          <h3>🔐 本地私有</h3>
+          <p>不上传任何数据，支持本地向量库与模型集成，保障隐私安全。</p>
+        </div>
+        <div class="card">
+          <h3>🧠 中文RAG</h3>
+          <p>优化中文搜索与上下文增强，准确应答用户问题，适配多行业场景。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="demo">
+      <h2>📦 快速集成示例</h2>
+      <pre><code>&lt;script src="https://yourcdn.com/rag.js"&gt;&lt;/script&gt;
+&lt;script&gt;
+  initRAGChatbot({
+    backendUrl: 'https://yourbackend.com',
+    welcomeMessage: '您好，我是智能RAG客服助手！',
+    enableRAG: true,
+    userId: 'demo_user'
+  });
+&lt;/script&gt;
+</code></pre>
+      <div style="text-align:center">
+        <button class="button" onclick="copyCode()">📋 一键复制代码</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>🎯 应用场景</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>🛍️ 电商客服</h3>
+          <p>支持常见订单、售后、退换货咨询自动应答，降低人工成本。</p>
+        </div>
+        <div class="card">
+          <h3>🏢 企业官网</h3>
+          <p>智能答疑用户问题，提升品牌形象与访问转化率。</p>
+        </div>
+        <div class="card">
+          <h3>📁 内部问答</h3>
+          <p>为员工提供制度流程文档自动化查询，提升效率。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="qrcode">
+      <h2>📱 微信扫码体验</h2>
+      <img src="your-wechat-qrcode.png" alt="扫码体验">
+    </section>
+  </div>
+
+  <footer>
+    <p>© 2025 智能RAG助手 | 专为中文场景打造的私有部署RAG平台</p>
+    <p>📧 hi@yourdomain.com ｜ 京ICP备xxxx号 ｜ <a href="https://github.com/your-repo" target="_blank">GitHub</a></p>
+  </footer>
+
+  <script>
+    function scrollToDemo() {
+      document.getElementById('demo').scrollIntoView({ behavior: 'smooth' });
+    }
+    function copyCode() {
+      const text = `<script src=\"https://yourcdn.com/rag.js\"></script>\n<script>\n  initRAGChatbot({\n    backendUrl: 'https://yourbackend.com',\n    welcomeMessage: '您好，我是智能RAG客服助手！',\n    enableRAG: true,\n    userId: 'demo_user'\n  });\n</script>`;
+      navigator.clipboard.writeText(text).then(() => alert('✅ 已复制到剪贴板！'));
+    }
+  </script>
+</body>
+</html>
