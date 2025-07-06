@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>凌问 AI - 一行代码接入中文智能客服</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="/favicon-64.png" sizes="64x64">
+  <style>
+    body {
+      font-family: 'Rubik', sans-serif;
+      background: linear-gradient(135deg, #edf2ff, #e0f7fa);
+      margin: 0;
+      color: #1a202c;
+    }
+    
+    /* 导航栏样式 */
+    .navbar {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+    }
+    
+    .nav-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        height: 70px;
+    }
+    
+    .nav-logo {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #667eea;
+        text-decoration: none;
+    }
+    
+    .nav-menu {
+        display: flex;
+        list-style: none;
+        gap: 30px;
+        margin: 0;
+        padding: 0;
+    }
+    
+    .nav-link {
+        color: #333;
+        text-decoration: none;
+        font-weight: 500;
+        padding: 10px 15px;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+    
+    .nav-link:hover {
+        background: #667eea;
+        color: white;
+    }
+    
+    .highlight-box {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 30px;
+        margin: 30px 0;
+        text-align: center;
+    }
+    
+    .highlight-box h3 {
+        font-size: 1.8rem;
+        margin-bottom: 15px;
+    }
+    
+    .highlight-box p {
+        font-size: 1.1rem;
+        opacity: 0.9;
+    }
+    
+    .status {
+        display: inline-block;
+        padding: 12px 24px;
+        border-radius: 25px;
+        font-weight: bold;
+        margin: 15px;
+        font-size: 1rem;
+    }
+    
+    .status.success {
+        background: #c6f6d5;
+        color: #22543d;
+    }
+    
+    .status.info {
+        background: #bee3f8;
+        color: #2a4365;
+    }
+    
+    .status.error {
+        background: #fed7d7;
+        color: #742a2a;
+    }
+    
+    /* 聊天机器人样式 */
+    .chatbot-container {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 350px;
+        height: 500px;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        z-index: 10000;
+        display: none;
+        flex-direction: column;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        transition: all 0.3s ease;
+    }
+    
+    .chatbot-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 15px 20px;
+        border-radius: 12px 12px 0 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .chatbot-header h3 {
+        font-size: 16px;
+        font-weight: 600;
+        margin: 0;
+    }
+    
+    .chatbot-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .minimize-btn {
+        background: rgba(255, 255, 255, 0.2);
+        border: none;
+        color: white;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        transition: all 0.3s ease;
+    }
+    
+    .minimize-btn:hover {
+        background: rgba(255, 255, 255, 0.3);
+        transform: scale(1.1);
+    }
+    
+    .chatbot-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        background: #f8f9fa;
+    }
+    
+    .chatbot-message {
+        margin-bottom: 15px;
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .chatbot-message.user {
+        flex-direction: row-reverse;
+    }
+    
+    .message-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 12px;
+        flex-shrink: 0;
+    }
+    
+    .chatbot-message.user .message-avatar {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
+    
+    .chatbot-message.bot .message-avatar {
+        background: #e5e7eb;
+        color: #374151;
+    }
+    
+    .message-content {
+        max-width: 70%;
+        padding: 10px 14px;
+        border-radius: 16px;
+        line-height: 1.4;
+        word-wrap: break-word;
+        font-size: 14px;
+    }
+    
+    .chatbot-message.user .message-content {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-bottom-right-radius: 4px;
+    }
+    
+    .chatbot-message.bot .message-content {
+        background: white;
+        color: #374151;
+        border: 1px solid #e5e7eb;
+        border-bottom-left-radius: 4px;
+    }
+    
+    .chatbot-input {
+        padding: 15px;
+        background: white;
+        border-top: 1px solid #e5e7eb;
+        border-radius: 0 0 12px 12px;
+    }
+    
+    .input-wrapper {
+        display: flex;
+        gap: 10px;
+        align-items: flex-end;
+    }
+    
+    .message-input {
+        flex: 1;
+        border: 2px solid #e5e7eb;
+        border-radius: 18px;
+        padding: 10px 14px;
+        font-size: 14px;
+        resize: none;
+        outline: none;
+        transition: border-color 0.3s ease;
+        font-family: inherit;
+        max-height: 80px;
+        min-height: 36px;
+    }
+    
+    .message-input:focus {
+        border-color: #667eea;
+    }
+    
+    .send-btn {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 36px;
+        height: 36px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.3s ease;
+        flex-shrink: 0;
+    }
+    
+    .send-btn:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    
+    .send-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+    }
+    
+    .minimize-icon {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        cursor: pointer;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        z-index: 10001;
+        transition: all 0.3s ease;
+    }
+    
+    .minimize-icon:hover {
+        transform: scale(1.1);
+        box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);
+    }
+    
+    .typing-indicator {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 10px 14px;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        border-bottom-left-radius: 4px;
+        max-width: 70%;
+    }
+    
+    .typing-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #9ca3af;
+        animation: typing 1.4s infinite ease-in-out;
+    }
+    
+    .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+    .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+    
+    @keyframes typing {
+        0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+        40% { transform: scale(1); opacity: 1; }
+    }
+    header {
+      text-align: center;
+      padding: 100px 20px 60px;
+      color: white;
+      background: linear-gradient(120deg, #667eea, #764ba2);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    header h1 {
+      font-size: 3.2rem;
+      font-weight: 800;
+      margin-bottom: 20px;
+    }
+    header p {
+      font-size: 1.3rem;
+      font-weight: 400;
+      opacity: 0.9;
+    }
+    .container {
+      max-width: 1100px;
+      margin: auto;
+      padding: 40px 20px;
+    }
+    .button {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 14px 30px;
+      border-radius: 30px;
+      font-size: 1rem;
+      margin: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .button:hover {
+      background: #5a67d8;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 30px;
+      margin: 50px 0;
+    }
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+      border-top: 5px solid #667eea;
+      transition: all 0.3s ease;
+    }
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.12);
+    }
+    .card h3 {
+      color: #3c366b;
+      font-size: 1.4rem;
+      margin-bottom: 15px;
+    }
+    .card p {
+      font-size: 1rem;
+      color: #4a5568;
+      line-height: 1.6;
+    }
+    section h2 {
+      text-align: center;
+      font-size: 2rem;
+      font-weight: 700;
+      color: #4a5568;
+      margin-bottom: 20px;
+    }
+    pre {
+      background: #2d3748;
+      color: #e2e8f0;
+      padding: 25px;
+      border-radius: 12px;
+      overflow-x: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    footer {
+      text-align: center;
+      padding: 50px 20px;
+      background: #1a202c;
+      color: white;
+      font-size: 1rem;
+    }
+    .qrcode {
+      text-align: center;
+      margin-top: 50px;
+    }
+    .qrcode img {
+      max-width: 180px;
+      border-radius: 8px;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+    }
+    a {
+      color: #90cdf4;
+    }
+    .code-block {
+      background: #2d3748;
+      color: #e2e8f0;
+      border-radius: 10px;
+      padding: 25px;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 14px;
+      overflow-x: auto;
+      margin: 20px 0;
+    }
+    .code-block .comment {
+        color: #a0aec0;
+    }
+    .code-block .keyword {
+        color: #f6ad55;
+    }
+    .code-block .string {
+        color: #68d391;
+    }
+    .code-block .number {
+        color: #f687b3;
+    }
+    .comment {
+      color: #9ca3af;
+    }
+  </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+      <div class="nav-container">
+          <a href="index.html" class="nav-logo">凌问 AI - 智嵌客服</a>
+          <ul class="nav-menu">
+              <li><a href="index.html" class="nav-link">🏠 首页</a></li>
+              <li><a href="chat-ui.html" class="nav-link">💬 在线体验</a></li>
+              <li><a href="http://localhost:3000" class="nav-link">📊 数据管理</a></li>
+          </ul>
+      </div>
+  </nav>
+
+  <header>
+    <h1>💬 一行代码，即刻拥有中文智能客服</h1>
+    <p>本地部署 · 私有数据 · 智能语义理解</p>
+    <button class="button" onclick="scrollToDemo()">🚀 立即体验</button>
+  </header>
+
+  <div class="container">
+    <section>
+      <h2>⚡ 三大核心能力</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>🧩 一行接入</h3>
+          <p>将代码嵌入网站，无需额外开发，3分钟上线聊天机器人。</p>
+        </div>
+        <div class="card">
+          <h3>🔐 本地私有</h3>
+          <p>不上传任何数据，支持本地向量库与模型集成，保障隐私安全。</p>
+        </div>
+        <div class="card">
+          <h3>🧠 中文RAG</h3>
+          <p>优化中文搜索与上下文增强，准确应答用户问题，适配多行业场景。</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="demo">
+      <h2>📦 快速集成示例</h2>
+      <div class="code-block">
+        <span class="comment">&lt;!-- 一行代码，轻松嵌入聊天机器人 --&gt;</span><br>
+        &lt;script src="https://yourcdn.com/rag.js"&gt;&lt;/script&gt;<br>
+        &lt;script&gt;<br>
+        &nbsp;&nbsp;<span class="comment">// 初始化智能RAG聊天机器人</span><br>
+        &nbsp;&nbsp;initRAGChatbot({<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;backendUrl: "<span class="string">https://yourbackend.com</span>",<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;welcomeMessage: "<span class="string">您好，我是智能RAG客服助手，有任何问题欢迎咨询！</span>",<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;enableRAG: <span class="keyword">true</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;theme: { primaryColor: "<span class="string">#667eea</span>" },<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;userId: "<span class="string">your_user_id</span>" <span class="comment">// 多租户标识（可选）</span><br>
+        &nbsp;&nbsp;});<br>
+        &lt;/script&gt;
+      </div>
+      
+    </section>
+
+    <section>
+      <h2>🎯 应用场景</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>🛍️ 电商客服</h3>
+          <p>支持常见订单、售后、退换货咨询自动应答，降低人工成本。</p>
+        </div>
+        <div class="card">
+          <h3>🏢 企业官网</h3>
+          <p>智能答疑用户问题，提升品牌形象与访问转化率。</p>
+        </div>
+        <div class="card">
+          <h3>📁 内部问答</h3>
+          <p>为员工提供制度流程文档自动化查询，提升效率。</p>
+        </div>
+      </div>
+    </section>
+
+    <div class="highlight-box">
+        <h3>🎯 立即体验</h3>
+        <p>点击下方按钮启动智能RAG聊天机器人，体验本地化AI助手的强大功能</p>
+        <button class="button" onclick="initChatbot()">🚀 启动聊天机器人</button>
+        <button class="button secondary" onclick="removeChatbot()">🗑️ 移除机器人</button>
+        <div id="status" class="status info">准备就绪，点击启动按钮开始体验</div>
+    </div>
+  </div>
+
+  <footer>
+    <p>© 2025 凌问 AI | 专为中文场景打造的私有部署RAG平台</p>
+    <p>📧 support@zhiqian.com ｜ 京ICP备xxxx号</p>
+  </footer>
+
+  <!-- 聊天机器人容器 -->
+  <div class="chatbot-container" id="chatbot-container">
+    <div class="chatbot-header">
+      <h3>🤖 AI 助手</h3>
+      <div class="chatbot-controls">
+        <button class="minimize-btn" onclick="minimizeChatbot()" title="最小化">−</button>
+      </div>
+    </div>
+    <div class="chatbot-messages" id="chatbot-messages">
+      <!-- 消息将在这里显示 -->
+    </div>
+    <div class="chatbot-input">
+      <div class="input-wrapper">
+        <textarea 
+          id="chatbot-input" 
+          class="message-input" 
+          placeholder="输入您的问题..."
+          rows="1"
+        ></textarea>
+        <button id="chatbot-send" class="send-btn" onclick="sendMessage()">
+          <svg fill="currentColor" viewBox="0 0 20 20" width="16" height="16">
+            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 最小化图标 -->
+  <div class="minimize-icon" id="minimize-icon" onclick="expandChatbot()">
+    🤖
+  </div>
+
+  <!-- 引入RAG服务和聊天机器人脚本 -->
+  <script src="rag-service.js"></script>
+  <script src="chatbot.js"></script>
+
+  <script>
+    let chatbotInitialized = false;
+    
+    function updateStatus(message, type = 'info') {
+        const statusDiv = document.getElementById('status');
+        statusDiv.textContent = message;
+        statusDiv.className = `status ${type}`;
+    }
+    
+    async function initChatbot() {
+        try {
+            updateStatus('🚀 正在启动智能RAG聊天机器人...', 'info');
+            const chatbotContainer = document.getElementById('chatbot-container');
+            const minimizeIcon = document.getElementById('minimize-icon');
+            chatbotContainer.style.display = 'flex';
+            minimizeIcon.style.display = 'none';
+
+            // 每次启动前清空消息区，实现焕然一新
+            const messagesContainer = document.getElementById('chatbot-messages');
+            messagesContainer.innerHTML = '';
+
+            // 添加欢迎消息
+            addChatMessage('bot', '您好！我是您的AI助手，具备智能RAG能力。我可以搜索页面内容为您提供准确答案！');
+
+            chatbotInitialized = true;
+            updateStatus('✅ 智能RAG聊天机器人启动成功！', 'success');
+            console.log('RAG聊天机器人已启动');
+        } catch (error) {
+            updateStatus(`❌ 启动失败: ${error.message}`, 'error');
+            console.error('聊天机器人启动错误:', error);
+        }
+    }
+    
+    function removeChatbot() {
+        const chatbotContainer = document.getElementById('chatbot-container');
+        const minimizeIcon = document.getElementById('minimize-icon');
+        
+        chatbotContainer.style.display = 'none';
+        minimizeIcon.style.display = 'none';
+        chatbotInitialized = false;
+        updateStatus('🗑️ 聊天机器人已移除', 'info');
+    }
+    
+    function minimizeChatbot() {
+        const chatbotContainer = document.getElementById('chatbot-container');
+        const minimizeIcon = document.getElementById('minimize-icon');
+        
+        chatbotContainer.style.display = 'none';
+        minimizeIcon.style.display = 'flex';
+    }
+    
+    function expandChatbot() {
+        const chatbotContainer = document.getElementById('chatbot-container');
+        const minimizeIcon = document.getElementById('minimize-icon');
+        
+        chatbotContainer.style.display = 'flex';
+        minimizeIcon.style.display = 'none';
+    }
+    
+    function addChatMessage(sender, content) {
+        const messagesContainer = document.getElementById('chatbot-messages');
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `chatbot-message ${sender}`;
+        
+        const avatar = document.createElement('div');
+        avatar.className = 'message-avatar';
+        avatar.textContent = sender === 'user' ? 'U' : '🤖';
+        
+        const messageContent = document.createElement('div');
+        messageContent.className = 'message-content';
+        messageContent.textContent = content;
+        
+        messageDiv.appendChild(avatar);
+        messageDiv.appendChild(messageContent);
+        messagesContainer.appendChild(messageDiv);
+        
+        // 滚动到底部
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    function showTypingIndicator() {
+        const messagesContainer = document.getElementById('chatbot-messages');
+        const typingDiv = document.createElement('div');
+        typingDiv.className = 'chatbot-message bot';
+        typingDiv.id = 'typing-indicator';
+        
+        const avatar = document.createElement('div');
+        avatar.className = 'message-avatar';
+        avatar.textContent = '🤖';
+        
+        const typingContent = document.createElement('div');
+        typingContent.className = 'typing-indicator';
+        typingContent.innerHTML = `
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+        `;
+        
+        typingDiv.appendChild(avatar);
+        typingDiv.appendChild(typingContent);
+        messagesContainer.appendChild(typingDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+    
+    function hideTypingIndicator() {
+        const typingIndicator = document.getElementById('typing-indicator');
+        if (typingIndicator) {
+            typingIndicator.remove();
+        }
+    }
+    
+    async function sendMessage() {
+        const input = document.getElementById('chatbot-input');
+        const sendBtn = document.getElementById('chatbot-send');
+        const message = input.value.trim();
+        if (!message || !chatbotInitialized) return;
+        addChatMessage('user', message);
+        input.value = '';
+        sendBtn.disabled = true;
+        showTypingIndicator();
+        try {
+            // 调用后端 /search 接口
+            const response = await fetch('http://localhost:8001/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    query: message,
+                    top_k: 1,
+                    threshold: 0.3,
+                    user_id: 'main_page_user'
+                })
+            });
+            const data = await response.json();
+            hideTypingIndicator();
+            addChatMessage('bot', data.context || 'AI无响应');
+            sendBtn.disabled = false;
+        } catch (error) {
+            hideTypingIndicator();
+            addChatMessage('bot', '抱歉，AI服务连接失败。');
+            sendBtn.disabled = false;
+            console.error('发送消息错误:', error);
+        }
+    }
+    
+    // 处理回车键发送消息
+    document.addEventListener('DOMContentLoaded', function() {
+        const input = document.getElementById('chatbot-input');
+        if (input) {
+            input.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+        }
+    });
+    
+    function scrollToDemo() {
+      document.getElementById('demo').scrollIntoView({ behavior: 'smooth' });
+    }
+  </script>
+</body>
+</html>
