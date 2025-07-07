@@ -693,16 +693,15 @@ iwIDAQAB
         }
         
         try {
-            // Make authenticated request to RAG backend
-            const searchUrl = `${config.backendUrl}/search`;
+            // Make authenticated request to RAG backend using /rag-generate
+            const ragGenerateUrl = `${config.backendUrl}/rag-generate`;
             
-            const response = await fetch(searchUrl, {
+            const response = await fetch(ragGenerateUrl, {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({
                     query: query,
                     top_k: config.maxRAGResults,
-                    threshold: config.ragThreshold,
                     user_id: config.userId // Include userId for multi-tenant support
                 })
             });
@@ -714,7 +713,7 @@ iwIDAQAB
                     localStorage.removeItem(config.auth.tokenKey);
                     authToken = null;
                 } else {
-                    console.error('❌ RAG search failed:', response.status);
+                    console.error('❌ RAG generate failed:', response.status);
                 }
                 return [];
             }

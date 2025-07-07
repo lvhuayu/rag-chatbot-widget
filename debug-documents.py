@@ -1,68 +1,79 @@
 #!/usr/bin/env python3
 """
-Debug script to test document retrieval
+Debug script to view documents and analyze similarity calculations
 """
 
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), 'backend'))
+import requests
+import json
+from typing import List, Dict, Any
 
-from rag_storage_prisma import PrismaRAGStorage
-
-def test_document_retrieval():
-    """Test document retrieval methods"""
-    
-    print("🔍 Testing document retrieval...")
-    
-    # Initialize storage
-    storage = PrismaRAGStorage()
-    
+def get_documents(user_id: str = "main_page_user") -> List[Dict[str, Any]]:
+    """获取指定用户的文档"""
     try:
-        # Test database info
-        print("\n📊 Database Info:")
-        db_info = storage.get_database_info()
-        print(f"  Documents: {db_info.get('documents', 0)}")
-        print(f"  Embeddings: {db_info.get('embeddings', 0)}")
-        print(f"  Users: {db_info.get('users', 0)}")
-        
-        # Test stats
-        print("\n📈 Stats:")
-        stats = storage.get_user_stats()
-        print(f"  Total documents: {stats.get('total_documents', 0)}")
-        print(f"  Unique users: {stats.get('unique_users', 0)}")
-        
-        # Test get_all_documents
-        print("\n📄 Testing get_all_documents:")
-        documents, embeddings = storage.get_all_documents()
-        print(f"  Retrieved {len(documents)} documents")
-        print(f"  Retrieved {len(embeddings)} embeddings")
-        
-        if documents:
-            print("  First document:")
-            doc = documents[0]
-            print(f"    ID: {doc.get('id')}")
-            print(f"    Title: {doc.get('title')}")
-            print(f"    User: {doc.get('user_id')}")
-            print(f"    Content length: {len(doc.get('content', ''))}")
+        response = requests.get(f"http://localhost:8001/documents?user_id={user_id}", timeout=10)
+        if response.status_code == 200:
+            return response.json()
         else:
-            print("  No documents returned!")
-        
-        # Test get_user_documents_list
-        print("\n📋 Testing get_user_documents_list:")
-        doc_list = storage.get_user_documents_list(limit=5)
-        print(f"  Retrieved {len(doc_list)} documents from list method")
-        
-        if doc_list:
-            print("  First document from list:")
-            doc = doc_list[0]
-            print(f"    ID: {doc.get('id')}")
-            print(f"    Title: {doc.get('title')}")
-            print(f"    User: {doc.get('user_id')}")
-        
+            print(f"Error getting documents: {response.status_code}")
+            return []
     except Exception as e:
-        print(f"❌ Error: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"Error: {e}")
+        return []
+
+def test_similarity_for_query(query: str, user_id: str = "main_page_user", threshold: float = 0.1):
+    """测试特定查询的相似度计算"""
+    try:
+        response = requests.post("http://localhost:8001/search", 
+                               json={
+                                   "query": query,
+                                   "user_id": user_id,
+                                   "threshold": threshold,
+                                   "top_k": 10
+                               },
+                               timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            print(f"\n🔍 Query: '{query}'")
+            print(f"📊 Found {len(data.get('documents', []))} documents")
+            
+            for i, doc in enumerate(data.get('documents', []), 1):
+                similarity = doc.get('similarity', 0)
+                title = doc.get('document', {}).get('title', 'No title')
+                content = doc.get('document', {}).get('content', 'No content')
+                
+                print(f"\n📄 Document {i}:")
+                print(f"   Title: {title}")
+                print(f"   Similarity: {similarity:.3f} ({similarity*100:.1f}%)")
+                print(f"   Content: {content[:200]}{'...' if len(content) > 200 else ''}")
+                
+        else:
+            print(f"Error: {response.status_code}")
+            
+    except Exception as e:
+        print(f"Error testing similarity: {e}")
+
+def analyze_documents():
+    """分析文档内容"""
+    print("🔍 Analyzing all document segments for main_page_user...")
+    
+    # 获取所有文档
+    documents = get_documents("main_page_user")
+    
+    if not documents:
+        print("❌ No documents found")
+        return
+    
+    print(f"📚 Found {len(documents)} segments")
+    
+    # 输出所有分段内容
+    for i, doc in enumerate(documents, 1):
+        title = doc.get('title', 'No title')
+        content = doc.get('content', 'No content')
+        print(f"\n{'='*60}")
+        print(f"Segment {i} | Title: {title}")
+        print(f"Content:\n{content}")
+        print(f"{'='*60}")
 
 if __name__ == "__main__":
-    test_document_retrieval() 
+    analyze_documents() 

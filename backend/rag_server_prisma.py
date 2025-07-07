@@ -24,6 +24,12 @@ from pydantic import BaseModel
 import jwt
 from sentence_transformers import SentenceTransformer
 import numpy as np
+import hmac
+import base64
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives import serialization
+import rag_storage_prisma as storage
 
 # Add the parent directory to the path to import the Prisma storage
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -69,7 +75,7 @@ class Document(BaseModel):
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 3
-    threshold: Optional[float] = 0.3  # Increased default threshold
+    threshold: Optional[float] = 0.2  # Adjusted for better recall with BGE model
     user_id: Optional[str] = None
 
 class SearchResult(BaseModel):
@@ -288,19 +294,27 @@ async def get_current_user(current_user: User = Depends(verify_token)):
     return current_user
 
 def split_text(text, max_length=300):
-    """按中文标点或长度切分长文本为段落"""
+    """按结构（表格、标题、空行等）和标点切分长文本为段落，保证每个分段都不丢失"""
     import re
-    sentences = re.split(r'(。|！|!|\.|？|\?)', text)
-    chunks, chunk = [], ''
-    for s in sentences:
-        if not s: continue
-        if len(chunk) + len(s) > max_length:
+    # 先按空行、表格、标题、列表等结构分段
+    blocks = re.split(r'\n\s*\n', text)
+    chunks = []
+    for block in blocks:
+        block = block.strip()
+        if not block:
+            continue
+        # 再按标点和长度切分
+        sentences = re.split(r'(。|！|!|\.|？|\?)', block)
+        chunk = ''
+        for s in sentences:
+            if not s: continue
+            if len(chunk) + len(s) > max_length:
+                chunks.append(chunk)
+                chunk = s
+            else:
+                chunk += s
+        if chunk:
             chunks.append(chunk)
-            chunk = s
-        else:
-            chunk += s
-    if chunk:
-        chunks.append(chunk)
     return [c for c in chunks if c.strip()]
 
 @app.post("/add-documents", response_model=Dict[str, Any])
@@ -317,10 +331,12 @@ async def add_documents(documents: List[Document]):
         results = []
         for idx, chunk in enumerate(segments):
             embedding = generate_simple_embedding(chunk)
+            # 为每个分段生成唯一标题，避免唯一约束冲突
+            segment_title = f"{title} - 段落{idx+1}"
             result = storage.add_document_with_uniqueness(
                 doc_id=None,
                 url=url,
-                title=title,
+                title=segment_title,
                 content=chunk,
                 user_id=user_id,
                 embedding=embedding,
@@ -358,7 +374,7 @@ async def search_documents(request: SearchRequest):
                 similarities.append((doc, similarity, i))  # i为段号
         similarities.sort(key=lambda x: x[1], reverse=True)
         best_similarity = similarities[0][1] if similarities else 0.0
-        quality_threshold = 0.45
+        quality_threshold = 0.25
         if best_similarity < quality_threshold:
             logger.info(f"Query: '{request.query}', Best similarity {best_similarity:.3f} below quality threshold {quality_threshold}")
             return RAGResponse(
@@ -384,12 +400,12 @@ async def search_documents(request: SearchRequest):
                 ),
                 similarity=similarity
             ))
-        # context 拼接前2条最相关段内容，带来源信息
+        # context 拼接top_k条最相关段内容，不带来源信息
         context = None
         if search_results:
             context_parts = []
-            for i, result in enumerate(search_results[:2]):
-                context_parts.append(f"[来自: {result.document.title} | 段落#{similarities[i][2]} | 相似度: {result.similarity:.2f}] {result.document.content[:200]}...")
+            for i, result in enumerate(search_results[:request.top_k]):
+                context_parts.append(result.document.content[:1000])
             context = "\n".join(context_parts)
         return RAGResponse(
             context=context,
@@ -449,6 +465,130 @@ async def get_stats(user_id: Optional[str] = None):
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
         raise HTTPException(status_code=500, detail=f"Error getting stats: {str(e)}")
+
+@app.post("/rag-generate", response_model=RAGResponse)
+async def rag_generate(request: SearchRequest):
+    """RAG: Search for relevant documents and generate answer using Ollama"""
+    try:
+        # Step 1: Search for relevant documents
+        user_documents, user_embeddings = storage.get_documents_by_user(request.user_id)
+        if not user_documents:
+            logger.info(f"No documents available for user: {request.user_id}")
+            return RAGResponse(
+                context="我的知识库中没有相关信息来回答您的问题。请联系客服或查看我们的文档获取更多详情。",
+                documents=[]
+            )
+        
+        query_embedding = generate_simple_embedding(request.query)
+        similarities = []
+        for i, doc in enumerate(user_documents):
+            if i < len(user_embeddings) and len(user_embeddings[i]) > 0:
+                embedding_list = user_embeddings[i].tolist() if hasattr(user_embeddings[i], 'tolist') else user_embeddings[i]
+                similarity = calculate_similarity(query_embedding, embedding_list)
+                similarities.append((doc, similarity, i))
+        
+        similarities.sort(key=lambda x: x[1], reverse=True)
+        best_similarity = similarities[0][1] if similarities else 0.0
+        quality_threshold = 0.25
+        
+        if best_similarity < quality_threshold:
+            logger.info(f"Query: '{request.query}', Best similarity {best_similarity:.3f} below quality threshold {quality_threshold}")
+            return RAGResponse(
+                context="我没有足够的相关信息来回答您的问题。请尝试重新表述您的问题或询问其他话题。",
+                documents=[]
+            )
+        
+        filtered_results = [
+            (doc, sim, idx) for doc, sim, idx in similarities 
+            if sim >= request.threshold
+        ][:request.top_k]
+        
+        logger.info(f"Query: '{request.query}', Found: {len(filtered_results)} segments (best: {best_similarity:.3f})")
+        for doc, sim, idx in filtered_results:
+            logger.info(f"  - Title: {doc['title']}, Segment: {idx}, Similarity: {sim:.3f}")
+        
+        # Step 2: Prepare context for LLM
+        context_parts = []
+        search_results = []
+        for doc, similarity, idx in filtered_results:
+            context_parts.append(doc["content"])
+            search_results.append(SearchResult(
+                document=Document(
+                    url=doc["url"],
+                    title=doc["title"],
+                    content=doc["content"],
+                    timestamp=doc["timestamp"],
+                    user_id=doc["user_id"]
+                ),
+                similarity=similarity
+            ))
+        
+        context = "\n\n".join(context_parts)
+        
+        # Step 3: Generate answer using Ollama
+        try:
+            ollama_response = await generate_with_ollama(request.query, context)
+            generated_answer = ollama_response
+        except Exception as e:
+            logger.error(f"Error generating with Ollama: {e}")
+            # Fallback to context if Ollama fails
+            generated_answer = f"根据可用的信息：\n\n{context}"
+        
+        return RAGResponse(
+            context=generated_answer,
+            documents=search_results
+        )
+        
+    except Exception as e:
+        import traceback
+        logger.error(f"Error in /rag-generate endpoint: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error generating answer: {str(e)}")
+
+async def generate_with_ollama(query: str, context: str) -> str:
+    """Generate answer using Ollama with RAG context"""
+    try:
+        # Prepare prompt for RAG
+        prompt = f"""你是一个有用的AI助手。请使用以下上下文来回答用户的问题。
+如果上下文中的信息不足以回答问题，请说明这一点。
+
+上下文：
+{context}
+
+用户问题：{query}
+
+请根据上述上下文提供有用且准确的回答（请用中文回答）："""
+
+        # Call Ollama API
+        ollama_url = "http://localhost:11434/api/generate"
+        payload = {
+            "model": "mistral:latest",
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "max_tokens": 1000
+            }
+        }
+        
+        response = requests.post(ollama_url, json=payload, timeout=30)
+        if response.status_code == 200:
+            result = response.json()
+            return result.get("response", "Sorry, I couldn't generate a response.")
+        else:
+            logger.error(f"Ollama API error: {response.status_code} - {response.text}")
+            raise Exception(f"Ollama API returned status {response.status_code}")
+            
+    except requests.exceptions.Timeout:
+        logger.error("Ollama request timed out")
+        raise Exception("Request to Ollama timed out")
+    except requests.exceptions.ConnectionError:
+        logger.error("Cannot connect to Ollama")
+        raise Exception("Cannot connect to Ollama. Please make sure Ollama is running.")
+    except Exception as e:
+        logger.error(f"Error calling Ollama: {e}")
+        raise e
 
 if __name__ == "__main__":
     import uvicorn

@@ -473,7 +473,7 @@
       <div class="nav-container">
           <a href="index.html" class="nav-logo">凌问 AI - 智嵌客服</a>
           <ul class="nav-menu">
-              <li><a href="chat-ui.html" class="nav-link">💬 在线体验</a></li>
+              <!-- <li><a href="chat-ui.html" class="nav-link">💬 在线体验</a></li> -->
               <li><a href="http://localhost:3000" class="nav-link">📊 知识库管理</a></li>
           </ul>
       </div>
@@ -713,14 +713,13 @@
         sendBtn.disabled = true;
         showTypingIndicator();
         try {
-            // 调用后端 /search 接口
-            const response = await fetch('http://localhost:8001/search', {
+            // 调用后端 /rag-generate 接口
+            const response = await fetch('http://localhost:8001/rag-generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     query: message,
                     top_k: 1,
-                    threshold: 0.3,
                     user_id: 'main_page_user'
                 })
             });

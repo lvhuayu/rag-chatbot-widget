@@ -161,102 +161,48 @@ runQuery();
             
             user = self._run_prisma_query(user_query)
             
-            # Check if document with same title exists for this user
-            existing_query = f"""
-                await prisma.rAGDocument.findFirst({{
-                    where: {{
+            # Generate new ID if not provided
+            if doc_id is None:
+                doc_id = str(uuid.uuid4())
+            
+            # Insert new document (always create new, don't update existing)
+            create_query = f"""
+                await prisma.rAGDocument.create({{
+                    data: {{
+                        id: '{doc_id}',
+                        userId: '{user["id"]}',
+                        url: '{_escape_js_string(url)}',
                         title: '{_escape_js_string(title)}',
-                        userId: '{user["id"]}'
+                        content: '{_escape_js_string(content)}',
+                        timestamp: new Date('{timestamp}'),
+                        createdAt: new Date('{timestamp}')
                     }}
                 }})
             """
             
-            existing_doc = self._run_prisma_query(existing_query)
+            new_doc = self._run_prisma_query(create_query)
             
-            if existing_doc:
-                # Update existing document
-                update_query = f"""
-                    await prisma.rAGDocument.update({{
-                        where: {{ id: '{existing_doc["id"]}' }},
-                        data: {{
-                            url: '{_escape_js_string(url)}',
-                            content: '{_escape_js_string(content)}',
-                            timestamp: new Date('{timestamp}')
-                        }}
-                    }})
-                """
-                
-                updated_doc = self._run_prisma_query(update_query)
-                
-                # Update embedding
-                embedding_blob = pickle.dumps(np.array(embedding))
-                embedding_b64 = base64.b64encode(embedding_blob).decode('utf-8')
-                embedding_query = f"""
-                    await prisma.rAGEmbedding.upsert({{
-                        where: {{ documentId: '{existing_doc["id"]}' }},
-                        update: {{
-                            embeddingData: Buffer.from('{embedding_b64}', 'base64'),
-                            embeddingDimension: {len(embedding)}
-                        }},
-                        create: {{
-                            documentId: '{existing_doc["id"]}',
-                            embeddingData: Buffer.from('{embedding_b64}', 'base64'),
-                            embeddingDimension: {len(embedding)}
-                        }}
-                    }})
-                """
-                
-                self._run_prisma_query(embedding_query)
-                
-                logger.info(f"Updated existing document: {title} (User: {user_id}, ID: {existing_doc['id']})")
-                return {
-                    "success": True,
-                    "action": "updated",
-                    "doc_id": existing_doc["id"]
-                }
-            else:
-                # Generate new ID if not provided
-                if doc_id is None:
-                    doc_id = str(uuid.uuid4())
-                
-                # Insert new document
-                create_query = f"""
-                    await prisma.rAGDocument.create({{
-                        data: {{
-                            id: '{doc_id}',
-                            userId: '{user["id"]}',
-                            url: '{_escape_js_string(url)}',
-                            title: '{_escape_js_string(title)}',
-                            content: '{_escape_js_string(content)}',
-                            timestamp: new Date('{timestamp}'),
-                            createdAt: new Date('{timestamp}')
-                        }}
-                    }})
-                """
-                
-                new_doc = self._run_prisma_query(create_query)
-                
-                # Insert embedding
-                embedding_blob = pickle.dumps(np.array(embedding))
-                embedding_b64 = base64.b64encode(embedding_blob).decode('utf-8')
-                embedding_query = f"""
-                    await prisma.rAGEmbedding.create({{
-                        data: {{
-                            documentId: '{doc_id}',
-                            embeddingData: Buffer.from('{embedding_b64}', 'base64'),
-                            embeddingDimension: {len(embedding)}
-                        }}
-                    }})
-                """
-                
-                self._run_prisma_query(embedding_query)
-                
-                logger.info(f"Added new document: {title} (User: {user_id}, ID: {doc_id})")
-                return {
-                    "success": True,
-                    "action": "added",
-                    "doc_id": doc_id
-                }
+            # Insert embedding
+            embedding_blob = pickle.dumps(np.array(embedding))
+            embedding_b64 = base64.b64encode(embedding_blob).decode('utf-8')
+            embedding_query = f"""
+                await prisma.rAGEmbedding.create({{
+                    data: {{
+                        documentId: '{doc_id}',
+                        embeddingData: Buffer.from('{embedding_b64}', 'base64'),
+                        embeddingDimension: {len(embedding)}
+                    }}
+                }})
+            """
+            
+            self._run_prisma_query(embedding_query)
+            
+            logger.info(f"Added new document: {title} (User: {user_id}, ID: {doc_id})")
+            return {
+                "success": True,
+                "action": "added",
+                "doc_id": doc_id
+            }
                 
         except Exception as e:
             logger.error(f"Error adding document: {e}")

@@ -11,29 +11,58 @@ def test_search():
     
     url = "http://localhost:8001/search"
     headers = {"Content-Type": "application/json"}
-    data = {
-        "query": "网站功能",
-        "user_id": "main_page_user",
-        "threshold": 0.05
-    }
     
-    try:
-        print(f"Testing search endpoint: {url}")
-        print(f"Data: {json.dumps(data, indent=2)}")
+    # 测试多个查询
+    test_queries = [
+        {"query": "资费", "user_id": "main_page_user", "threshold": 0.1, "top_k": 5},
+        {"query": "收费方案", "user_id": "main_page_user", "threshold": 0.1, "top_k": 5},
+        {"query": "价格", "user_id": "main_page_user", "threshold": 0.1, "top_k": 5},
+        {"query": "月费", "user_id": "main_page_user", "threshold": 0.1, "top_k": 5}
+    ]
+    
+    for i, test_case in enumerate(test_queries, 1):
+        query = test_case["query"]
+        user_id = test_case["user_id"]
+        threshold = test_case["threshold"]
+        top_k = test_case["top_k"]
         
-        response = requests.post(url, headers=headers, json=data, timeout=10)
+        print(f"\n🔍 Test {i}: {query}")
+        print(f"  {{")
+        print(f"    \"query\": \"{query}\",")
+        print(f"    \"user_id\": \"{user_id}\",")
+        print(f"    \"threshold\": {threshold},")
+        print(f"    \"top_k\": {top_k}")
+        print(f"  }}")
         
-        print(f"Status Code: {response.status_code}")
-        print(f"Response Headers: {dict(response.headers)}")
-        
-        if response.status_code == 200:
-            result = response.json()
-            print(f"Response: {json.dumps(result, indent=2)}")
-        else:
-            print(f"Error Response: {response.text}")
+        try:
+            response = requests.post(url, headers=headers, json=test_case, timeout=10)
             
-    except Exception as e:
-        print(f"Error: {e}")
+            print(f"Status Code: {response.status_code}")
+            
+            if response.status_code == 200:
+                data = response.json()
+                documents = data.get('documents', [])
+                context = data.get('context', '')
+                
+                print(f"Documents found: {len(documents)}")
+                
+                if context:
+                    print(f"\n📝 Full Context:")
+                    print(context)
+                else:
+                    print("❌ No context found")
+                    
+                for j, doc in enumerate(documents, 1):
+                    similarity = doc.get('similarity', 0)
+                    title = doc.get('document', {}).get('title', 'No title')
+                    print(f"  {j}. {title} (相似度: {similarity:.3f})")
+                    
+            else:
+                print(f"Error: {response.status_code}")
+                print(f"Response: {response.text}")
+                
+        except Exception as e:
+            print(f"Error: {e}")
 
 def test_health():
     """Test the health endpoint"""

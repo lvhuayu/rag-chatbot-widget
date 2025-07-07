@@ -85,7 +85,7 @@ export class RAGServiceClient {
         }
 
         try {
-            const response = await fetch(`${this.backendUrl}/search`, {
+            const response = await fetch(`${this.backendUrl}/rag-generate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -97,15 +97,15 @@ export class RAGServiceClient {
             });
 
             if (!response.ok) {
-                throw new Error(`Search failed: ${response.status}`);
+                throw new Error(`RAG generate failed: ${response.status}`);
             }
 
             const results = await response.json();
-            console.log('✅ RAG search results:', results);
+            console.log('✅ RAG generate results:', results);
             return results;
 
         } catch (error) {
-            console.error('❌ Error searching RAG backend:', error);
+            console.error('❌ Error generating with RAG backend:', error);
             throw error;
         }
     }

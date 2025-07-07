@@ -876,7 +876,7 @@
                     user_id: user || null
                 };
                 
-                const response = await fetch(`${API_BASE}/search`, {
+                const response = await fetch(`${API_BASE}/rag-generate`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -959,7 +959,7 @@
                     user_id: user || null
                 };
                 
-                const response = await fetch(`${API_BASE}/search`, {
+                const response = await fetch(`${API_BASE}/rag-generate`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
