@@ -408,7 +408,7 @@ async def add_documents(documents: List[Document]):
 async def search_documents(request: SearchRequest):
     """Search for relevant document segments with multi-tenant support, 返回 context 来源信息"""
     try:
-        user_documents, user_embeddings = storage.get_documents_by_user(request.site_id)
+        user_documents, user_embeddings = storage.get_documents_by_site(request.site_id)
         if not user_documents:
             logger.info(f"No documents available for site: {request.site_id}")
             return RAGResponse(
@@ -445,7 +445,7 @@ async def search_documents(request: SearchRequest):
                     url=doc["url"],
                     title=doc["title"],
                     content=doc["content"],
-                    timestamp=doc["timestamp"],
+                    timestamp=doc.get("timestamp") or doc.get("created_at"),
                     site_id=doc["site_id"]
                 ),
                 similarity=similarity
@@ -481,7 +481,7 @@ async def list_documents(site_id: Optional[str] = None):
                 url=doc["url"],
                 title=doc["title"],
                 content=doc["content"],
-                timestamp=doc.get("timestamp"),
+                timestamp=doc.get("timestamp") or doc.get("created_at"),
                 site_id=doc["site_id"]
             )
             for doc in documents
@@ -527,7 +527,7 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
         except Exception as e:
             raise HTTPException(status_code=401, detail=f"Invalid or expired token: {str(e)}")
         # Step 1: Search for relevant documents
-        user_documents, user_embeddings = storage.get_documents_by_user(site_id)
+        user_documents, user_embeddings = storage.get_documents_by_site(site_id)
         if not user_documents:
             logger.info(f"No documents available for site: {site_id}")
             return RAGResponse(
@@ -567,7 +567,7 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                     url=doc["url"],
                     title=doc["title"],
                     content=doc["content"],
-                    timestamp=doc["timestamp"],
+                    timestamp=doc.get("timestamp") or doc.get("created_at"),
                     site_id=doc["site_id"]
                 ),
                 similarity=similarity
