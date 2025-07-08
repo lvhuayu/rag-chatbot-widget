@@ -714,19 +714,51 @@
         showTypingIndicator();
         try {
             // 调用后端 /rag-generate 接口
-            const response = await fetch('http://localhost:8001/rag-generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    query: message,
-                    top_k: 1,
-                    siteId: 'main_page_user'
-                })
-            });
-            const data = await response.json();
-            hideTypingIndicator();
-            addChatMessage('bot', data.context || 'AI无响应');
-            sendBtn.disabled = false;
+            // 1. 先用 apiKey 换取 token
+            const apiKey = 'cmcu4th0r0005wouf9qpp3s0d';
+            let token = null;
+            try {
+                const tokenResp = await fetch('http://localhost:8001/auth/token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apiKey })
+                });
+                const tokenData = await tokenResp.json();
+                token = tokenData.token;
+            } catch (err) {
+                hideTypingIndicator();
+                addChatMessage('bot', '无法获取认证token，AI服务不可用。');
+                sendBtn.disabled = false;
+                return;
+            }
+            if (!token) {
+                hideTypingIndicator();
+                addChatMessage('bot', '认证失败，AI服务不可用。');
+                sendBtn.disabled = false;
+                return;
+            }
+            try {
+                const response = await fetch('http://localhost:8001/rag-generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        query: message,
+                        top_k: 1
+                    })
+                });
+                const data = await response.json();
+                hideTypingIndicator();
+                addChatMessage('bot', data.context || 'AI无响应');
+                sendBtn.disabled = false;
+            } catch (error) {
+                hideTypingIndicator();
+                addChatMessage('bot', '抱歉，AI服务连接失败。');
+                sendBtn.disabled = false;
+                console.error('发送消息错误:', error);
+            }
         } catch (error) {
             hideTypingIndicator();
             addChatMessage('bot', '抱歉，AI服务连接失败。');
