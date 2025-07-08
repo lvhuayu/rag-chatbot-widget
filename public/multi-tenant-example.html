@@ -214,7 +214,8 @@
     <div class="demo-section">
         <h2>🎮 Interactive Demo</h2>
         <div class="demo-controls">
-            <input type="text" id="siteIdInput" placeholder="Enter Site ID (e.g., site123, company_abc)" value="demo_site_1">
+            <input type="text" id="apiKeyInput" placeholder="Enter API Key (required)" value="">
+            <input type="text" id="siteIdInput" placeholder="Enter Site ID (for welcome message)" value="demo_site_1">
             <button onclick="initChatbot()">Initialize Chatbot</button>
             <button onclick="clearChatbot()" class="secondary">Clear Chatbot</button>
         </div>
@@ -329,37 +330,33 @@
         let currentChatbot = null;
         
         function initChatbot() {
+            const apiKey = document.getElementById('apiKeyInput').value.trim();
             const siteId = document.getElementById('siteIdInput').value.trim();
             const statusDiv = document.getElementById('status');
             
-            if (!siteId) {
+            if (!apiKey) {
                 statusDiv.className = 'status warning';
-                statusDiv.textContent = 'Please enter a Site ID.';
+                statusDiv.textContent = 'Please enter an API Key.';
                 return;
             }
-            
             // Clear existing chatbot
             const existingIframe = document.getElementById('rag-chatbot-iframe');
             if (existingIframe && existingIframe.parentNode) {
                 existingIframe.parentNode.removeChild(existingIframe);
             }
-            
             try {
-                // Initialize chatbot with siteId
+                // Initialize chatbot with apiKey
                 currentChatbot = initRAGChatbot({
-                    siteId: siteId,
+                    apiKey: apiKey,
                     backendUrl: 'http://localhost:8001',
                     enableRAG: true,
                     ragThreshold: 0.7,
                     maxRAGResults: 3,
                     welcomeMessage: `Hello! I'm your AI assistant for site: ${siteId}. How can I help you today?`
                 });
-                
                 statusDiv.className = 'status success';
-                statusDiv.textContent = `✅ Chatbot initialized successfully for site: ${siteId}`;
-                
-                console.log(`🔑 Multi-tenant chatbot initialized for site: ${siteId}`);
-                
+                statusDiv.textContent = `✅ Chatbot initialized successfully for apiKey: ${apiKey}`;
+                console.log(`🔑 Multi-tenant chatbot initialized for apiKey: ${apiKey}`);
             } catch (error) {
                 statusDiv.className = 'status warning';
                 statusDiv.textContent = `❌ Error initializing chatbot: ${error.message}`;

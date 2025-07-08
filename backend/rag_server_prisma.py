@@ -17,7 +17,7 @@ import string
 import math
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, Depends, status, Request
+from fastapi import FastAPI, HTTPException, Depends, status, Request, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -303,23 +303,30 @@ async def get_current_user(current_user: User = Depends(verify_token)):
     return current_user
 
 @app.post("/auth/token", response_model=SiteTokenResponse)
-async def get_token_by_siteid(request: SiteTokenRequest):
-    """通过siteId换取JWT token，先校验siteId是否存在"""
+async def get_token_by_apikey(request: Request, origin: Optional[str] = Header(None)):
+    """通过apiKey换取JWT token，后端查siteId签发token，不信任前端siteId"""
     try:
-        site_id = request.siteId
-        if not site_id:
-            raise HTTPException(status_code=400, detail="siteId is required")
-        # 校验siteId是否存在于Site表
+        data = await request.json()
+        api_key = data.get('apiKey') or data.get('api_key')
+        if not api_key:
+            raise HTTPException(status_code=400, detail="apiKey is required")
         DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "rag_database.db"))
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("SELECT 1 FROM Site WHERE siteId = ?", (site_id,))
-        exists = cursor.fetchone()
+        cursor.execute("SELECT site_id, allowed_origins FROM api_keys WHERE api_key = ? AND is_active = 1", (api_key,))
+        row = cursor.fetchone()
         conn.close()
-        if not exists:
-            raise HTTPException(status_code=404, detail="siteId not found")
+        if not row:
+            raise HTTPException(status_code=401, detail="Invalid or inactive apiKey")
+        site_id, allowed_origins = row
+        # 校验Origin
+        if allowed_origins and allowed_origins != '*' and origin:
+            allowed = [o.strip() for o in allowed_origins.split(',')]
+            if origin not in allowed:
+                raise HTTPException(status_code=403, detail="Origin not allowed")
         payload = {
             "siteId": site_id,
+            "origin": origin,
             "exp": datetime.utcnow() + timedelta(hours=1)
         }
         token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)

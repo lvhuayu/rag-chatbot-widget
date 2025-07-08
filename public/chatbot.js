@@ -294,8 +294,30 @@ iwIDAQAB
             localStorage.removeItem(config.auth.tokenKey);
             localStorage.setItem('rag_chatbot_siteid', config.siteId);
 
-            // 新增：siteId换token
-            if (config.siteId && !authToken) {
+            // 新增：apiKey换token
+            if (config.apiKey && !authToken) {
+                try {
+                    const res = await fetch(config.backendUrl + '/auth/token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ apiKey: config.apiKey })
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        authToken = data.token;
+                        localStorage.setItem(config.auth.tokenKey, authToken);
+                        localStorage.setItem('rag_chatbot_apikey', config.apiKey);
+                        console.log('✅ Token obtained via apiKey');
+                        return;
+                    } else {
+                        console.warn('❌ Failed to get token via apiKey:', res.status);
+                    }
+                } catch (err) {
+                    console.warn('❌ Error fetching token via apiKey:', err);
+                }
+            }
+            // 兼容老逻辑：siteId换token（仅当apiKey未提供时）
+            if (config.siteId && !authToken && !config.apiKey) {
                 try {
                     const res = await fetch(config.backendUrl + '/auth/token', {
                         method: 'POST',
