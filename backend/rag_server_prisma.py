@@ -17,7 +17,7 @@ import string
 import math
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -30,6 +30,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization
 import rag_storage_prisma as storage
+import sqlite3
 
 # Add the parent directory to the path to import the Prisma storage
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -70,13 +71,13 @@ class Document(BaseModel):
     title: str
     content: str
     timestamp: Optional[str] = None
-    user_id: Optional[str] = None
+    site_id: Optional[str] = None
 
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 3
     threshold: Optional[float] = 0.2  # Adjusted for better recall with BGE model
-    user_id: Optional[str] = None
+    site_id: Optional[str] = None
 
 class SearchResult(BaseModel):
     document: Document
@@ -118,6 +119,14 @@ class RegisteredKeyAuthResponse(BaseModel):
     token: str
     user_id: str
     username: str
+    expires_in: int
+
+class SiteTokenRequest(BaseModel):
+    siteId: str
+
+class SiteTokenResponse(BaseModel):
+    token: str
+    siteId: str
     expires_in: int
 
 # 加载中文/多语言 SOTA embedding 模型（如 BAAI/bge-large-zh-v1.5）
@@ -293,6 +302,33 @@ async def get_current_user(current_user: User = Depends(verify_token)):
     """Get current user information"""
     return current_user
 
+@app.post("/auth/token", response_model=SiteTokenResponse)
+async def get_token_by_siteid(request: SiteTokenRequest):
+    """通过siteId换取JWT token，先校验siteId是否存在"""
+    try:
+        site_id = request.siteId
+        if not site_id:
+            raise HTTPException(status_code=400, detail="siteId is required")
+        # 校验siteId是否存在于Site表
+        DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "rag_database.db"))
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM Site WHERE siteId = ?", (site_id,))
+        exists = cursor.fetchone()
+        conn.close()
+        if not exists:
+            raise HTTPException(status_code=404, detail="siteId not found")
+        payload = {
+            "siteId": site_id,
+            "exp": datetime.utcnow() + timedelta(hours=1)
+        }
+        token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+        return SiteTokenResponse(token=token, siteId=site_id, expires_in=3600)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating token: {str(e)}")
+
 def split_text(text, max_length=300):
     """按结构（表格、标题、空行等）和标点切分长文本为段落，保证每个分段都不丢失"""
     import re
@@ -322,27 +358,34 @@ async def add_documents(documents: List[Document]):
     """批量上传多个文档，每个文档自动分段批量入库"""
     all_results = []
     for doc in documents:
-        user_id = doc.user_id or "default_user"
+        site_id = doc.site_id or "default_site"
         url = doc.url
         title = doc.title
         timestamp = doc.timestamp or datetime.now().isoformat()
         content = doc.content
         segments = split_text(content, max_length=300)
+        # Create the document entry ONCE (with full content)
+        document_id = storage.add_document_entry(
+            url=url,
+            title=title,
+            content=content,
+            site_id=site_id,
+            timestamp=timestamp
+        )
         results = []
         for idx, chunk in enumerate(segments):
             embedding = generate_simple_embedding(chunk)
-            # 为每个分段生成唯一标题，避免唯一约束冲突
-            segment_title = f"{title} - 段落{idx+1}"
-            result = storage.add_document_with_uniqueness(
-                doc_id=None,
-                url=url,
-                title=segment_title,
-                content=chunk,
-                user_id=user_id,
+            embedding_id = storage.add_embedding(
+                document_id=document_id,
+                site_id=site_id,
                 embedding=embedding,
                 timestamp=timestamp
             )
-            results.append(result)
+            results.append({
+                "embedding_id": embedding_id,
+                "chunk_index": idx,
+                "chunk_length": len(chunk)
+            })
         all_results.append({
             "title": title,
             "segments": len(results),
@@ -358,9 +401,9 @@ async def add_documents(documents: List[Document]):
 async def search_documents(request: SearchRequest):
     """Search for relevant document segments with multi-tenant support, 返回 context 来源信息"""
     try:
-        user_documents, user_embeddings = storage.get_documents_by_user(request.user_id)
+        user_documents, user_embeddings = storage.get_documents_by_user(request.site_id)
         if not user_documents:
-            logger.info(f"No documents available for user: {request.user_id}")
+            logger.info(f"No documents available for site: {request.site_id}")
             return RAGResponse(
                 context="I don't have any information in my knowledge base to answer your question. Please contact support or check our documentation for more details.",
                 documents=[]
@@ -396,7 +439,7 @@ async def search_documents(request: SearchRequest):
                     title=doc["title"],
                     content=doc["content"],
                     timestamp=doc["timestamp"],
-                    user_id=doc["user_id"]
+                    site_id=doc["site_id"]
                 ),
                 similarity=similarity
             ))
@@ -418,23 +461,21 @@ async def search_documents(request: SearchRequest):
         raise HTTPException(status_code=500, detail=f"Error searching documents: {str(e)}")
 
 @app.get("/documents", response_model=List[Document])
-async def list_documents(user_id: Optional[str] = None):
-    """List all documents for a user or all documents if no user specified"""
+async def list_documents(site_id: Optional[str] = None):
+    """List all documents for a site or all documents if no site specified"""
     try:
-        if user_id:
-            documents, _ = storage.get_documents_by_user(user_id)
+        if site_id:
+            documents, _ = storage.get_documents_by_site(site_id)
         else:
             documents, _ = storage.get_all_documents()
-        
-        logger.info(f"Returning {len(documents)} documents for user: {user_id or 'all'}")
-        
+        logger.info(f"Returning {len(documents)} documents for site: {site_id or 'all'}")
         return [
             Document(
                 url=doc["url"],
                 title=doc["title"],
                 content=doc["content"],
-                timestamp=doc["timestamp"],
-                user_id=doc["user_id"]
+                timestamp=doc.get("timestamp"),
+                site_id=doc["site_id"]
             )
             for doc in documents
         ]
@@ -443,12 +484,12 @@ async def list_documents(user_id: Optional[str] = None):
         raise HTTPException(status_code=500, detail=f"Error listing documents: {str(e)}")
 
 @app.delete("/clear-documents")
-async def clear_documents(user_id: Optional[str] = None):
-    """Clear all documents for a user or all documents if no user specified"""
+async def clear_documents(site_id: Optional[str] = None):
+    """Clear all documents for a site or all documents if no site specified"""
     try:
-        if user_id:
-            storage.clear_documents_by_user(user_id)
-            return {"message": f"Cleared all documents for user: {user_id}"}
+        if site_id:
+            storage.clear_documents_by_user(site_id)
+            return {"message": f"Cleared all documents for site: {site_id}"}
         else:
             storage.clear_all_documents()
             return {"message": "Cleared all documents"}
@@ -457,28 +498,35 @@ async def clear_documents(user_id: Optional[str] = None):
         raise HTTPException(status_code=500, detail=f"Error clearing documents: {str(e)}")
 
 @app.get("/stats")
-async def get_stats(user_id: Optional[str] = None):
+async def get_stats(site_id: Optional[str] = None):
     """Get statistics about documents"""
     try:
-        stats = storage.get_user_stats(user_id)
+        stats = storage.get_user_stats(site_id)
         return stats
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
         raise HTTPException(status_code=500, detail=f"Error getting stats: {str(e)}")
 
 @app.post("/rag-generate", response_model=RAGResponse)
-async def rag_generate(request: SearchRequest):
-    """RAG: Search for relevant documents and generate answer using Ollama"""
+async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """RAG: Search for relevant documents and generate answer using Ollama (multi-tenant, token required)"""
     try:
+        # Step 0: 校验token并提取siteId
+        try:
+            payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            site_id = payload.get("siteId")
+            if not site_id:
+                raise HTTPException(status_code=401, detail="Invalid token: missing siteId")
+        except Exception as e:
+            raise HTTPException(status_code=401, detail=f"Invalid or expired token: {str(e)}")
         # Step 1: Search for relevant documents
-        user_documents, user_embeddings = storage.get_documents_by_user(request.user_id)
+        user_documents, user_embeddings = storage.get_documents_by_user(site_id)
         if not user_documents:
-            logger.info(f"No documents available for user: {request.user_id}")
+            logger.info(f"No documents available for site: {site_id}")
             return RAGResponse(
                 context="我的知识库中没有相关信息来回答您的问题。请联系客服或查看我们的文档获取更多详情。",
                 documents=[]
             )
-        
         query_embedding = generate_simple_embedding(request.query)
         similarities = []
         for i, doc in enumerate(user_documents):
@@ -486,27 +534,22 @@ async def rag_generate(request: SearchRequest):
                 embedding_list = user_embeddings[i].tolist() if hasattr(user_embeddings[i], 'tolist') else user_embeddings[i]
                 similarity = calculate_similarity(query_embedding, embedding_list)
                 similarities.append((doc, similarity, i))
-        
         similarities.sort(key=lambda x: x[1], reverse=True)
         best_similarity = similarities[0][1] if similarities else 0.0
         quality_threshold = 0.25
-        
         if best_similarity < quality_threshold:
             logger.info(f"Query: '{request.query}', Best similarity {best_similarity:.3f} below quality threshold {quality_threshold}")
             return RAGResponse(
                 context="我没有足够的相关信息来回答您的问题。请尝试重新表述您的问题或询问其他话题。",
                 documents=[]
             )
-        
         filtered_results = [
             (doc, sim, idx) for doc, sim, idx in similarities 
             if sim >= request.threshold
         ][:request.top_k]
-        
         logger.info(f"Query: '{request.query}', Found: {len(filtered_results)} segments (best: {best_similarity:.3f})")
         for doc, sim, idx in filtered_results:
             logger.info(f"  - Title: {doc['title']}, Segment: {idx}, Similarity: {sim:.3f}")
-        
         # Step 2: Prepare context for LLM
         context_parts = []
         search_results = []
@@ -518,13 +561,11 @@ async def rag_generate(request: SearchRequest):
                     title=doc["title"],
                     content=doc["content"],
                     timestamp=doc["timestamp"],
-                    user_id=doc["user_id"]
+                    site_id=doc["site_id"]
                 ),
                 similarity=similarity
             ))
-        
         context = "\n\n".join(context_parts)
-        
         # Step 3: Generate answer using Ollama
         try:
             ollama_response = await generate_with_ollama(request.query, context)
@@ -533,12 +574,12 @@ async def rag_generate(request: SearchRequest):
             logger.error(f"Error generating with Ollama: {e}")
             # Fallback to context if Ollama fails
             generated_answer = f"根据可用的信息：\n\n{context}"
-        
         return RAGResponse(
             context=generated_answer,
             documents=search_results
         )
-        
+    except HTTPException as e:
+        raise e
     except Exception as e:
         import traceback
         logger.error(f"Error in /rag-generate endpoint: {e}")

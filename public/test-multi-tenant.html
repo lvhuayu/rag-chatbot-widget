@@ -137,7 +137,7 @@
             
             try {
                 const chatbot = initRAGChatbot({
-                    userId: 'config_user_123',
+                    siteId: 'config_user_123',
                     backendUrl: 'http://localhost:8001',
                     enableRAG: true
                 });
@@ -156,7 +156,7 @@
             try {
                 // Set global config
                 window.__RAG_CHATBOT_CONFIG__ = {
-                    userId: 'global_config_user'
+                    siteId: 'global_config_user'
                 };
                 
                 const chatbot = initRAGChatbot({
@@ -209,7 +209,7 @@
             console.log('Multi-tenant test page loaded');
             console.log('Available methods:');
             console.log('1. Data attribute: <script data-user-id="...">');
-            console.log('2. Config object: initRAGChatbot({userId: "..."})');
+            console.log('2. Config object: initRAGChatbot({siteId: "..."})');
             console.log('3. Global config: window.__RAG_CHATBOT_CONFIG__');
             console.log('4. Element attribute: <div data-rag-user-id="...">');
         });

@@ -1,58 +1,99 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
+  url      = "file:C:/Users/huayulu/RAG/rag-chatbot-widget/backend/rag_database.db"
 }
 
-model User {
-  id         String    @id @default(cuid())
-  username   String    @unique
-  password   String
-  publicKey  String?   // Store the public key for chatbot authentication
-  privateKey String?   // Store the private key (encrypted)
-  documents  Document[]
-  ragDocuments RAGDocument[]
-  createdAt  DateTime  @default(now())
+model api_keys {
+  id         String   @id @default(cuid())
+  site_id    String
+  api_key    String   @unique
+  allowed_origins String
+  rate_limit Int?     @default(1000)
+  is_active  Boolean? @default(true)
+  created_at DateTime @default(now())
+  sites      sites    @relation(fields: [site_id], references: [site_id])
 }
 
-model Document {
-  id           String   @id @default(cuid())
-  userId       String
-  originalName String
-  fileSize     Int
-  description  String?
-  status       String
-  ragDocId     String?  // Reference to RAG backend document ID
-  createdAt    DateTime @default(now())
-  user         User     @relation(fields: [userId], references: [id])
+model billing_plans {
+  id                 String               @id
+  name               String
+  monthly_price      Int
+  daily_limit        Int?
+  features           String?
+  site_subscriptions site_subscriptions[]
 }
 
-// New model for RAG documents and embeddings
-model RAGDocument {
-  id        String   @id @default(cuid())
-  userId    String
-  url       String
-  title     String
-  content   String
-  timestamp DateTime @default(now())
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
-  embedding RAGEmbedding?
-  
-  @@unique([title, userId]) // Ensure unique titles per user
+model chat_logs {
+  id          String   @id
+  site_id     String
+  session_id  String?
+  question    String
+  answer      String
+  model_used  String?
+  token_usage Int?
+  timestamp   DateTime @default(now())
+  sites       sites    @relation(fields: [site_id], references: [site_id])
 }
 
-model RAGEmbedding {
-  id                String     @id @default(cuid())
-  documentId        String     @unique
-  embeddingData     Bytes      // Serialized embedding vector
-  embeddingDimension Int
-  createdAt         DateTime   @default(now())
-  document          RAGDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
-} 
+model documents {
+  id         String       @id
+  site_id    String
+  title      String?
+  url        String?
+  content    String
+  created_at DateTime     @default(now())
+  sites      sites        @relation(fields: [site_id], references: [site_id])
+  embeddings embeddings[]
+}
+
+model embeddings {
+  id               String    @id
+  document_id      String
+  site_id          String
+  embedding_vector Bytes
+  dimension        Int
+  created_at       DateTime  @default(now())
+  sites            sites     @relation(fields: [site_id], references: [site_id])
+  documents        documents @relation(fields: [document_id], references: [id])
+}
+
+model site_subscriptions {
+  id            String        @id
+  site_id       String
+  plan_id       String
+  start_date    DateTime      @default(now())
+  expire_date   DateTime?
+  billing_plans billing_plans @relation(fields: [plan_id], references: [id])
+  sites         sites         @relation(fields: [site_id], references: [site_id])
+}
+
+model sites {
+  site_id            String               @id @default(cuid())
+  user_id            String
+  site_name          String?
+  allowed_origins    String?
+  style_config       String?
+  model              String?
+  status             String?              @default("active")
+  created_at         DateTime             @default(now())
+  updated_at         DateTime?
+  api_keys           api_keys[]
+  chat_logs          chat_logs[]
+  documents          documents[]
+  embeddings         embeddings[]
+  site_subscriptions site_subscriptions[]
+  users              users                @relation(fields: [user_id], references: [id])
+}
+
+model users {
+  id            String   @id @default(cuid())
+  username      String   @unique
+  password_hash String
+  email         String?
+  created_at    DateTime @default(now())
+  sites         sites[]
+}

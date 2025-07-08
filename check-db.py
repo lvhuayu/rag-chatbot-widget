@@ -7,11 +7,16 @@ Directly query the SQLite database to see what's stored
 import sqlite3
 import json
 from datetime import datetime
+import os
 
 def check_database():
     """Check the contents of the RAG database"""
     
     db_path = "backend/rag_database.db"
+    
+    if not os.path.exists(db_path):
+        print(f'File not found: {db_path}')
+        exit(1)
     
     try:
         # Connect to database
@@ -92,6 +97,22 @@ def check_database():
         
         print(f"   Orphaned Documents: {orphaned_docs}")
         print(f"   Orphaned Embeddings: {orphaned_embs}")
+        
+        # 输出所有表名
+        tables = cursor.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+        print('Tables:')
+        for t in tables:
+            print('  -', t[0])
+        
+        # 输出每个表的前几行内容
+        for t in tables:
+            print(f'\nTable: {t[0]}')
+            try:
+                rows = cursor.execute(f'SELECT * FROM {t[0]} LIMIT 3').fetchall()
+                for row in rows:
+                    print('   ', row)
+            except Exception as e:
+                print('   (error reading table)', e)
         
         conn.close()
         

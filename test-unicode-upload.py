@@ -10,17 +10,17 @@ def test_unicode_upload():
     """Test uploading a document with Unicode characters"""
     
     # Test data with Unicode characters
-    test_data = {
+    test_data = [{
         "url": "test://unicode-test",
         "title": "Unicode Test Document",
         "content": "This document contains Unicode characters like → ← ↑ ↓ and emojis 🚀 📚 🔍",
-        "user_id": "testuser"
-    }
+        "site_id": "cmcsp8l8400013wufadnv7jdg"
+    }]
     
     try:
         # Send POST request to add document
         response = requests.post(
-            "http://localhost:8001/add-document",
+            "http://localhost:8001/add-documents",
             headers={"Content-Type": "application/json"},
             json=test_data,
             timeout=30

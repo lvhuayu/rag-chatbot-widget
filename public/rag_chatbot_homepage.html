@@ -516,7 +516,7 @@
         &nbsp;&nbsp;&nbsp;&nbsp;welcomeMessage: "<span class="string">您好，我是智能RAG客服助手，有任何问题欢迎咨询！</span>",<br>
         &nbsp;&nbsp;&nbsp;&nbsp;enableRAG: <span class="keyword">true</span>,<br>
         &nbsp;&nbsp;&nbsp;&nbsp;theme: { primaryColor: "<span class="string">#667eea</span>" },<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;userId: "<span class="string">your_user_id</span>" <span class="comment">// 多租户标识（可选）</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;siteId: "<span class="string">your_site_id</span>" <span class="comment">// 多租户标识（可选）</span><br>
         &nbsp;&nbsp;});<br>
         &lt;/script&gt;
       </div>
@@ -720,7 +720,7 @@
                 body: JSON.stringify({
                     query: message,
                     top_k: 1,
-                    user_id: 'main_page_user'
+                    siteId: 'main_page_user'
                 })
             });
             const data = await response.json();

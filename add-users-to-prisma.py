@@ -63,7 +63,7 @@ async def add_users():
         for user_data in SAMPLE_USERS:
             try:
                 # Check if user already exists
-                existing_user = await prisma.user.find_unique(
+                existing_user = await prisma.users.find_unique(
                     where={"username": user_data["username"]}
                 )
                 
@@ -73,7 +73,7 @@ async def add_users():
                     continue
                 
                 # Create new user
-                user = await prisma.user.create(data=user_data)
+                user = await prisma.users.create(data=user_data)
                 print(f"✅ Added user: {user.username} (ID: {user.id})")
                 added_count += 1
                 
@@ -85,7 +85,7 @@ async def add_users():
         print(f"⏭️  Users skipped (already exist): {skipped_count}")
         
         # Get total user count
-        total_users = await prisma.user.count()
+        total_users = await prisma.users.count()
         print(f"📈 Total users in database: {total_users}")
         
     except Exception as e:

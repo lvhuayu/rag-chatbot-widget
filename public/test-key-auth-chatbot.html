@@ -466,7 +466,7 @@
     <script src="chatbot.js"></script>
     <script>
         let authToken = null;
-        let userId = null;
+        let siteId = null;
         let publicKey = null;
         let privateKey = null;
 
@@ -581,7 +581,7 @@
                 console.log('Authentication successful:', verifyData);
 
                 authToken = verifyData.token;
-                userId = verifyData.user_id;
+                siteId = verifyData.site_id;
 
                 // Store token
                 localStorage.setItem('test_chatbot_token', authToken);
@@ -623,7 +623,7 @@
                 console.log('JWT authentication successful:', userData);
 
                 authToken = token;
-                userId = userData.user_id;
+                siteId = userData.site_id;
 
                 // Store token
                 localStorage.setItem('test_chatbot_token', authToken);
@@ -675,7 +675,7 @@ iwIDAQAB
             });
 
             console.log('🔐 Authenticated chatbot initialized with provided public key');
-            console.log('👤 User ID:', userId);
+            console.log('👤 Site ID:', siteId);
             console.log('🔑 Token:', authToken ? 'Present' : 'Missing');
         }
 

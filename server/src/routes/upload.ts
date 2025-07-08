@@ -7,6 +7,7 @@ import pdf from 'pdf-parse';
 import mammoth from 'mammoth';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken, AuthRequest } from '../middleware/auth';
+import cuid from 'cuid';
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -44,7 +45,7 @@ const upload = multer({
 });
 
 // Function to extract text and index the document
-async function processAndIndexFile(file: Express.Multer.File, description: string, userId: string) {
+async function processAndIndexFile(file: any, description: string, siteId: string) {
     let content = '';
     const filePath = file.path;
 
@@ -65,43 +66,45 @@ async function processAndIndexFile(file: Express.Multer.File, description: strin
             content = `Description: ${description}\n\n${content}`;
         }
 
-        // Send to Python RAG backend with user_id
+        // Send to Python RAG backend with site_id
         await axios.post(
             `${RAG_BACKEND_URL}/add-documents`,
             [{
                 url: file.originalname,
                 title: file.originalname,
                 content: content,
-                user_id: userId  // Include user_id for user-scoped storage
+                site_id: siteId  // Use site_id for tenant-scoped storage
             }],
             { headers: { 'Content-Type': 'application/json' } }
         );
 
-        // Save document metadata to database
-        await prisma.document.create({
-            data: {
-                userId: userId,
-                originalName: file.originalname,
-                fileSize: file.size,
-                description: description || null,
-                status: 'SUCCESS'
-            }
-        });
+        // Save document metadata to database (only allowed fields)
+        // await prisma.documents.create({
+        //     data: {
+        //         id: cuid(),
+        //         site_id: siteId,
+        //         title: file.originalname,
+        //         url: file.originalname,
+        //         content: content,
+        //         created_at: new Date()
+        //     }
+        // });
 
         return { success: true, file: file.originalname };
     } catch (error: any) {
         console.error(`Error processing ${file.originalname}:`, error.message);
         
-        // Save failed document metadata to database
-        await prisma.document.create({
-            data: {
-                userId: userId,
-                originalName: file.originalname,
-                fileSize: file.size,
-                description: description || null,
-                status: 'FAILED'
-            }
-        });
+        // Save failed document metadata to database (only allowed fields, mark title as failed)
+        // await prisma.documents.create({
+        //     data: {
+        //         id: cuid(),
+        //         site_id: siteId,
+        //         title: `[FAILED] ${file.originalname}`,
+        //         url: file.originalname,
+        //         content: error.message || 'Failed to process file.',
+        //         created_at: new Date()
+        //     }
+        // });
 
         return { success: false, file: file.originalname, error: error.message };
     } finally {
@@ -113,7 +116,7 @@ async function processAndIndexFile(file: Express.Multer.File, description: strin
 }
 
 // Route for file upload (now protected)
-router.post('/', authenticateToken, upload.array('files', 5), async (req: AuthRequest, res) => {
+router.post('/', authenticateToken, upload.array('files', 5), async (req: any, res: any) => {
     if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
         return res.status(400).send({ message: 'No files were uploaded.' });
     }
@@ -122,11 +125,18 @@ router.post('/', authenticateToken, upload.array('files', 5), async (req: AuthRe
         return res.status(401).send({ message: 'User not authenticated.' });
     }
 
+    // Fetch site_id for the user
+    const site = await prisma.sites.findFirst({ where: { user_id: req.user.id } });
+    if (!site) {
+        return res.status(400).send({ message: 'No site found for user.' });
+    }
+    const siteId = site.site_id;
+
     const descriptions = req.body.descriptions || [];
-    const files = req.files as Express.Multer.File[];
+    const files = req.files as any[];
 
     const processingPromises = files.map((file, idx) =>
-        processAndIndexFile(file, descriptions[idx] || '', req.user!.id)
+        processAndIndexFile(file, descriptions[idx] || '', siteId)
     );
 
     try {
@@ -149,35 +159,22 @@ router.post('/', authenticateToken, upload.array('files', 5), async (req: AuthRe
 });
 
 // Route to get user's documents
-router.get('/documents', authenticateToken, async (req: AuthRequest, res) => {
+router.get('/documents', authenticateToken, async (req: any, res: any) => {
     try {
         if (!req.user) {
             return res.status(401).send({ message: 'User not authenticated.' });
         }
 
-        // Get documents from Python RAG backend
-        const ragResponse = await axios.get(`${RAG_BACKEND_URL}/documents?user_id=${req.user.id}`);
-        const ragDocuments = ragResponse.data;
+        // Fetch site_id for the user
+        const site = await prisma.sites.findFirst({ where: { user_id: req.user.id } });
+        if (!site) {
+            return res.status(404).send({ message: 'No site found for user.' });
+        }
+        const siteId = site.site_id;
 
-        // Also get document metadata from Prisma database
-        const prismaDocuments = await prisma.document.findMany({
-            where: { userId: req.user.id },
-            orderBy: { createdAt: 'desc' }
-        });
-
-        // Combine RAG documents with Prisma metadata
-        const combinedDocuments = ragDocuments.map((ragDoc: any) => {
-            const prismaDoc = prismaDocuments.find(p => p.originalName === ragDoc.title);
-            return {
-                ...ragDoc,
-                id: prismaDoc?.id,
-                status: prismaDoc?.status || 'UNKNOWN',
-                createdAt: prismaDoc?.createdAt,
-                updatedAt: prismaDoc?.updatedAt
-            };
-        });
-
-        res.json(combinedDocuments);
+        // Fetch documents from Python backend
+        const pyResp = await axios.get(`${RAG_BACKEND_URL}/documents`, { params: { site_id: siteId } });
+        res.json(pyResp.data);
     } catch (error) {
         console.error('Error fetching documents:', error);
         res.status(500).send({ message: 'Error fetching documents.' });
@@ -185,7 +182,7 @@ router.get('/documents', authenticateToken, async (req: AuthRequest, res) => {
 });
 
 // Route to delete a specific document
-router.delete('/documents/:id', authenticateToken, async (req: AuthRequest, res) => {
+router.delete('/documents/:id', authenticateToken, async (req: any, res: any) => {
     try {
         if (!req.user) {
             return res.status(401).send({ message: 'User not authenticated.' });
@@ -193,27 +190,17 @@ router.delete('/documents/:id', authenticateToken, async (req: AuthRequest, res)
 
         const documentId = req.params.id;
 
-        // Find the document and ensure it belongs to the authenticated user
-        const document = await prisma.document.findFirst({
-            where: { 
-                id: documentId,
-                userId: req.user.id 
-            }
-        });
-
-        if (!document) {
-            return res.status(404).send({ message: 'Document not found or access denied.' });
+        // Fetch site_id for the user
+        const site = await prisma.sites.findFirst({ where: { user_id: req.user.id } });
+        if (!site) {
+            return res.status(404).send({ message: 'No site found for user.' });
         }
+        const siteId = site.site_id;
 
-        // Delete the document from the database
-        await prisma.document.delete({
-            where: { id: documentId }
-        });
-
-        // TODO: If you want to also remove from the Python RAG backend, add that logic here
-        // Example: await axios.delete(`http://localhost:8001/remove-document/${document.originalName}`);
-
-        res.json({ message: 'Document deleted successfully.' });
+        // Delete document from Python backend
+        // (Assumes you have a DELETE endpoint like /documents/:id in Python backend)
+        const pyResp = await axios.delete(`${RAG_BACKEND_URL}/documents/${documentId}`, { params: { site_id: siteId } });
+        res.json(pyResp.data);
     } catch (error) {
         console.error('Error deleting document:', error);
         res.status(500).send({ message: 'Error deleting document.' });
