@@ -499,8 +499,22 @@ async def add_scraped_data(request: ScrapedDataRequest):
         logger.error(f"❌ 处理爬取数据失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"处理爬取数据失败: {str(e)}")
 
+CHITCHAT_KEYWORDS = [
+    "hi", "hello", "你好", "哈喽", "嗨", "在吗", "您好", "hey", "早上好", "下午好", "晚上好"
+]
+
+def is_chitchat(query: str) -> bool:
+    q = query.lower().strip()
+    return any(kw in q for kw in CHITCHAT_KEYWORDS)
+
 @app.post("/search", response_model=RAGResponse)
 async def search_documents(request: SearchRequest):
+    # 闲聊意图识别
+    if is_chitchat(request.query):
+        return RAGResponse(
+            context="你好！我是智能助手，有什么可以帮您？",
+            documents=[]
+        )
     """Search for relevant document segments with multi-tenant support, 返回 context 来源信息"""
     try:
         user_documents, user_embeddings = storage.get_documents_by_site(request.site_id)
@@ -611,6 +625,12 @@ async def get_stats(site_id: Optional[str] = None):
 
 @app.post("/rag-generate", response_model=RAGResponse)
 async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    # 闲聊意图识别
+    if is_chitchat(request.query):
+        return RAGResponse(
+            context="你好！我是智能助手，有什么可以帮您？",
+            documents=[]
+        )
     """RAG: Search for relevant documents and generate answer using Ollama (multi-tenant, token required)"""
     try:
         # Step 0: 校验token并提取siteId
