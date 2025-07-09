@@ -6,7 +6,7 @@ import requests
 import json
 
 BASE_URL = "http://localhost:8001"
-SITE_ID = "cmcsp8l8400013wufadnv7jdg"
+SITE_ID = "cmcu4th0h0004woufa9gh58wn"
 
 def print_section(title):
     print("\n" + "="*60)

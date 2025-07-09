@@ -358,7 +358,14 @@ def split_text(text, max_length=300):
                 chunk += s
         if chunk:
             chunks.append(chunk)
-    return [c for c in chunks if c.strip()]
+    # 合并过短的段
+    merged = []
+    for c in chunks:
+        if merged and len(merged[-1]) < 100:
+            merged[-1] += c
+        else:
+            merged.append(c)
+    return [c for c in merged if c.strip()]
 
 @app.post("/add-documents", response_model=Dict[str, Any])
 async def add_documents(documents: List[Document]):
@@ -403,6 +410,94 @@ async def add_documents(documents: List[Document]):
         "message": f"Batch added {len(documents)} documents.",
         "documents": all_results
     }
+
+# 新增：直接接收爬取数据的 API
+class ScrapedDocument(BaseModel):
+    text: str
+    metadata: Dict[str, Any]
+
+class ScrapedDataRequest(BaseModel):
+    site_id: str
+    documents: List[ScrapedDocument]
+
+@app.post("/add-scraped-data", response_model=Dict[str, Any])
+async def add_scraped_data(request: ScrapedDataRequest):
+    """直接接收爬虫数据并存储到向量数据库"""
+    try:
+        logger.info(f"开始处理爬取数据，站点: {request.site_id}, 文档数: {len(request.documents)}")
+        
+        all_results = []
+        total_chunks = 0
+        
+        for doc in request.documents:
+            try:
+                # 提取文档信息
+                text = doc.text
+                metadata = doc.metadata
+                url = metadata.get('url', '')
+                title = metadata.get('title', 'No title')
+                source = metadata.get('source', url)
+                
+                # 文本切块
+                segments = split_text(text, max_length=300)
+                
+                # 创建文档条目
+                document_id = storage.add_document_entry(
+                    url=url,
+                    title=title,
+                    content=text,
+                    site_id=request.site_id,
+                    timestamp=datetime.now().isoformat()
+                )
+                
+                # 为每个切块生成 embedding 并存储
+                chunk_results = []
+                for idx, chunk in enumerate(segments):
+                    embedding = generate_simple_embedding(chunk)
+                    embedding_id = storage.add_embedding(
+                        document_id=document_id,
+                        site_id=request.site_id,
+                        embedding=embedding,
+                        timestamp=datetime.now().isoformat()
+                    )
+                    chunk_results.append({
+                        "embedding_id": embedding_id,
+                        "chunk_index": idx,
+                        "chunk_length": len(chunk)
+                    })
+                    total_chunks += 1
+                
+                all_results.append({
+                    "title": title,
+                    "url": url,
+                    "segments": len(chunk_results),
+                    "results": chunk_results
+                })
+                
+                logger.info(f"✅ 处理文档: {title} -> {len(chunk_results)} 个切块")
+                
+            except Exception as e:
+                logger.error(f"❌ 处理文档失败: {str(e)}")
+                all_results.append({
+                    "title": "Error",
+                    "error": str(e),
+                    "segments": 0,
+                    "results": []
+                })
+        
+        return {
+            "success": True,
+            "site_id": request.site_id,
+            "total_documents": len(request.documents),
+            "total_chunks": total_chunks,
+            "processed_documents": len(all_results),
+            "message": f"成功处理 {len(request.documents)} 个文档，生成 {total_chunks} 个向量",
+            "documents": all_results
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ 处理爬取数据失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"处理爬取数据失败: {str(e)}")
 
 @app.post("/search", response_model=RAGResponse)
 async def search_documents(request: SearchRequest):
@@ -553,15 +648,41 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
         filtered_results = [
             (doc, sim, idx) for doc, sim, idx in similarities 
             if sim >= request.threshold
-        ][:request.top_k]
+        ][:max(request.top_k, 10)]  # top_k至少10，保证高召回
         logger.info(f"Query: '{request.query}', Found: {len(filtered_results)} segments (best: {best_similarity:.3f})")
         for doc, sim, idx in filtered_results:
             logger.info(f"  - Title: {doc['title']}, Segment: {idx}, Similarity: {sim:.3f}")
-        # Step 2: Prepare context for LLM
+        # Step 2: 通用context构建，优先包含query关键词的片段
+        def query_terms_match(text, query):
+            # 检查文本是否包含query中的关键词（至少包含一个）
+            query_terms = query.split()
+            return any(term in text for term in query_terms)
+        
         context_parts = []
+        priority_snippets = []
+        other_snippets = []
+        
+        for doc, similarity, idx in filtered_results:
+            content = doc["content"]
+            if query_terms_match(content, request.query):
+                priority_snippets.append((content, similarity))
+            else:
+                other_snippets.append((content, similarity))
+        
+        # 按相似度排序，优先选择高相似度的片段
+        priority_snippets.sort(key=lambda x: x[1], reverse=True)
+        other_snippets.sort(key=lambda x: x[1], reverse=True)
+        
+        # 先添加包含关键词的片段
+        context_parts.extend([content for content, _ in priority_snippets[:3]])
+        # 再补充其他高相似度片段
+        if len(context_parts) < request.top_k:
+            context_parts.extend([content for content, _ in other_snippets[:request.top_k - len(context_parts)]])
+        
+        context = "\n\n".join(context_parts)
+        logger.info(f"Prepared context with {len(context_parts)} snippets, total length: {len(context)}")
         search_results = []
         for doc, similarity, idx in filtered_results:
-            context_parts.append(doc["content"])
             search_results.append(SearchResult(
                 document=Document(
                     url=doc["url"],
@@ -572,7 +693,6 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                 ),
                 similarity=similarity
             ))
-        context = "\n\n".join(context_parts)
         # Step 3: Generate answer using Ollama
         try:
             ollama_response = await generate_with_ollama(request.query, context)
@@ -597,26 +717,33 @@ async def generate_with_ollama(query: str, context: str) -> str:
     """Generate answer using Ollama with RAG context"""
     try:
         # Prepare prompt for RAG
-        prompt = f"""你是一个有用的AI助手。请使用以下上下文来回答用户的问题。
-如果上下文中的信息不足以回答问题，请说明这一点。
+        prompt = f"""你是一个专业的AI助手，专门回答基于提供上下文的问题。
 
-上下文：
+请仔细分析以下上下文信息，然后准确回答用户的问题。
+
+上下文信息：
 {context}
 
 用户问题：{query}
 
-请根据上述上下文提供有用且准确的回答（请用中文回答）："""
+重要提示：
+1. 只基于提供的上下文信息回答问题
+2. 如果上下文中包含具体的电话号码、地址、时间等信息，请直接提供
+3. 如果上下文信息不足以回答问题，请明确说明
+4. 请用中文回答，保持简洁准确
+
+回答："""
 
         # Call Ollama API
         ollama_url = "http://localhost:11434/api/generate"
         payload = {
-            "model": "mistral:latest",
+            "model": "qwen:7b",
             "prompt": prompt,
             "stream": False,
             "options": {
-                "temperature": 0.7,
-                "top_p": 0.9,
-                "max_tokens": 1000
+                "temperature": 0.3,  # 降低温度，提高准确性
+                "top_p": 0.8,
+                "max_tokens": 500
             }
         }
         

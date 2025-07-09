@@ -14,7 +14,7 @@ def test_unicode_upload():
         "url": "test://unicode-test",
         "title": "Unicode Test Document",
         "content": "This document contains Unicode characters like → ← ↑ ↓ and emojis 🚀 📚 🔍",
-        "site_id": "cmcsp8l8400013wufadnv7jdg"
+        "site_id": "cmcu4th0h0004woufa9gh58wn"
     }]
     
     try:
