@@ -214,12 +214,13 @@
     <div class="demo-section">
         <h2>🎮 Interactive Demo</h2>
         <div class="demo-controls">
-            <input type="text" id="userIdInput" placeholder="Enter User ID (e.g., user123, company_abc)" value="demo_user_1">
+            <input type="text" id="apiKeyInput" placeholder="Enter API Key (required)" value="">
+            <input type="text" id="siteIdInput" placeholder="Enter Site ID (for welcome message)" value="demo_site_1">
             <button onclick="initChatbot()">Initialize Chatbot</button>
             <button onclick="clearChatbot()" class="secondary">Clear Chatbot</button>
         </div>
         <div id="status" class="status info">
-            Ready to initialize chatbot. Enter a User ID and click "Initialize Chatbot".
+            Ready to initialize chatbot. Enter a Site ID and click "Initialize Chatbot".
         </div>
     </div>
 
@@ -227,10 +228,10 @@
         <div class="example">
             <h3><span class="example-icon">1</span>Data Attribute Method</h3>
             <div class="description">
-                Add the userId directly to the script tag using data attributes.
+                Add the siteId directly to the script tag using data attributes.
             </div>
             <div class="code-block">
-&lt;script src="chatbot.js" data-user-id="company_abc"&gt;&lt;/script&gt;
+&lt;script src="chatbot.js" data-site-id="company_abc"&gt;&lt;/script&gt;
 &lt;script&gt;
     initRAGChatbot({
         backendUrl: "http://localhost:8001"
@@ -242,13 +243,13 @@
         <div class="example">
             <h3><span class="example-icon">2</span>Configuration Object Method</h3>
             <div class="description">
-                Pass the userId in the configuration object when initializing.
+                Pass the siteId in the configuration object when initializing.
             </div>
             <div class="code-block">
 &lt;script src="chatbot.js"&gt;&lt;/script&gt;
 &lt;script&gt;
     initRAGChatbot({
-        userId: "user123",
+        siteId: "site123",
         backendUrl: "http://localhost:8001"
     });
 &lt;/script&gt;
@@ -258,12 +259,12 @@
         <div class="example">
             <h3><span class="example-icon">3</span>Global Config Method</h3>
             <div class="description">
-                Set the userId in a global configuration object before loading the script.
+                Set the siteId in a global configuration object before loading the script.
             </div>
             <div class="code-block">
 &lt;script&gt;
     window.__RAG_CHATBOT_CONFIG__ = {
-        userId: "enterprise_xyz"
+        siteId: "enterprise_xyz"
     };
 &lt;/script&gt;
 &lt;script src="chatbot.js"&gt;&lt;/script&gt;
@@ -278,10 +279,10 @@
         <div class="example">
             <h3><span class="example-icon">4</span>Element Attribute Method</h3>
             <div class="description">
-                Add the userId to any element on the page using data attributes.
+                Add the siteId to any element on the page using data attributes.
             </div>
             <div class="code-block">
-&lt;div data-rag-user-id="startup_123"&gt;&lt;/div&gt;
+&lt;div data-rag-site-id="startup_123"&gt;&lt;/div&gt;
 &lt;script src="chatbot.js"&gt;&lt;/script&gt;
 &lt;script&gt;
     initRAGChatbot({
@@ -305,7 +306,7 @@
             </li>
             <li>
                 <span class="feature-icon">✓</span>
-                <strong>Flexible Configuration:</strong> Multiple ways to specify user ID
+                <strong>Flexible Configuration:</strong> Multiple ways to specify site ID
             </li>
             <li>
                 <span class="feature-icon">✓</span>
@@ -313,7 +314,7 @@
             </li>
             <li>
                 <span class="feature-icon">✓</span>
-                <strong>User Statistics:</strong> Get document counts per user
+                <strong>User Statistics:</strong> Get document counts per site
             </li>
             <li>
                 <span class="feature-icon">✓</span>
@@ -329,37 +330,33 @@
         let currentChatbot = null;
         
         function initChatbot() {
-            const userId = document.getElementById('userIdInput').value.trim();
+            const apiKey = document.getElementById('apiKeyInput').value.trim();
+            const siteId = document.getElementById('siteIdInput').value.trim();
             const statusDiv = document.getElementById('status');
             
-            if (!userId) {
+            if (!apiKey) {
                 statusDiv.className = 'status warning';
-                statusDiv.textContent = 'Please enter a User ID.';
+                statusDiv.textContent = 'Please enter an API Key.';
                 return;
             }
-            
             // Clear existing chatbot
             const existingIframe = document.getElementById('rag-chatbot-iframe');
             if (existingIframe && existingIframe.parentNode) {
                 existingIframe.parentNode.removeChild(existingIframe);
             }
-            
             try {
-                // Initialize chatbot with userId
+                // Initialize chatbot with apiKey
                 currentChatbot = initRAGChatbot({
-                    userId: userId,
+                    apiKey: apiKey,
                     backendUrl: 'http://localhost:8001',
                     enableRAG: true,
                     ragThreshold: 0.7,
                     maxRAGResults: 3,
-                    welcomeMessage: `Hello! I'm your AI assistant for user: ${userId}. How can I help you today?`
+                    welcomeMessage: `Hello! I'm your AI assistant for site: ${siteId}. How can I help you today?`
                 });
-                
                 statusDiv.className = 'status success';
-                statusDiv.textContent = `✅ Chatbot initialized successfully for user: ${userId}`;
-                
-                console.log(`🔑 Multi-tenant chatbot initialized for user: ${userId}`);
-                
+                statusDiv.textContent = `✅ Chatbot initialized successfully for apiKey: ${apiKey}`;
+                console.log(`🔑 Multi-tenant chatbot initialized for apiKey: ${apiKey}`);
             } catch (error) {
                 statusDiv.className = 'status warning';
                 statusDiv.textContent = `❌ Error initializing chatbot: ${error.message}`;
@@ -379,10 +376,10 @@
             
             const statusDiv = document.getElementById('status');
             statusDiv.className = 'status info';
-            statusDiv.textContent = 'Chatbot cleared. Ready to initialize with a new User ID.';
+            statusDiv.textContent = 'Chatbot cleared. Ready to initialize with a new Site ID.';
         }
         
-        // Auto-initialize with demo user
+        // Auto-initialize with demo site
         window.addEventListener('load', function() {
             setTimeout(initChatbot, 1000);
         });

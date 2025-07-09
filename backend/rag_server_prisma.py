@@ -17,11 +17,20 @@ import string
 import math
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Request, Header
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import jwt
+from sentence_transformers import SentenceTransformer
+import numpy as np
+import hmac
+import base64
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives import serialization
+import rag_storage_prisma as storage
+import sqlite3
 
 # Add the parent directory to the path to import the Prisma storage
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -62,13 +71,13 @@ class Document(BaseModel):
     title: str
     content: str
     timestamp: Optional[str] = None
-    user_id: Optional[str] = None
+    site_id: Optional[str] = None
 
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 3
-    threshold: Optional[float] = 0.3  # Increased default threshold
-    user_id: Optional[str] = None
+    threshold: Optional[float] = 0.2  # Adjusted for better recall with BGE model
+    site_id: Optional[str] = None
 
 class SearchResult(BaseModel):
     document: Document
@@ -112,26 +121,22 @@ class RegisteredKeyAuthResponse(BaseModel):
     username: str
     expires_in: int
 
-def generate_simple_embedding(text: str) -> List[float]:
-    """Generate a simple embedding using character frequency (temporary)"""
-    # This is a very basic embedding - just for testing
-    freq = {}
-    for char in string.ascii_lowercase:
-        freq[char] = 0
-    
-    text_lower = text.lower()
-    for char in text_lower:
-        if char in freq:
-            freq[char] += 1
-    
-    # Normalize
-    total = sum(freq.values()) or 1
-    embedding = [freq[char] / total for char in string.ascii_lowercase]
-    
-    # Pad to 384 dimensions (like all-MiniLM-L6-v2)
-    while len(embedding) < 384:
-        embedding.append(0.0)
-    return embedding[:384]
+class SiteTokenRequest(BaseModel):
+    siteId: str
+
+class SiteTokenResponse(BaseModel):
+    token: str
+    siteId: str
+    expires_in: int
+
+# 加载中文/多语言 SOTA embedding 模型（如 BAAI/bge-large-zh-v1.5）
+# 你可以根据需要更换为其他模型，如 all-MiniLM-L6-v2
+embedding_model = SentenceTransformer('BAAI/bge-large-zh-v1.5')
+
+def generate_simple_embedding(text: str) -> list:
+    """用 SOTA embedding 生成文本向量，支持中文和多语言"""
+    emb = embedding_model.encode(text, normalize_embeddings=True)
+    return emb.tolist() if isinstance(emb, np.ndarray) else list(emb)
 
 def calculate_similarity(embedding1: List[float], embedding2: List[float]) -> float:
     """Calculate cosine similarity between two embeddings"""
@@ -297,131 +302,274 @@ async def get_current_user(current_user: User = Depends(verify_token)):
     """Get current user information"""
     return current_user
 
-@app.post("/add-document", response_model=Dict[str, Any])
-async def add_document(document: Document):
-    """Add a document to the RAG system with multi-tenant support"""
+@app.post("/auth/token", response_model=SiteTokenResponse)
+async def get_token_by_apikey(request: Request, origin: Optional[str] = Header(None)):
+    """通过apiKey换取JWT token，后端查siteId签发token，不信任前端siteId"""
     try:
-        # Generate simple embedding
-        embedding = generate_simple_embedding(document.content)
-        
-        # Add to storage with user_id
-        user_id = document.user_id or "default_user"
-        
-        # Use the storage layer's add_document_with_uniqueness method
-        result = storage.add_document_with_uniqueness(
-            doc_id=None,  # Let storage generate ID
-            url=document.url,
-            title=document.title,
-            content=document.content,
-            user_id=user_id,
-            embedding=embedding,
-            timestamp=document.timestamp or datetime.now().isoformat()
-        )
-        
-        if not result.get("success"):
-            logger.error(f"Prisma storage error: {result.get('error')}")
-            raise HTTPException(status_code=500, detail=f"Prisma storage error: {result.get('error')}")
-        
-        action = result.get("action", "unknown")
-        doc_id = result.get("doc_id")
-        
-        if action == "updated":
-            message = f"Updated existing document: {document.title}"
-            logger.info(f"Updated existing document: {document.title} (User: {user_id}, ID: {doc_id})")
+        data = await request.json()
+        api_key = data.get('apiKey') or data.get('api_key')
+        if not api_key:
+            raise HTTPException(status_code=400, detail="apiKey is required")
+        DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "rag_database.db"))
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT site_id, allowed_origins FROM api_keys WHERE api_key = ? AND is_active = 1", (api_key,))
+        row = cursor.fetchone()
+        conn.close()
+        if not row:
+            raise HTTPException(status_code=401, detail="Invalid or inactive apiKey")
+        site_id, allowed_origins = row
+        # 校验Origin
+        if allowed_origins and allowed_origins != '*' and origin:
+            allowed = [o.strip() for o in allowed_origins.split(',')]
+            if origin not in allowed:
+                raise HTTPException(status_code=403, detail="Origin not allowed")
+        payload = {
+            "siteId": site_id,
+            "origin": origin,
+            "exp": datetime.utcnow() + timedelta(hours=1)
+        }
+        token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+        return SiteTokenResponse(token=token, siteId=site_id, expires_in=3600)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating token: {str(e)}")
+
+def split_text(text, max_length=300):
+    """按结构（表格、标题、空行等）和标点切分长文本为段落，保证每个分段都不丢失"""
+    import re
+    # 先按空行、表格、标题、列表等结构分段
+    blocks = re.split(r'\n\s*\n', text)
+    chunks = []
+    for block in blocks:
+        block = block.strip()
+        if not block:
+            continue
+        # 再按标点和长度切分
+        sentences = re.split(r'(。|！|!|\.|？|\?)', block)
+        chunk = ''
+        for s in sentences:
+            if not s: continue
+            if len(chunk) + len(s) > max_length:
+                chunks.append(chunk)
+                chunk = s
+            else:
+                chunk += s
+        if chunk:
+            chunks.append(chunk)
+    # 合并过短的段
+    merged = []
+    for c in chunks:
+        if merged and len(merged[-1]) < 100:
+            merged[-1] += c
         else:
-            message = f"Added new document: {document.title}"
-            logger.info(f"Added new document: {document.title} (User: {user_id}, ID: {doc_id})")
+            merged.append(c)
+    return [c for c in merged if c.strip()]
+
+@app.post("/add-documents", response_model=Dict[str, Any])
+async def add_documents(documents: List[Document]):
+    """批量上传多个文档，每个文档自动分段批量入库"""
+    all_results = []
+    for doc in documents:
+        site_id = doc.site_id or "default_site"
+        url = doc.url
+        title = doc.title
+        timestamp = doc.timestamp or datetime.now().isoformat()
+        content = doc.content
+        segments = split_text(content, max_length=300)
+        # Create the document entry ONCE (with full content)
+        document_id = storage.add_document_entry(
+            url=url,
+            title=title,
+            content=content,
+            site_id=site_id,
+            timestamp=timestamp
+        )
+        results = []
+        for idx, chunk in enumerate(segments):
+            embedding = generate_simple_embedding(chunk)
+            embedding_id = storage.add_embedding(
+                document_id=document_id,
+                site_id=site_id,
+                embedding=embedding,
+                timestamp=timestamp
+            )
+            results.append({
+                "embedding_id": embedding_id,
+                "chunk_index": idx,
+                "chunk_length": len(chunk)
+            })
+        all_results.append({
+            "title": title,
+            "segments": len(results),
+            "results": results
+        })
+    return {
+        "success": True,
+        "message": f"Batch added {len(documents)} documents.",
+        "documents": all_results
+    }
+
+# 新增：直接接收爬取数据的 API
+class ScrapedDocument(BaseModel):
+    text: str
+    metadata: Dict[str, Any]
+
+class ScrapedDataRequest(BaseModel):
+    site_id: str
+    documents: List[ScrapedDocument]
+
+@app.post("/add-scraped-data", response_model=Dict[str, Any])
+async def add_scraped_data(request: ScrapedDataRequest):
+    """直接接收爬虫数据并存储到向量数据库"""
+    try:
+        logger.info(f"开始处理爬取数据，站点: {request.site_id}, 文档数: {len(request.documents)}")
+        
+        all_results = []
+        total_chunks = 0
+        
+        for doc in request.documents:
+            try:
+                # 提取文档信息
+                text = doc.text
+                metadata = doc.metadata
+                url = metadata.get('url', '')
+                title = metadata.get('title', 'No title')
+                source = metadata.get('source', url)
+                
+                # 文本切块
+                segments = split_text(text, max_length=300)
+                
+                # 创建文档条目
+                document_id = storage.add_document_entry(
+                    url=url,
+                    title=title,
+                    content=text,
+                    site_id=request.site_id,
+                    timestamp=datetime.now().isoformat()
+                )
+                
+                # 为每个切块生成 embedding 并存储
+                chunk_results = []
+                for idx, chunk in enumerate(segments):
+                    embedding = generate_simple_embedding(chunk)
+                    embedding_id = storage.add_embedding(
+                        document_id=document_id,
+                        site_id=request.site_id,
+                        embedding=embedding,
+                        timestamp=datetime.now().isoformat()
+                    )
+                    chunk_results.append({
+                        "embedding_id": embedding_id,
+                        "chunk_index": idx,
+                        "chunk_length": len(chunk)
+                    })
+                    total_chunks += 1
+                
+                all_results.append({
+                    "title": title,
+                    "url": url,
+                    "segments": len(chunk_results),
+                    "results": chunk_results
+                })
+                
+                logger.info(f"✅ 处理文档: {title} -> {len(chunk_results)} 个切块")
+                
+            except Exception as e:
+                logger.error(f"❌ 处理文档失败: {str(e)}")
+                all_results.append({
+                    "title": "Error",
+                    "error": str(e),
+                    "segments": 0,
+                    "results": []
+                })
         
         return {
             "success": True,
-            "doc_id": doc_id,
-            "message": message,
-            "action": action
+            "site_id": request.site_id,
+            "total_documents": len(request.documents),
+            "total_chunks": total_chunks,
+            "processed_documents": len(all_results),
+            "message": f"成功处理 {len(request.documents)} 个文档，生成 {total_chunks} 个向量",
+            "documents": all_results
         }
-            
+        
     except Exception as e:
-        import traceback
-        logger.error(f"Error in /add-document endpoint: {e}")
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Error adding document: {str(e)}")
+        logger.error(f"❌ 处理爬取数据失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"处理爬取数据失败: {str(e)}")
+
+CHITCHAT_KEYWORDS = [
+    "hi", "hello", "你好", "哈喽", "嗨", "在吗", "您好", "hey", "早上好", "下午好", "晚上好"
+]
+
+def is_chitchat(query: str) -> bool:
+    q = query.lower().strip()
+    return any(kw in q for kw in CHITCHAT_KEYWORDS)
 
 @app.post("/search", response_model=RAGResponse)
 async def search_documents(request: SearchRequest):
-    """Search for relevant documents with multi-tenant support"""
+    # 闲聊意图识别
+    if is_chitchat(request.query):
+        return RAGResponse(
+            context="你好！我是智能助手，有什么可以帮您？",
+            documents=[]
+        )
+    """Search for relevant document segments with multi-tenant support, 返回 context 来源信息"""
     try:
-        # Get documents for specific user from storage
-        user_documents, user_embeddings = storage.get_documents_by_user(request.user_id)
-        
+        user_documents, user_embeddings = storage.get_documents_by_site(request.site_id)
         if not user_documents:
-            logger.info(f"No documents available for user: {request.user_id}")
+            logger.info(f"No documents available for site: {request.site_id}")
             return RAGResponse(
                 context="I don't have any information in my knowledge base to answer your question. Please contact support or check our documentation for more details.",
                 documents=[]
             )
-        
-        # Generate query embedding
         query_embedding = generate_simple_embedding(request.query)
-        
-        # Calculate similarities
         similarities = []
         for i, doc in enumerate(user_documents):
             if i < len(user_embeddings) and len(user_embeddings[i]) > 0:
                 embedding_list = user_embeddings[i].tolist() if hasattr(user_embeddings[i], 'tolist') else user_embeddings[i]
                 similarity = calculate_similarity(query_embedding, embedding_list)
-                similarities.append((doc, similarity))
-        
-        # Sort by similarity and filter by threshold
+                similarities.append((doc, similarity, i))  # i为段号
         similarities.sort(key=lambda x: x[1], reverse=True)
-        
-        # Check if the best match is too low quality
         best_similarity = similarities[0][1] if similarities else 0.0
-        quality_threshold = 0.45  # Increased quality threshold to reject nonsense queries
-        
+        quality_threshold = 0.25
         if best_similarity < quality_threshold:
             logger.info(f"Query: '{request.query}', Best similarity {best_similarity:.3f} below quality threshold {quality_threshold}")
             return RAGResponse(
                 context="I don't have enough relevant information to answer your question. Please try rephrasing your query or ask about a different topic.",
                 documents=[]
             )
-        
-        # Filter by user-specified threshold
         filtered_results = [
-            (doc, sim) for doc, sim in similarities 
+            (doc, sim, idx) for doc, sim, idx in similarities 
             if sim >= request.threshold
         ][:request.top_k]
-        
-        # Log results
-        logger.info(f"Query: '{request.query}', Found: {len(filtered_results)} documents (best: {best_similarity:.3f})")
-        for doc, sim in filtered_results:
-            logger.info(f"  - Title: {doc['title']}, Similarity: {sim:.3f}")
-        
-        # Convert to response format
+        logger.info(f"Query: '{request.query}', Found: {len(filtered_results)} segments (best: {best_similarity:.3f})")
+        for doc, sim, idx in filtered_results:
+            logger.info(f"  - Title: {doc['title']}, Segment: {idx}, Similarity: {sim:.3f}")
         search_results = []
-        for doc, similarity in filtered_results:
+        for doc, similarity, idx in filtered_results:
             search_results.append(SearchResult(
                 document=Document(
                     url=doc["url"],
                     title=doc["title"],
                     content=doc["content"],
-                    timestamp=doc["timestamp"],
-                    user_id=doc["user_id"]
+                    timestamp=doc.get("timestamp") or doc.get("created_at"),
+                    site_id=doc["site_id"]
                 ),
                 similarity=similarity
             ))
-        
-        # Generate context from top results
+        # context 拼接top_k条最相关段内容，不带来源信息
         context = None
         if search_results:
             context_parts = []
-            for result in search_results[:2]:  # Use top 2 results for context
-                context_parts.append(f"From '{result.document.title}': {result.document.content[:200]}...")
-            context = " ".join(context_parts)
-        
+            for i, result in enumerate(search_results[:request.top_k]):
+                context_parts.append(result.document.content[:1000])
+            context = "\n".join(context_parts)
         return RAGResponse(
             context=context,
             documents=search_results
         )
-        
     except Exception as e:
         import traceback
         logger.error(f"Error in /search endpoint: {e}")
@@ -429,23 +577,21 @@ async def search_documents(request: SearchRequest):
         raise HTTPException(status_code=500, detail=f"Error searching documents: {str(e)}")
 
 @app.get("/documents", response_model=List[Document])
-async def list_documents(user_id: Optional[str] = None):
-    """List all documents for a user or all documents if no user specified"""
+async def list_documents(site_id: Optional[str] = None):
+    """List all documents for a site or all documents if no site specified"""
     try:
-        if user_id:
-            documents, _ = storage.get_documents_by_user(user_id)
+        if site_id:
+            documents, _ = storage.get_documents_by_site(site_id)
         else:
             documents, _ = storage.get_all_documents()
-        
-        logger.info(f"Returning {len(documents)} documents for user: {user_id or 'all'}")
-        
+        logger.info(f"Returning {len(documents)} documents for site: {site_id or 'all'}")
         return [
             Document(
                 url=doc["url"],
                 title=doc["title"],
                 content=doc["content"],
-                timestamp=doc["timestamp"],
-                user_id=doc["user_id"]
+                timestamp=doc.get("timestamp") or doc.get("created_at"),
+                site_id=doc["site_id"]
             )
             for doc in documents
         ]
@@ -454,12 +600,12 @@ async def list_documents(user_id: Optional[str] = None):
         raise HTTPException(status_code=500, detail=f"Error listing documents: {str(e)}")
 
 @app.delete("/clear-documents")
-async def clear_documents(user_id: Optional[str] = None):
-    """Clear all documents for a user or all documents if no user specified"""
+async def clear_documents(site_id: Optional[str] = None):
+    """Clear all documents for a site or all documents if no site specified"""
     try:
-        if user_id:
-            storage.clear_documents_by_user(user_id)
-            return {"message": f"Cleared all documents for user: {user_id}"}
+        if site_id:
+            storage.clear_documents_by_user(site_id)
+            return {"message": f"Cleared all documents for site: {site_id}"}
         else:
             storage.clear_all_documents()
             return {"message": "Cleared all documents"}
@@ -468,14 +614,176 @@ async def clear_documents(user_id: Optional[str] = None):
         raise HTTPException(status_code=500, detail=f"Error clearing documents: {str(e)}")
 
 @app.get("/stats")
-async def get_stats(user_id: Optional[str] = None):
+async def get_stats(site_id: Optional[str] = None):
     """Get statistics about documents"""
     try:
-        stats = storage.get_user_stats(user_id)
+        stats = storage.get_user_stats(site_id)
         return stats
     except Exception as e:
         logger.error(f"Error getting stats: {e}")
         raise HTTPException(status_code=500, detail=f"Error getting stats: {str(e)}")
+
+@app.post("/rag-generate", response_model=RAGResponse)
+async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    # 闲聊意图识别
+    if is_chitchat(request.query):
+        return RAGResponse(
+            context="你好！我是智能助手，有什么可以帮您？",
+            documents=[]
+        )
+    """RAG: Search for relevant documents and generate answer using Ollama (multi-tenant, token required)"""
+    try:
+        # Step 0: 校验token并提取siteId
+        try:
+            payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            site_id = payload.get("siteId")
+            if not site_id:
+                raise HTTPException(status_code=401, detail="Invalid token: missing siteId")
+        except Exception as e:
+            raise HTTPException(status_code=401, detail=f"Invalid or expired token: {str(e)}")
+        # Step 1: Search for relevant documents
+        user_documents, user_embeddings = storage.get_documents_by_site(site_id)
+        if not user_documents:
+            logger.info(f"No documents available for site: {site_id}")
+            return RAGResponse(
+                context="我的知识库中没有相关信息来回答您的问题。请联系客服或查看我们的文档获取更多详情。",
+                documents=[]
+            )
+        query_embedding = generate_simple_embedding(request.query)
+        similarities = []
+        for i, doc in enumerate(user_documents):
+            if i < len(user_embeddings) and len(user_embeddings[i]) > 0:
+                embedding_list = user_embeddings[i].tolist() if hasattr(user_embeddings[i], 'tolist') else user_embeddings[i]
+                similarity = calculate_similarity(query_embedding, embedding_list)
+                similarities.append((doc, similarity, i))
+        similarities.sort(key=lambda x: x[1], reverse=True)
+        best_similarity = similarities[0][1] if similarities else 0.0
+        quality_threshold = 0.25
+        if best_similarity < quality_threshold:
+            logger.info(f"Query: '{request.query}', Best similarity {best_similarity:.3f} below quality threshold {quality_threshold}")
+            return RAGResponse(
+                context="我没有足够的相关信息来回答您的问题。请尝试重新表述您的问题或询问其他话题。",
+                documents=[]
+            )
+        filtered_results = [
+            (doc, sim, idx) for doc, sim, idx in similarities 
+            if sim >= request.threshold
+        ][:max(request.top_k, 10)]  # top_k至少10，保证高召回
+        logger.info(f"Query: '{request.query}', Found: {len(filtered_results)} segments (best: {best_similarity:.3f})")
+        for doc, sim, idx in filtered_results:
+            logger.info(f"  - Title: {doc['title']}, Segment: {idx}, Similarity: {sim:.3f}")
+        # Step 2: 通用context构建，优先包含query关键词的片段
+        def query_terms_match(text, query):
+            # 检查文本是否包含query中的关键词（至少包含一个）
+            query_terms = query.split()
+            return any(term in text for term in query_terms)
+        
+        context_parts = []
+        priority_snippets = []
+        other_snippets = []
+        
+        for doc, similarity, idx in filtered_results:
+            content = doc["content"]
+            if query_terms_match(content, request.query):
+                priority_snippets.append((content, similarity))
+            else:
+                other_snippets.append((content, similarity))
+        
+        # 按相似度排序，优先选择高相似度的片段
+        priority_snippets.sort(key=lambda x: x[1], reverse=True)
+        other_snippets.sort(key=lambda x: x[1], reverse=True)
+        
+        # 先添加包含关键词的片段
+        context_parts.extend([content for content, _ in priority_snippets[:3]])
+        # 再补充其他高相似度片段
+        if len(context_parts) < request.top_k:
+            context_parts.extend([content for content, _ in other_snippets[:request.top_k - len(context_parts)]])
+        
+        context = "\n\n".join(context_parts)
+        logger.info(f"Prepared context with {len(context_parts)} snippets, total length: {len(context)}")
+        search_results = []
+        for doc, similarity, idx in filtered_results:
+            search_results.append(SearchResult(
+                document=Document(
+                    url=doc["url"],
+                    title=doc["title"],
+                    content=doc["content"],
+                    timestamp=doc.get("timestamp") or doc.get("created_at"),
+                    site_id=doc["site_id"]
+                ),
+                similarity=similarity
+            ))
+        # Step 3: Generate answer using Ollama
+        try:
+            ollama_response = await generate_with_ollama(request.query, context)
+            generated_answer = ollama_response
+        except Exception as e:
+            logger.error(f"Error generating with Ollama: {e}")
+            # Fallback to context if Ollama fails
+            generated_answer = f"根据可用的信息：\n\n{context}"
+        return RAGResponse(
+            context=generated_answer,
+            documents=search_results
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        import traceback
+        logger.error(f"Error in /rag-generate endpoint: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error generating answer: {str(e)}")
+
+async def generate_with_ollama(query: str, context: str) -> str:
+    """Generate answer using Ollama with RAG context"""
+    try:
+        # Prepare prompt for RAG
+        prompt = f"""你是一个专业的AI助手，专门回答基于提供上下文的问题。
+
+请仔细分析以下上下文信息，然后准确回答用户的问题。
+
+上下文信息：
+{context}
+
+用户问题：{query}
+
+重要提示：
+1. 只基于提供的上下文信息回答问题
+2. 如果上下文中包含具体的电话号码、地址、时间等信息，请直接提供
+3. 如果上下文信息不足以回答问题，请明确说明
+4. 请用中文回答，保持简洁准确
+
+回答："""
+
+        # Call Ollama API
+        ollama_url = "http://localhost:11434/api/generate"
+        payload = {
+            "model": "qwen:7b",
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": 0.3,  # 降低温度，提高准确性
+                "top_p": 0.8,
+                "max_tokens": 500
+            }
+        }
+        
+        response = requests.post(ollama_url, json=payload, timeout=30)
+        if response.status_code == 200:
+            result = response.json()
+            return result.get("response", "Sorry, I couldn't generate a response.")
+        else:
+            logger.error(f"Ollama API error: {response.status_code} - {response.text}")
+            raise Exception(f"Ollama API returned status {response.status_code}")
+            
+    except requests.exceptions.Timeout:
+        logger.error("Ollama request timed out")
+        raise Exception("Request to Ollama timed out")
+    except requests.exceptions.ConnectionError:
+        logger.error("Cannot connect to Ollama")
+        raise Exception("Cannot connect to Ollama. Please make sure Ollama is running.")
+    except Exception as e:
+        logger.error(f"Error calling Ollama: {e}")
+        raise e
 
 if __name__ == "__main__":
     import uvicorn

@@ -67,17 +67,13 @@ async function migrateRAGData() {
         for (const doc of documents) {
             try {
                 // Check if user exists, create if not
-                let user = await prisma.user.findFirst({
-                    where: { username: doc.user_id }
-                });
+                let user = await prisma.users.findFirst({ where: { username: doc.user_id } });
 
                 if (!user) {
-                    user = await prisma.user.create({
+                    user = await prisma.users.create({
                         data: {
                             username: doc.user_id,
-                            password: 'migrated_user', // Default password for migrated users
-                            publicKey: null,
-                            privateKey: null
+                            // Add any other required fields from the new schema, e.g. created_at: new Date()
                         }
                     });
                     console.log(`👤 Created user: ${doc.user_id}`);

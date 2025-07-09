@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>True RAG Chatbot Widget with Minimize Feature - Test Page</title>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
     <style>
         * {
             margin: 0;
@@ -607,7 +608,7 @@
         <span class="keyword">enableContentIngestion</span>: <span class="keyword">true</span>,
         <span class="keyword">ragThreshold</span>: <span class="number">0.7</span>,
         <span class="keyword">maxRAGResults</span>: <span class="number">3</span>,
-        <span class="keyword">userId</span>: <span class="string">'your_user_id'</span> <span class="comment">// Optional: for multi-tenant support</span>
+        <span class="keyword">siteId</span>: <span class="string">'your_site_id'</span> <span class="comment">// Optional: for multi-tenant support</span>
     });
 &lt;/script&gt;
                 </div>
@@ -639,7 +640,7 @@
     <span class="keyword">welcomeMessage</span>: <span class="string">'Hello! How can I help you?'</span>,
     
     <span class="comment">// Multi-tenant support</span>
-    <span class="keyword">userId</span>: <span class="string">'your_user_id'</span>,  <span class="comment">// Optional: for multi-tenant support</span>
+    <span class="keyword">siteId</span>: <span class="string">'your_site_id'</span>,  <span class="comment">// Optional: for multi-tenant support</span>
     
     <span class="comment">// Minimize feature is enabled by default</span>
     <span class="comment">// Users can click the minimize button in the top-right corner</span>
@@ -741,7 +742,7 @@
                     enableContentIngestion: true,
                     ragThreshold: 0.7,
                     maxRAGResults: 3,
-                    userId: 'main_page_user' // 为主页设置用户ID
+                    siteId: 'main_page_site' // 为主页设置站点ID
                 });
                 
                 chatbotInitialized = true;

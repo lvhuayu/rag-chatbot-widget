@@ -280,20 +280,63 @@ iwIDAQAB
      */
     async function handleAuthentication(config) {
         try {
-            // Check if we have a stored token
+            // Check if we have a stored token and siteId
             const storedToken = localStorage.getItem(config.auth.tokenKey);
-            if (storedToken) {
+            const storedSiteId = localStorage.getItem('rag_chatbot_siteid');
+
+            if (storedToken && storedSiteId === config.siteId) {
                 authToken = storedToken;
                 console.log('✅ Using stored authentication token');
                 return;
             }
-            
-            // Check if token is provided in config
-            if (config.auth.token) {
-                authToken = config.auth.token;
-                localStorage.setItem(config.auth.tokenKey, authToken);
-                console.log('✅ Using provided authentication token');
-                return;
+
+            // If siteId changed, clear the old token
+            localStorage.removeItem(config.auth.tokenKey);
+            localStorage.setItem('rag_chatbot_siteid', config.siteId);
+
+            // 新增：apiKey换token
+            if (config.apiKey && !authToken) {
+                try {
+                    const res = await fetch(config.backendUrl + '/auth/token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ apiKey: config.apiKey })
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        authToken = data.token;
+                        localStorage.setItem(config.auth.tokenKey, authToken);
+                        localStorage.setItem('rag_chatbot_apikey', config.apiKey);
+                        console.log('✅ Token obtained via apiKey');
+                        return;
+                    } else {
+                        console.warn('❌ Failed to get token via apiKey:', res.status);
+                    }
+                } catch (err) {
+                    console.warn('❌ Error fetching token via apiKey:', err);
+                }
+            }
+            // 兼容老逻辑：siteId换token（仅当apiKey未提供时）
+            if (config.siteId && !authToken && !config.apiKey) {
+                try {
+                    const res = await fetch(config.backendUrl + '/auth/token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ siteId: config.siteId })
+                    });
+                    if (res.ok) {
+                        const data = await res.json();
+                        authToken = data.token;
+                        localStorage.setItem(config.auth.tokenKey, authToken);
+                        localStorage.setItem('rag_chatbot_siteid', config.siteId);
+                        console.log('✅ Token obtained via siteId');
+                        return;
+                    } else {
+                        console.warn('❌ Failed to get token via siteId:', res.status);
+                    }
+                } catch (err) {
+                    console.warn('❌ Error fetching token via siteId:', err);
+                }
             }
             
             // Handle registered key authentication (from upload portal)
@@ -693,16 +736,15 @@ iwIDAQAB
         }
         
         try {
-            // Make authenticated request to RAG backend
-            const searchUrl = `${config.backendUrl}/search`;
+            // Make authenticated request to RAG backend using /rag-generate
+            const ragGenerateUrl = `${config.backendUrl}/rag-generate`;
             
-            const response = await fetch(searchUrl, {
+            const response = await fetch(ragGenerateUrl, {
                 method: 'POST',
                 headers: getAuthHeaders(),
                 body: JSON.stringify({
                     query: query,
                     top_k: config.maxRAGResults,
-                    threshold: config.ragThreshold,
                     user_id: config.userId // Include userId for multi-tenant support
                 })
             });
@@ -714,7 +756,7 @@ iwIDAQAB
                     localStorage.removeItem(config.auth.tokenKey);
                     authToken = null;
                 } else {
-                    console.error('❌ RAG search failed:', response.status);
+                    console.error('❌ RAG generate failed:', response.status);
                 }
                 return [];
             }

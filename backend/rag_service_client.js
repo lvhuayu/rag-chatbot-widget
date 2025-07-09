@@ -38,7 +38,7 @@ class RAGServiceClient {
         await this.initialize();
         
         try {
-            const response = await fetch(`${this.backendUrl}/add-document`, {
+            const response = await fetch(`${this.backendUrl}/add-documents`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -68,7 +68,7 @@ class RAGServiceClient {
         await this.initialize();
         
         try {
-            const response = await fetch(`${this.backendUrl}/search`, {
+            const response = await fetch(`${this.backendUrl}/rag-generate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -80,7 +80,7 @@ class RAGServiceClient {
             });
 
             if (!response.ok) {
-                throw new Error(`Failed to search: ${response.status}`);
+                throw new Error(`Failed to generate with RAG: ${response.status}`);
             }
 
             const result = await response.json();
@@ -97,14 +97,14 @@ class RAGServiceClient {
                 similarity: item.similarity
             }));
         } catch (error) {
-            console.error('Error searching RAG backend:', error);
+            console.error('Error generating with RAG backend:', error);
             return [];
         }
     }
 
     async getContext(query, maxLength = 2000) {
         try {
-            const response = await fetch(`${this.backendUrl}/search`, {
+            const response = await fetch(`${this.backendUrl}/rag-generate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

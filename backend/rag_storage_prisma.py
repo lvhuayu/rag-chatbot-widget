@@ -65,6 +65,7 @@ class PrismaRAGStorage:
     
     def _run_prisma_query(self, query: str, params: Dict[str, Any] = None) -> Any:
         """Run a Prisma query using Node.js"""
+        script_path = None
         try:
             # Create a temporary Node.js script to run the query
             script_content = f"""
@@ -89,17 +90,22 @@ runQuery();
             # Write script to the prisma directory
             prisma_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "prisma"))
             script_path = os.path.join(prisma_dir, "temp_prisma_query.js")
+            
+            # 确保 prisma 目录存在
+            os.makedirs(prisma_dir, exist_ok=True)
+            
             with open(script_path, 'w', encoding='utf-8') as f:
                 f.write(script_content)
+            
+            # 确保文件写入完成
+            if not os.path.exists(script_path):
+                raise Exception(f"Failed to create temporary script at {script_path}")
             
             # Run the script
             result = subprocess.run(["node", "temp_prisma_query.js"], 
                                   cwd=prisma_dir,
-                                  capture_output=True)
-            
-            # Clean up
-            if os.path.exists(script_path):
-                os.remove(script_path)
+                                  capture_output=True,
+                                  timeout=30)  # 添加超时
             
             # Decode output manually
             stdout = result.stdout.decode('utf-8', errors='ignore')
@@ -111,6 +117,9 @@ runQuery();
                 raise Exception(f"Node.js subprocess failed: {stderr}")
             
             # Parse result
+            if not stdout.strip():
+                raise Exception("Empty output from Node.js subprocess")
+                
             output = json.loads(stdout.strip())
             if not output.get('success'):
                 logger.error(f"Prisma query error: {output.get('error')}\nFull output: {stdout}")
@@ -121,151 +130,89 @@ runQuery();
         except Exception as e:
             logger.error(f"Error running Prisma query: {e}")
             raise
+        finally:
+            # Clean up - 确保在 finally 块中删除文件
+            if script_path and os.path.exists(script_path):
+                try:
+                    os.remove(script_path)
+                except Exception as cleanup_error:
+                    logger.warning(f"Failed to cleanup temporary script: {cleanup_error}")
     
-    def add_document_with_uniqueness(self, doc_id: Optional[str], url: str, title: str, content: str, 
-                                   user_id: str, embedding: List[float], timestamp: Optional[str] = None) -> Dict[str, Any]:
-        """Add a document and its embedding to storage. Returns result with action type and document ID."""
+    def add_document_entry(self, url: str, title: str, content: str, site_id: str, timestamp: Optional[str] = None) -> str:
+        """Create a single document entry and return its ID."""
         try:
             if timestamp is None:
                 timestamp = datetime.now().isoformat()
-            
-            # First, find or create user
-            user_query = f"""
-                await prisma.user.upsert({{
-                    where: {{ username: '{_escape_js_string(user_id)}' }},
-                    update: {{}},
-                    create: {{
-                        username: '{_escape_js_string(user_id)}',
-                        password: 'migrated_user',
-                        publicKey: null,
-                        privateKey: null
-                    }}
-                }})
-            """
-            
-            user = self._run_prisma_query(user_query)
-            
-            # Check if document with same title exists for this user
-            existing_query = f"""
-                await prisma.rAGDocument.findFirst({{
-                    where: {{
+            doc_id = str(uuid.uuid4())
+            create_query = f"""
+                await prisma.documents.create({{
+                    data: {{
+                        id: '{doc_id}',
+                        site_id: '{site_id}',
+                        url: '{_escape_js_string(url)}',
                         title: '{_escape_js_string(title)}',
-                        userId: '{user["id"]}'
+                        content: '{_escape_js_string(content)}',
+                        created_at: new Date('{timestamp}')
                     }}
                 }})
             """
-            
-            existing_doc = self._run_prisma_query(existing_query)
-            
-            if existing_doc:
-                # Update existing document
-                update_query = f"""
-                    await prisma.rAGDocument.update({{
-                        where: {{ id: '{existing_doc["id"]}' }},
-                        data: {{
-                            url: '{_escape_js_string(url)}',
-                            content: '{_escape_js_string(content)}',
-                            timestamp: new Date('{timestamp}')
-                        }}
-                    }})
-                """
-                
-                updated_doc = self._run_prisma_query(update_query)
-                
-                # Update embedding
-                embedding_blob = pickle.dumps(np.array(embedding))
-                embedding_b64 = base64.b64encode(embedding_blob).decode('utf-8')
-                embedding_query = f"""
-                    await prisma.rAGEmbedding.upsert({{
-                        where: {{ documentId: '{existing_doc["id"]}' }},
-                        update: {{
-                            embeddingData: Buffer.from('{embedding_b64}', 'base64'),
-                            embeddingDimension: {len(embedding)}
-                        }},
-                        create: {{
-                            documentId: '{existing_doc["id"]}',
-                            embeddingData: Buffer.from('{embedding_b64}', 'base64'),
-                            embeddingDimension: {len(embedding)}
-                        }}
-                    }})
-                """
-                
-                self._run_prisma_query(embedding_query)
-                
-                logger.info(f"Updated existing document: {title} (User: {user_id}, ID: {existing_doc['id']})")
-                return {
-                    "success": True,
-                    "action": "updated",
-                    "doc_id": existing_doc["id"]
-                }
-            else:
-                # Generate new ID if not provided
-                if doc_id is None:
-                    doc_id = str(uuid.uuid4())
-                
-                # Insert new document
-                create_query = f"""
-                    await prisma.rAGDocument.create({{
-                        data: {{
-                            id: '{doc_id}',
-                            userId: '{user["id"]}',
-                            url: '{_escape_js_string(url)}',
-                            title: '{_escape_js_string(title)}',
-                            content: '{_escape_js_string(content)}',
-                            timestamp: new Date('{timestamp}'),
-                            createdAt: new Date('{timestamp}')
-                        }}
-                    }})
-                """
-                
-                new_doc = self._run_prisma_query(create_query)
-                
-                # Insert embedding
-                embedding_blob = pickle.dumps(np.array(embedding))
-                embedding_b64 = base64.b64encode(embedding_blob).decode('utf-8')
-                embedding_query = f"""
-                    await prisma.rAGEmbedding.create({{
-                        data: {{
-                            documentId: '{doc_id}',
-                            embeddingData: Buffer.from('{embedding_b64}', 'base64'),
-                            embeddingDimension: {len(embedding)}
-                        }}
-                    }})
-                """
-                
-                self._run_prisma_query(embedding_query)
-                
-                logger.info(f"Added new document: {title} (User: {user_id}, ID: {doc_id})")
-                return {
-                    "success": True,
-                    "action": "added",
-                    "doc_id": doc_id
-                }
-                
+            self._run_prisma_query(create_query)
+            logger.info(f"Created document entry: {title} (Site: {site_id}, ID: {doc_id})")
+            return doc_id
         except Exception as e:
-            logger.error(f"Error adding document: {e}")
-            return {
-                "success": False,
-                "action": "error",
-                "doc_id": None,
-                "error": str(e)
-            }
+            logger.error(f"Error creating document entry: {e}")
+            raise
+
+    def add_embedding(self, document_id: str, site_id: str, embedding: List[float], timestamp: Optional[str] = None) -> str:
+        """Add an embedding for a document chunk."""
+        try:
+            if timestamp is None:
+                timestamp = datetime.now().isoformat()
+            embedding_blob = pickle.dumps(np.array(embedding))
+            embedding_b64 = base64.b64encode(embedding_blob).decode('utf-8')
+            embedding_id = str(uuid.uuid4())
+            embedding_query = f"""
+                await prisma.embeddings.create({{
+                    data: {{
+                        id: '{embedding_id}',
+                        document_id: '{document_id}',
+                        site_id: '{site_id}',
+                        embedding_vector: Buffer.from('{embedding_b64}', 'base64'),
+                        dimension: {len(embedding)},
+                        created_at: new Date('{timestamp}')
+                    }}
+                }})
+            """
+            self._run_prisma_query(embedding_query)
+            logger.info(f"Added embedding for document: {document_id}")
+            return embedding_id
+        except Exception as e:
+            logger.error(f"Error adding embedding: {e}")
+            raise
+
+    # Deprecated: do not use for chunked upload
+    def add_document_with_uniqueness(self, doc_id: Optional[str], url: str, title: str, content: str, 
+                                   site_id: str, embedding: List[float], timestamp: Optional[str] = None) -> Dict[str, Any]:
+        logger.warning("add_document_with_uniqueness is deprecated. Use add_document_entry and add_embedding instead.")
+        return {"success": False, "action": "deprecated", "doc_id": None, "error": "Deprecated method"}
     
     def get_documents_by_user(self, user_id: str) -> Tuple[List[Dict[str, Any]], List[np.ndarray]]:
         """Get all documents and embeddings for a specific user"""
         try:
             query = f"""
-                await prisma.rAGDocument.findMany({{
+                await prisma.documents.findMany({{
                     where: {{
-                        user: {{
-                            username: '{_escape_js_string(user_id)}'
+                        sites: {{
+                            users: {{
+                                username: '{_escape_js_string(user_id)}'
+                            }}
                         }}
                     }},
                     include: {{
-                        embedding: true
+                        embeddings: true
                     }},
                     orderBy: {{
-                        timestamp: 'desc'
+                        created_at: 'desc'
                     }}
                 }})
             """
@@ -281,27 +228,23 @@ runQuery();
                     "url": doc_data["url"],
                     "title": doc_data["title"],
                     "content": doc_data["content"],
-                    "timestamp": doc_data["timestamp"],
-                    "user_id": user_id
+                    "created_at": doc_data["created_at"],
+                    "site_id": doc_data["site_id"]
                 }
                 documents.append(doc)
                 
-                if doc_data.get("embedding"):
+                if doc_data.get("embeddings") and len(doc_data["embeddings"]) > 0:
                     try:
-                        # The embedding data might be stored as base64 string, Buffer object, or JS object
-                        embedding_data = doc_data["embedding"]["embeddingData"]
+                        embedding_data = doc_data["embeddings"][0]["embedding_vector"]
                         if isinstance(embedding_data, str):
-                            # If it's a string, it might be base64 encoded
                             embedding_blob = base64.b64decode(embedding_data)
                         elif isinstance(embedding_data, dict):
-                            # If it's a dict, it's a JS object representation of bytes
                             max_key = max(int(k) for k in embedding_data.keys())
                             embedding_blob = bytearray(max_key + 1)
                             for key, value in embedding_data.items():
                                 embedding_blob[int(key)] = value
                             embedding_blob = bytes(embedding_blob)
                         else:
-                            # If it's already bytes, use it directly
                             embedding_blob = embedding_data
                         embedding = pickle.loads(embedding_blob)
                         embeddings.append(embedding)
@@ -318,17 +261,72 @@ runQuery();
             logger.error(f"Error getting documents for user {user_id}: {e}")
             return [], []
     
+    def get_documents_by_site(self, site_id: str) -> Tuple[List[Dict[str, Any]], List[np.ndarray]]:
+        """Get all documents and embeddings for a specific site_id"""
+        try:
+            query = f"""
+                await prisma.documents.findMany({{
+                    where: {{
+                        site_id: '{_escape_js_string(site_id)}'
+                    }},
+                    include: {{
+                        embeddings: true
+                    }},
+                    orderBy: {{
+                        created_at: 'desc'
+                    }}
+                }})
+            """
+            documents_data = self._run_prisma_query(query)
+            documents = []
+            embeddings = []
+            for doc_data in documents_data:
+                doc = {
+                    "id": doc_data["id"],
+                    "url": doc_data["url"],
+                    "title": doc_data["title"],
+                    "content": doc_data["content"],
+                    "created_at": doc_data["created_at"],
+                    "site_id": doc_data["site_id"]
+                }
+                documents.append(doc)
+                if doc_data.get("embeddings") and len(doc_data["embeddings"]) > 0:
+                    try:
+                        embedding_data = doc_data["embeddings"][0]["embedding_vector"]
+                        if isinstance(embedding_data, str):
+                            embedding_blob = base64.b64decode(embedding_data)
+                        elif isinstance(embedding_data, dict):
+                            max_key = max(int(k) for k in embedding_data.keys())
+                            embedding_blob = bytearray(max_key + 1)
+                            for key, value in embedding_data.items():
+                                embedding_blob[int(key)] = value
+                            embedding_blob = bytes(embedding_blob)
+                        else:
+                            embedding_blob = embedding_data
+                        embedding = pickle.loads(embedding_blob)
+                        embeddings.append(embedding)
+                    except Exception as e:
+                        logger.warning(f"Error loading embedding for document {doc_data['id']}: {e}")
+                        embeddings.append(np.array([]))
+                else:
+                    embeddings.append(np.array([]))
+            logger.info(f"Retrieved {len(documents)} documents for site: {site_id}")
+            return documents, embeddings
+        except Exception as e:
+            logger.error(f"Error getting documents for site {site_id}: {e}")
+            return [], []
+    
     def get_all_documents(self) -> Tuple[List[Dict[str, Any]], List[np.ndarray]]:
         """Get all documents and embeddings"""
         try:
             query = """
-                await prisma.rAGDocument.findMany({
+                await prisma.documents.findMany({
                     include: {
-                        embedding: true,
-                        user: true
+                        embeddings: true,
+                        sites: true
                     },
                     orderBy: {
-                        timestamp: 'desc'
+                        created_at: 'desc'
                     }
                 })
             """
@@ -344,27 +342,23 @@ runQuery();
                     "url": doc_data["url"],
                     "title": doc_data["title"],
                     "content": doc_data["content"],
-                    "timestamp": doc_data["timestamp"],
-                    "user_id": doc_data["user"]["username"]
+                    "created_at": doc_data["created_at"],
+                    "site_id": doc_data["site_id"]
                 }
                 documents.append(doc)
                 
-                if doc_data.get("embedding"):
+                if doc_data.get("embeddings") and len(doc_data["embeddings"]) > 0:
                     try:
-                        # The embedding data might be stored as base64 string, Buffer object, or JS object
-                        embedding_data = doc_data["embedding"]["embeddingData"]
+                        embedding_data = doc_data["embeddings"][0]["embedding_vector"]
                         if isinstance(embedding_data, str):
-                            # If it's a string, it might be base64 encoded
                             embedding_blob = base64.b64decode(embedding_data)
                         elif isinstance(embedding_data, dict):
-                            # If it's a dict, it's a JS object representation of bytes
                             max_key = max(int(k) for k in embedding_data.keys())
                             embedding_blob = bytearray(max_key + 1)
                             for key, value in embedding_data.items():
                                 embedding_blob[int(key)] = value
                             embedding_blob = bytes(embedding_blob)
                         else:
-                            # If it's already bytes, use it directly
                             embedding_blob = embedding_data
                         embedding = pickle.loads(embedding_blob)
                         embeddings.append(embedding)
@@ -386,29 +380,31 @@ runQuery();
         try:
             if user_id:
                 query = f"""
-                    await prisma.rAGDocument.findMany({{
+                    await prisma.documents.findMany({{
                         where: {{
-                            user: {{
-                                username: '{_escape_js_string(user_id)}'
+                            sites: {{
+                                users: {{
+                                    username: '{_escape_js_string(user_id)}'
+                                }}
                             }}
                         }},
                         include: {{
-                            user: true
+                            sites: true
                         }},
                         orderBy: {{
-                            timestamp: 'desc'
+                            created_at: 'desc'
                         }},
                         take: {limit}
                     }})
                 """
             else:
                 query = f"""
-                    await prisma.rAGDocument.findMany({{
+                    await prisma.documents.findMany({{
                         include: {{
-                            user: true
+                            sites: true
                         }},
                         orderBy: {{
-                            timestamp: 'desc'
+                            created_at: 'desc'
                         }},
                         take: {limit}
                     }})
@@ -423,8 +419,8 @@ runQuery();
                     "url": doc_data["url"],
                     "title": doc_data["title"],
                     "content": doc_data["content"],
-                    "timestamp": doc_data["timestamp"],
-                    "user_id": doc_data["user"]["username"]
+                    "created_at": doc_data["created_at"],
+                    "site_id": doc_data["site_id"]
                 }
                 documents.append(doc)
             
@@ -440,14 +436,16 @@ runQuery();
             if user_id:
                 query = f"""
                     await Promise.all([
-                        prisma.rAGDocument.count({{
+                        prisma.documents.count({{
                             where: {{
-                                user: {{
-                                    username: '{_escape_js_string(user_id)}'
+                                sites: {{
+                                    users: {{
+                                        username: '{_escape_js_string(user_id)}'
+                                    }}
                                 }}
                             }}
                         }}),
-                        prisma.rAGDocument.count()
+                        prisma.documents.count()
                     ])
                 """
                 
@@ -463,8 +461,8 @@ runQuery();
             else:
                 query = """
                     await Promise.all([
-                        prisma.rAGDocument.count(),
-                        prisma.user.count()
+                        prisma.documents.count(),
+                        prisma.users.count()
                     ])
                 """
                 
@@ -488,15 +486,43 @@ runQuery();
         try:
             query = """
                 await Promise.all([
-                    prisma.rAGDocument.count(),
-                    prisma.rAGEmbedding.count(),
-                    prisma.user.count()
+                    prisma.documents.count(),
+                    prisma.embeddings.count(),
+                    prisma.users.count()
                 ])
             """
             
             results = self._run_prisma_query(query)
             
+            # 计算数据库文件大小
+            import os
+            db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "rag_database.db"))
+            db_size_mb = 0
+            if os.path.exists(db_path):
+                db_size_mb = round(os.path.getsize(db_path) / (1024 * 1024), 2)
+            
+            # 获取 embedding 维度（从第一个 embedding 记录）
+            embedding_dimension = "N/A"
+            try:
+                dim_query = """
+                    await prisma.embeddings.findFirst({
+                        select: {
+                            dimension: true
+                        }
+                    })
+                """
+                dim_result = self._run_prisma_query(dim_query)
+                if dim_result:
+                    embedding_dimension = dim_result.get("dimension", "N/A")
+            except:
+                pass
+            
             return {
+                "database_path": db_path,
+                "database_size_mb": db_size_mb,
+                "total_documents": results[0],
+                "unique_users": results[2],
+                "embedding_dimension": embedding_dimension,
                 "type": "Prisma SQLite",
                 "documents": results[0],
                 "embeddings": results[1],
@@ -513,7 +539,7 @@ runQuery();
         try:
             # First get the user ID
             user_query = f"""
-                await prisma.user.findUnique({{
+                await prisma.users.findUnique({{
                     where: {{ username: '{_escape_js_string(user_id)}' }}
                 }})
             """
@@ -525,16 +551,14 @@ runQuery();
             
             # Delete embeddings and documents for this user
             query = f"""
-                await prisma.rAGEmbedding.deleteMany({{
+                await prisma.embeddings.deleteMany({{
                     where: {{
-                        document: {{
-                            userId: '{user["id"]}'
-                        }}
+                        site_id: '{user["id"]}'
                     }}
                 }});
-                await prisma.rAGDocument.deleteMany({{
+                await prisma.documents.deleteMany({{
                     where: {{
-                        userId: '{user["id"]}'
+                        site_id: '{user["id"]}'
                     }}
                 }});
             """
@@ -552,8 +576,8 @@ runQuery();
         """Clear all documents and embeddings"""
         try:
             query = """
-                await prisma.rAGEmbedding.deleteMany({});
-                await prisma.rAGDocument.deleteMany({});
+                await prisma.embeddings.deleteMany({});
+                await prisma.documents.deleteMany({});
             """
             
             self._run_prisma_query(query)

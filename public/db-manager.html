@@ -876,7 +876,7 @@
                     user_id: user || null
                 };
                 
-                const response = await fetch(`${API_BASE}/search`, {
+                const response = await fetch(`${API_BASE}/rag-generate`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -959,7 +959,7 @@
                     user_id: user || null
                 };
                 
-                const response = await fetch(`${API_BASE}/search`, {
+                const response = await fetch(`${API_BASE}/rag-generate`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -1038,29 +1038,26 @@
             }
             
             try {
-                const document = {
+                const documentObj = {
                     url: url,
                     title: title,
                     content: content,
                     user_id: userId,
                     timestamp: timestamp || new Date().toISOString()
                 };
-                
-                const response = await fetch(`${API_BASE}/add-document`, {
+                // 发送为数组，兼容 /add-documents 批量接口
+                const response = await fetch(`${API_BASE}/add-documents`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(document)
+                    body: JSON.stringify([documentObj])
                 });
                 
                 const result = await response.json();
                 
                 if (result.success) {
-                    const action = result.action || 'added';
-                    const message = action === 'updated' ? 
-                        'Document updated successfully!' : 
-                        'Document added successfully!';
+                    const message = 'Document added successfully!';
                     showSuccess(message);
                     
                     // Clear form

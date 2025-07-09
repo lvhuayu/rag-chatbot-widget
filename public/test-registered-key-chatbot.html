@@ -425,7 +425,7 @@ initRAGChatbot({
     <script src="chatbot.js"></script>
     <script>
         let authToken = null;
-        let userId = null;
+        let siteId = null;
 
         function showStatus(message, type = 'info') {
             const statusDiv = document.getElementById('auth-status');
@@ -475,7 +475,7 @@ initRAGChatbot({
                     },
                     body: JSON.stringify({
                         public_key: publicKeyData.publicKey,
-                        username: username
+                        siteId: username
                     })
                 });
 

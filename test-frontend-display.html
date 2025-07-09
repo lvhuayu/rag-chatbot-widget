@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Frontend Display</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .context-display {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .length-info {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔍 Frontend Context Display Test</h1>
+        
+        <button onclick="testSearch()">Test Search</button>
+        <button onclick="testLongContext()">Test Long Context</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        async function testSearch() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<p>🔍 Testing search...</p>';
+            
+            try {
+                const response = await fetch('http://localhost:8001/rag-generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: '收费方案',
+                        user_id: 'main_page_user',
+                        top_k: 5
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    const lengthInfo = `
+                        <div class="length-info">
+                            <strong>Context Length:</strong> ${data.context ? data.context.length : 0} characters<br>
+                            <strong>Documents Count:</strong> ${data.documents ? data.documents.length : 0}<br>
+                            <strong>Response Keys:</strong> ${Object.keys(data).join(', ')}
+                        </div>
+                    `;
+                    
+                    const contextDisplay = `
+                        <div class="context-display">
+                            <strong>Full Context:</strong><br>
+                            ${data.context || 'No context'}
+                        </div>
+                    `;
+                    
+                    resultsDiv.innerHTML = lengthInfo + contextDisplay;
+                } else {
+                    resultsDiv.innerHTML = `<p>❌ Error: ${response.status}</p>`;
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `<p>❌ Error: ${error.message}</p>`;
+            }
+        }
+        
+        function testLongContext() {
+            const resultsDiv = document.getElementById('results');
+            
+            // 模拟一个很长的context
+            const longContext = `🧾 收费方案（示例）
+凌问 AI - 网站功能与收费方案说明
+版本     | 月费     | 适合用户               | 功能限制
+--------|----------|------------------------|-----------------------------
+免费版   | ¥0       | 博客、测试用户         | 每月对话次数限制，无知识库
+基础版   | ¥49/月   | 内容站、咨询类网站     | 支持知识库，每日100条对话
+专业版   | ¥199/月  | 企业官网、电商平台     | 无限知识库，2000次/月，自定义风格
+私有化版 | ¥999/月起 | 企业 / 教育客户        | 私有部署，定制化支持
+
+功能模块        简要说明
+----------      -------------------------------------------------
+🔧 一行嵌入       通过 <script> 标签将 AI 聊天窗口嵌入任意网页、博客、商城、官网等
+🧠 智能对话       基于国内先进的大模型，自动理解并回答用户问题
+📚 私有知识库     支持上传文档构建专属问答内容（如 PDF、Markdown、Word）
+🔐 多租户隔离     每个站点独立配置知识、风格和 API 权限，数据不混用
+🎨 风格定制       聊天窗口颜色、头像、欢迎语等均可自定义
+🧾 对话记录       后台可查看所有对话记录，便于优化知识库或客户服务
+📈 限速计费       根据 siteId 实现限速控制，避免滥用或攻击
+
+👨‍💻 适合用户类型
+- 想在网页中嵌入 AI 客服功能的个人站长、小微企业
+- 公众号 / 小程序作者希望提升转化率
+- 想展示 AI Copilot / Demo 的 AI 创业项目
+- 教育、心理、法律等行业希望用 AI 做内容答疑
+
+这是一个很长的context内容，用来测试前端是否能正确显示完整的文本内容，包括表格、列表和各种格式。`;
+            
+            const lengthInfo = `
+                <div class="length-info">
+                    <strong>Test Context Length:</strong> ${longContext.length} characters
+                </div>
+            `;
+            
+            const contextDisplay = `
+                <div class="context-display">
+                    <strong>Long Test Context:</strong><br>
+                    ${longContext}
+                </div>
+            `;
+            
+            resultsDiv.innerHTML = lengthInfo + contextDisplay;
+        }
+    </script>
+</body>
+</html> 

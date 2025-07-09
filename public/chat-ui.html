@@ -91,13 +91,7 @@
             background: #ef4444;
         }
         
-        .rag-status {
-            background: rgba(255, 255, 255, 0.2);
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 10px;
-            font-weight: 500;
-        }
+
         
         .messages-container {
             flex: 1;
@@ -322,12 +316,11 @@
 <body>
     <div class="chat-container">
         <div class="chat-header">
-            <h2>🤖 RAG Assistant</h2>
+            <h2>🤖 AI 助手</h2>
             <div class="header-controls">
                 <div class="status-indicator">
                     <div class="status-dot" id="connection-status"></div>
                     <span id="status-text">Connecting...</span>
-                    <div class="rag-status" id="rag-status">RAG</div>
                 </div>
                 <button class="minimize-button" id="minimize-button" title="最小化">
                     <svg fill="currentColor" viewBox="0 0 20 20" width="16" height="16">
@@ -373,7 +366,7 @@
         const sendButton = document.getElementById('send-button');
         const connectionStatus = document.getElementById('connection-status');
         const statusText = document.getElementById('status-text');
-        const ragStatus = document.getElementById('rag-status');
+
         const minimizeButton = document.getElementById('minimize-button');
         
         // Listen for configuration from parent
@@ -401,8 +394,7 @@
             // Check Ollama connection
             checkOllamaConnection();
             
-            // Update RAG status
-            updateRAGStatus();
+
             
             // Show authentication status
             updateAuthStatus();
@@ -430,16 +422,7 @@
             statusText.textContent = connected ? 'Connected' : 'Offline';
         }
         
-        // Update RAG status
-        function updateRAGStatus() {
-            if (config.enableRAG) {
-                ragStatus.textContent = 'RAG Active';
-                ragStatus.style.background = 'rgba(34, 197, 94, 0.2)';
-            } else {
-                ragStatus.textContent = 'RAG Off';
-                ragStatus.style.background = 'rgba(239, 68, 68, 0.2)';
-            }
-        }
+
         
         // Update authentication status
         function updateAuthStatus() {
@@ -483,7 +466,12 @@
             
             const messageContent = document.createElement('div');
             messageContent.className = 'message-content';
-            messageContent.textContent = content;
+            // 将表格格式转换为HTML以保持格式
+            const formattedContent = content
+                .replace(/\|/g, ' | ')
+                .replace(/\n/g, '<br>')
+                .replace(/\s{2,}/g, '&nbsp;&nbsp;');
+            messageContent.innerHTML = formattedContent;
             
             messageDiv.appendChild(avatar);
             messageDiv.appendChild(messageContent);
@@ -556,39 +544,27 @@
                 console.log('🔐 Authentication:', authToken ? 'Authenticated' : 'Not authenticated');
                 console.log('👤 User ID:', userId || 'Not provided');
                 
-                const response = await fetch(`${backendUrl}/search`, {
+                // 统一切换为 /rag-generate
+                const response = await fetch(`${backendUrl}/rag-generate`, {
                     method: 'POST',
                     headers: getAuthHeaders(),
                     body: JSON.stringify({ 
                         query: userMessage, 
-                        top_k: topK,
-                        user_id: userId 
+                        user_id: userId || undefined, 
+                        top_k: topK
                     })
                 });
                 
                 if (!response.ok) {
-                    if (response.status === 401) {
-                        throw new Error('Authentication failed. Please login again.');
-                    } else if (response.status === 403) {
-                        throw new Error('Access denied. You may not have permission to access this resource.');
-                    } else {
-                        throw new Error(`Backend error! Status: ${response.status}`);
-                    }
+                    throw new Error('RAG generate API error: ' + response.status);
                 }
-                
                 const data = await response.json();
-                console.log('RAG backend response:', data);
-                
-                botReply = data.context || 'No answer from backend.';
                 ragResults = data.documents || [];
-                
-                return {
-                    content: botReply,
-                    ragResults: ragResults
-                };
-            } catch (error) {
-                console.error('Error sending message to Python backend:', error);
-                throw error;
+                botReply = data.context || '未能生成有效回答。';
+                return { ragResults, botReply };
+            } catch (err) {
+                console.error('RAG generate error:', err);
+                return { ragResults: [], botReply: '❌ 大模型生成失败：' + err.message };
             }
         }
 
@@ -618,7 +594,7 @@
             try {
                 const result = await sendMessageToOllama(message);
                 hideTypingIndicator();
-                addMessage('bot', result.content, result.ragResults);
+                addMessage('bot', result.botReply, result.ragResults);
                 
             } catch (error) {
                 hideTypingIndicator();
