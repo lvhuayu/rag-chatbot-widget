@@ -31,6 +31,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization
 import rag_storage_prisma as storage
 import sqlite3
+from openai import OpenAI
 
 # Add the parent directory to the path to import the Prisma storage
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -734,9 +735,8 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
         raise HTTPException(status_code=500, detail=f"Error generating answer: {str(e)}")
 
 async def generate_with_ollama(query: str, context: str) -> str:
-    """Generate answer using Ollama with RAG context"""
+    """Generate answer using DashScope (Qwen) with RAG context"""
     try:
-        # Prepare prompt for RAG
         prompt = f"""你是一个专业的AI助手，专门回答基于提供上下文的问题。
 
 请仔细分析以下上下文信息，然后准确回答用户的问题。
@@ -754,35 +754,24 @@ async def generate_with_ollama(query: str, context: str) -> str:
 
 回答："""
 
-        # Call Ollama API
-        ollama_url = "http://localhost:11434/api/generate"
-        payload = {
-            "model": "qwen:7b",
-            "prompt": prompt,
-            "stream": False,
-            "options": {
-                "temperature": 0.3,  # 降低温度，提高准确性
-                "top_p": 0.8,
-                "max_tokens": 500
-            }
-        }
-        
-        response = requests.post(ollama_url, json=payload, timeout=30)
-        if response.status_code == 200:
-            result = response.json()
-            return result.get("response", "Sorry, I couldn't generate a response.")
-        else:
-            logger.error(f"Ollama API error: {response.status_code} - {response.text}")
-            raise Exception(f"Ollama API returned status {response.status_code}")
-            
-    except requests.exceptions.Timeout:
-        logger.error("Ollama request timed out")
-        raise Exception("Request to Ollama timed out")
-    except requests.exceptions.ConnectionError:
-        logger.error("Cannot connect to Ollama")
-        raise Exception("Cannot connect to Ollama. Please make sure Ollama is running.")
+        client = OpenAI(
+            api_key=os.getenv("DASHSCOPE_API_KEY"),
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        )
+        completion = client.chat.completions.create(
+            model="qwen-plus",  # 可根据需要更换模型
+            messages=[
+                {"role": "system", "content": "你是一个专业的AI助手。"},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+            max_tokens=500,
+            top_p=0.8
+            # 如用Qwen3开源版且非流式输出时可加: extra_body={"enable_thinking": False},
+        )
+        return completion.choices[0].message.content.strip()
     except Exception as e:
-        logger.error(f"Error calling Ollama: {e}")
+        logger.error(f"Error calling DashScope: {e}")
         raise e
 
 if __name__ == "__main__":
