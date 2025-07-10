@@ -1,7 +1,7 @@
 // RAG Service Client - Communicates with Python Backend
 
 export class RAGServiceClient {
-    constructor(backendUrl = 'http://localhost:8001') {
+    constructor(backendUrl = 'https://essayformatter.com:8001') {
         this.backendUrl = backendUrl;
         this.isInitialized = false;
         this.initPromise = null;
