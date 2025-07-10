@@ -718,7 +718,7 @@
             const apiKey = 'cmcu4th0r0005wouf9qpp3s0d';
             let token = null;
             try {
-                const tokenResp = await fetch('https://essayformatter.com:8001/auth/token', {
+                const tokenResp = await fetch('https://essayformatter.com/auth/token', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ apiKey })
@@ -738,7 +738,7 @@
                 return;
             }
             try {
-                const response = await fetch('https://essayformatter.com:8001/rag-generate', {
+                const response = await fetch('https://essayformatter.com/rag-generate', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
