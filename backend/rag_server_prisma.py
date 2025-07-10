@@ -734,8 +734,18 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error generating answer: {str(e)}")
 
+import os
+import logging
+from openai import OpenAI
+
+logger = logging.getLogger(__name__)
+
 async def generate_with_ollama(query: str, context: str) -> str:
     """Generate answer using DashScope (Qwen) with RAG context"""
+    api_key = "sk-9ae65ad2fb8e4564be06f2a7bddf609a"
+    if not api_key:
+        raise RuntimeError("DASHSCOPE_API_KEY not set in environment")
+
     try:
         prompt = f"""你是一个专业的AI助手，专门回答基于提供上下文的问题。
 
@@ -755,45 +765,47 @@ async def generate_with_ollama(query: str, context: str) -> str:
 回答："""
 
         client = OpenAI(
-            api_key=os.getenv("DASHSCOPE_API_KEY"),
+            api_key=api_key,
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         )
-        completion = client.chat.completions.create(
-            model="qwen-plus",  # 可根据需要更换模型
+        response = client.chat.completions.create(
+            model="qwen-plus",  # 根据实际模型名替换，如 "qwen-max"
             messages=[
                 {"role": "system", "content": "你是一个专业的AI助手。"},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.3,
             max_tokens=500,
-            top_p=0.8
-            # 如用Qwen3开源版且非流式输出时可加: extra_body={"enable_thinking": False},
+            top_p=0.8,
+            # extra_body={"enable_thinking": False},  # 若使用Qwen开源版本可加
         )
-        return completion.choices[0].message.content.strip()
-    except Exception as e:
-        logger.error(f"Error calling DashScope: {e}")
-        raise e
+
+        return response.choices[0].message.content.strip()
+
+    except Exception:
+        logger.exception("Error calling DashScope")
+        raise
 
 if __name__ == "__main__":
     import uvicorn
     
-    print("🚀 Starting RAG Chatbot Backend with Prisma Storage...")
-    print("📊 Database: Unified Prisma SQLite")
-    print("🧠 Model: Simple Character Frequency")
-    print("🔗 API: http://localhost:8001")
-    print("📚 Health: http://localhost:8001/health")
-    print("=" * 50)
+    # print("🚀 Starting RAG Chatbot Backend with Prisma Storage...")
+    # print("📊 Database: Unified Prisma SQLite")
+    # print("🧠 Model: Simple Character Frequency")
+    # print("🔗 API: http://localhost:8001")
+    # print("📚 Health: http://localhost:8001/health")
+    # print("=" * 50)
     
-    # Check Ollama status
-    try:
-        response = requests.get("http://localhost:11434/api/tags", timeout=5)
-        if response.status_code == 200:
-            models = response.json().get("models", [])
-            print(f"✅ Ollama is running with models: {len(models)}")
-        else:
-            print("⚠️  Ollama not responding properly")
-    except Exception as e:
-        print(f"⚠️  Ollama not accessible: {e}")
+    # # Check Ollama status
+    # try:
+    #     response = requests.get("http://localhost:11434/api/tags", timeout=5)
+    #     if response.status_code == 200:
+    #         models = response.json().get("models", [])
+    #         print(f"✅ Ollama is running with models: {len(models)}")
+    #     else:
+    #         print("⚠️  Ollama not responding properly")
+    # except Exception as e:
+    #     print(f"⚠️  Ollama not accessible: {e}")
     
     print("🔄 Starting server...")
     uvicorn.run(app, host="0.0.0.0", port=8001) 
