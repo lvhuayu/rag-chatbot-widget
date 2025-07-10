@@ -27,7 +27,7 @@
             enableRAG: true,
             ragThreshold: 0.7, // Minimum similarity threshold for RAG results
             maxRAGResults: 3,   // Maximum number of RAG results to include
-            backendUrl: 'http://121.40.239.226:8001', // RAG backend URL - 已改为公网地址
+            backendUrl: 'https://essayformatter.com:8001', // RAG backend URL - 已改为 essayformatter.com 公网地址
             ollamaUrl: 'http://localhost:11434',  // Ollama URL - CHANGE THIS IF NEEDED
             
             // Multi-tenant configuration
