@@ -22,8 +22,7 @@ jobs:
         echo "${{ secrets.ECS_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
 
-        ssh-keyscan -H ${{ secrets.ECS1_HOST }} >> ~/.ssh/known_hosts || true
-        ssh-keyscan -H ${{ secrets.ECS2_HOST }} >> ~/.ssh/known_hosts || true
+        ssh-keyscan -H ${{ secrets.ECS1_HOST }} >> ~/.ssh/known_hosts
 
     - name: 🚀 Deploy to ECS1
       run: |
@@ -49,7 +48,7 @@ jobs:
           # 如果是首次部署，需要克隆仓库
           if [ ! -d ".git" ]; then
             echo "📥 Cloning repository..."
-            git clone https://github.com/lvhuayu/rag-chatbot-widget.git .
+            git clone git@github.com:lvhuayu/rag-chatbot-widget.git .
           else
             echo "📥 Pulling latest changes..."
             git pull origin main
