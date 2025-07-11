@@ -47,7 +47,7 @@ app = FastAPI(title="RAG Chatbot Backend (Prisma)", version="2.0.0")
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://lingwenai.cn"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
