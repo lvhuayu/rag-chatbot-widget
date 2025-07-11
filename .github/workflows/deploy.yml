@@ -48,7 +48,7 @@ jobs:
           # 如果是首次部署，需要克隆仓库
           if [ ! -d ".git" ]; then
             echo "📥 Cloning repository..."
-            git clone https://github.com/lvhuayu/rag-chatbot-widget.git .
+            git clone git@github.com:lvhuayu/rag-chatbot-widget.git .
           else
             echo "📥 Pulling latest changes..."
             git pull origin main
