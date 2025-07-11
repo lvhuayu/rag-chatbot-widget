@@ -107,4 +107,25 @@ For production deployment:
 Example production command:
 ```bash
 uvicorn rag_server:app --host 0.0.0.0 --port 8000 --workers 4
-``` 
+```
+
+## 使用 Hugging Face 镜像加速模型下载
+
+如果你在中国大陆，建议在下载模型前设置环境变量以使用 Hugging Face 镜像：
+
+### PowerShell（推荐，临时生效）
+```powershell
+$env:HF_ENDPOINT = "https://hf-mirror.com"
+```
+
+### Linux/Mac 或 WSL（临时生效）
+```bash
+export HF_ENDPOINT=https://hf-mirror.com
+```
+
+设置后再运行模型下载命令，例如：
+```powershell
+huggingface-cli download BAAI/bge-large-zh-v1.5 --local-dir backend/bge-large-zh-v1.5
+```
+
+如需每次自动生效，可将上述命令加入你的 PowerShell profile 或 bashrc/zshrc 文件。 
