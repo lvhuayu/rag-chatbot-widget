@@ -25,25 +25,106 @@ jobs:
         ssh-keyscan -H ${{ secrets.ECS1_HOST }} >> ~/.ssh/known_hosts || true
         ssh-keyscan -H ${{ secrets.ECS2_HOST }} >> ~/.ssh/known_hosts || true
 
-
     - name: 🚀 Deploy to ECS1
       run: |
         ssh ${{ secrets.ECS_USER }}@${{ secrets.ECS1_HOST }} << 'EOF'
+          set -e  # 遇到错误立即退出
+          echo "🚀 Starting deployment on ECS1..."
+          
+          # 检查并创建目录结构
+          if [ ! -d "/opt/rag-chatbot-widget" ]; then
+            echo "📁 Creating project directory..."
+            sudo mkdir -p /opt/rag-chatbot-widget
+            sudo chown $USER:$USER /opt/rag-chatbot-widget
+          fi
+          
+          if [ ! -d "/opt/rag-chatbot-widget/backend" ]; then
+            echo "📁 Creating backend directory..."
+            mkdir -p /opt/rag-chatbot-widget/backend
+          fi
+          
           cd /opt/rag-chatbot-widget/backend
-          git pull origin main
+          echo "📂 Changed to backend directory"
+          
+          # 如果是首次部署，需要克隆仓库
+          if [ ! -d ".git" ]; then
+            echo "📥 Cloning repository..."
+            git clone https://github.com/lvhuayu/rag-chatbot-widget.git .
+          else
+            echo "📥 Pulling latest changes..."
+            git pull origin main
+          fi
+          
+          # 检查并创建虚拟环境
+          if [ ! -d "venv" ]; then
+            echo "🐍 Creating virtual environment..."
+            python3 -m venv venv
+          fi
+          
           source venv/bin/activate
+          echo "🐍 Virtual environment activated"
+          
           pip install -r requirements.txt
+          echo "📦 Dependencies installed"
+          
           sudo systemctl daemon-reload
+          echo "🔄 Systemd daemon reloaded"
+          
           sudo systemctl restart rag-backend
+          echo "✅ Service restarted"
+          
+          # 检查服务状态
+          sudo systemctl status rag-backend --no-pager
         EOF
 
     # - name: 🚀 Deploy to ECS2
     #   run: |
     #     ssh ${{ secrets.ECS_USER }}@${{ secrets.ECS2_HOST }} << 'EOF'
+    #       set -e  # 遇到错误立即退出
+    #       echo "🚀 Starting deployment on ECS2..."
+    #       
+    #       # 检查并创建目录结构
+    #       if [ ! -d "/opt/rag-chatbot-widget" ]; then
+    #         echo "📁 Creating project directory..."
+    #         sudo mkdir -p /opt/rag-chatbot-widget
+    #         sudo chown $USER:$USER /opt/rag-chatbot-widget
+    #       fi
+    #       
+    #       if [ ! -d "/opt/rag-chatbot-widget/backend" ]; then
+    #         echo "📁 Creating backend directory..."
+    #         mkdir -p /opt/rag-chatbot-widget/backend
+    #       fi
+    #       
     #       cd /opt/rag-chatbot-widget/backend
-    #       git pull origin main
+    #       echo "📂 Changed to backend directory"
+    #       
+    #       # 如果是首次部署，需要克隆仓库
+    #       if [ ! -d ".git" ]; then
+    #         echo "📥 Cloning repository..."
+    #         git clone https://github.com/lvhuayu/rag-chatbot-widget.git .
+    #       else
+    #         echo "📥 Pulling latest changes..."
+    #         git pull origin main
+    #       fi
+    #       
+    #       # 检查并创建虚拟环境
+    #       if [ ! -d "venv" ]; then
+    #         echo "🐍 Creating virtual environment..."
+    #         python3 -m venv venv
+    #       fi
+    #       
     #       source venv/bin/activate
+    #       echo "🐍 Virtual environment activated"
+    #       
     #       pip install -r requirements.txt
+    #       echo "📦 Dependencies installed"
+    #       
     #       sudo systemctl daemon-reload
+    #       echo "🔄 Systemd daemon reloaded"
+    #       
     #       sudo systemctl restart rag-backend
+    #       echo "✅ Service restarted"
+    #       
+    #       # 检查服务状态
+    #       sudo systemctl status rag-backend --no-pager
     #     EOF
