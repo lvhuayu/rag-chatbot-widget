@@ -33,7 +33,8 @@ jobs:
           git pull origin main
           source venv/bin/activate
           pip install -r requirements.txt
-          sudo systemctl restart ragchatbot
+          sudo systemctl daemon-reload
+          sudo systemctl restart rag-backend
         EOF
 
     - name: 🚀 Deploy to ECS2
