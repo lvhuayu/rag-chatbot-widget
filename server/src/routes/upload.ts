@@ -12,7 +12,7 @@ import cuid from 'cuid';
 const router = express.Router();
 const prisma = new PrismaClient();
 const uploadDir = path.join(process.cwd(), 'uploads');
-const RAG_BACKEND_URL = process.env.RAG_BACKEND_URL || 'http://localhost:8001';
+const RAG_BACKEND_URL = process.env.RAG_BACKEND_URL;
 
 // Ensure the uploads directory exists
 if (!fs.existsSync(uploadDir)) {
