@@ -132,8 +132,8 @@ class SiteTokenResponse(BaseModel):
 
 # 加载中文/多语言 SOTA embedding 模型（如 BAAI/bge-large-zh-v1.5）
 # 你可以根据需要更换为其他模型，如 all-MiniLM-L6-v2
-# embedding_model = SentenceTransformer('BAAI/bge-large-zh-v1.5')
-embedding_model = SentenceTransformer(os.path.join(os.path.dirname(__file__), 'bge-large-zh-v1.5'))
+embedding_model = SentenceTransformer('BAAI/bge-large-zh-v1.5')
+# embedding_model = SentenceTransformer(os.path.join(os.path.dirname(__file__), 'bge-large-zh-v1.5'))
 
 def generate_simple_embedding(text: str) -> list:
     """用 SOTA embedding 生成文本向量，支持中文和多语言"""
