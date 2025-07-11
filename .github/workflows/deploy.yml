@@ -1,4 +1,4 @@
-name: 🚀 Deploy to Aliyun ECS
+name: 🚀 Deploy to Multiple ECS Nodes
 
 on:
   push:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: 🧾 Checkout code
+    - name: 📦 Checkout code
       uses: actions/checkout@v3
 
     - name: 🔐 Set up SSH key
@@ -18,14 +18,26 @@ jobs:
         mkdir -p ~/.ssh
         echo "${{ secrets.ECS_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
-        ssh-keyscan -H ${{ secrets.ECS_HOST }} >> ~/.ssh/known_hosts
+        ssh-keyscan -H ${{ secrets.ECS1_HOST }} >> ~/.ssh/known_hosts
+        ssh-keyscan -H ${{ secrets.ECS2_HOST }} >> ~/.ssh/known_hosts
 
-    - name: 🚀 Deploy to ECS
+    - name: 🚀 Deploy to ECS1
       run: |
-        ssh ${{ secrets.ECS_USER }}@${{ secrets.ECS_HOST }} << 'EOF'
+        ssh ${{ secrets.ECS_USER }}@${{ secrets.ECS1_HOST }} << 'EOF'
           cd /opt/rag-chatbot-widget/backend
           git pull origin main
           source venv/bin/activate
           pip install -r requirements.txt
+          sudo systemctl restart ragchatbot
+        EOF
+
+    - name: 🚀 Deploy to ECS2
+      run: |
+        ssh ${{ secrets.ECS_USER }}@${{ secrets.ECS2_HOST }} << 'EOF'
+          cd /opt/rag-chatbot-widget/backend
+          git pull origin main
+          source venv/bin/activate
+          pip install -r requirements.txt
+          sudo systemctl daemon-reload
           sudo systemctl restart ragchatbot
         EOF
