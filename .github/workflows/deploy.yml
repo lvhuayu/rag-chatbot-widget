@@ -37,13 +37,13 @@ jobs:
           sudo systemctl restart rag-backend
         EOF
 
-    - name: 🚀 Deploy to ECS2
-      run: |
-        ssh ${{ secrets.ECS_USER }}@${{ secrets.ECS2_HOST }} << 'EOF'
-          cd /opt/rag-chatbot-widget/backend
-          git pull origin main
-          source venv/bin/activate
-          pip install -r requirements.txt
-          sudo systemctl daemon-reload
-          sudo systemctl restart rag-backend
-        EOF
+    # - name: 🚀 Deploy to ECS2
+    #   run: |
+    #     ssh ${{ secrets.ECS_USER }}@${{ secrets.ECS2_HOST }} << 'EOF'
+    #       cd /opt/rag-chatbot-widget/backend
+    #       git pull origin main
+    #       source venv/bin/activate
+    #       pip install -r requirements.txt
+    #       sudo systemctl daemon-reload
+    #       sudo systemctl restart rag-backend
+    #     EOF
