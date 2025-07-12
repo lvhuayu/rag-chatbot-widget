@@ -48,4 +48,6 @@ upload_portal/rag-document-uploader/server/uploads/
 .env.production.local
 
 yarn-debug.log*
-yarn-error.log* 
+yarn-error.log*
+
+backend/*.db
