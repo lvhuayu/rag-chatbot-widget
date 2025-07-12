@@ -1,4 +1,4 @@
-name: 🚀 Deploy to ECS with Strong Clone Logic
+name: 🚀 Deploy to Multiple ECS Nodes
 
 on:
   push:
@@ -19,65 +19,65 @@ jobs:
         mkdir -p ~/.ssh
         echo "${{ secrets.ECS_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
-        ssh-keyscan -H github.com >> ~/.ssh/known_hosts
         ssh-keyscan -H ${{ secrets.ECS1_HOST }} >> ~/.ssh/known_hosts
 
     - name: 🚀 Deploy to ECS1
       run: |
-        ssh -T ${{ secrets.ECS_USER }}@${{ secrets.ECS1_HOST }} << 'EOF'
+        ssh -o StrictHostKeyChecking=no ${{ secrets.ECS_USER }}@${{ secrets.ECS1_HOST }} << 'EOF'
           set -e
+          echo "🚀 Deploying on ECS1..."
 
-          echo "📦 Ensuring dependencies..."
-          sudo apt update
-          sudo apt install -y python3 python3-venv git curl
+          if ! command -v git >/dev/null; then
+            echo "🛠 Installing git..."
+            sudo apt update && sudo apt install -y git
+          fi
 
-          DEPLOY_DIR=/opt/rag-chatbot-widget
+          if ! command -v python3 >/dev/null; then
+            echo "🛠 Installing python3..."
+            sudo apt install -y python3
+          fi
 
-          echo "🚀 Starting deployment to $DEPLOY_DIR"
-          if [ ! -d "$DEPLOY_DIR/.git" ]; then
-            echo "📥 Cloning repository into $DEPLOY_DIR"
-            sudo rm -rf $DEPLOY_DIR
-            sudo mkdir -p $DEPLOY_DIR
-            sudo chown -R $USER:$USER $DEPLOY_DIR
-            git clone git@github.com:lvhuayu/rag-chatbot-widget.git $DEPLOY_DIR
+          if ! python3 -m venv --help >/dev/null 2>&1; then
+            echo "🛠 Installing python3-venv..."
+            sudo apt install -y python3-venv
+          fi
+
+          if [ ! -d "/opt/rag-chatbot-widget" ]; then
+            sudo mkdir -p /opt/rag-chatbot-widget
+            sudo chown $USER:$USER /opt/rag-chatbot-widget
+          fi
+
+          cd /opt/rag-chatbot-widget
+
+          if [ ! -d ".git" ]; then
+            echo "📥 Cloning repo..."
+            git clone git@github.com:lvhuayu/rag-chatbot-widget.git .
           else
-            echo "📥 Pulling latest changes"
-            cd $DEPLOY_DIR
+            echo "📥 Pulling latest code..."
             git pull origin main
           fi
 
-          cd $DEPLOY_DIR/backend
+          cd backend
 
-          if [ ! -f "requirements.txt" ]; then
-            echo "❌ requirements.txt not found in backend folder!"
-            pwd
-            ls -la
-            exit 1
+          if [ ! -d "venv" ]; then
+            echo "🐍 Creating venv..."
+            python3 -m venv venv
           fi
-
-          echo "🐍 Creating virtual environment..."
-          python3 -m venv venv || echo "⚠️ Failed to create venv"
 
           echo "🧩 Ensuring pip in venv..."
-          ./venv/bin/python3 -m ensurepip --upgrade || true
-          ./venv/bin/python3 -m pip install --upgrade pip || true
+          ./venv/bin/python -m ensurepip || true
+          ./venv/bin/pip install --upgrade pip -i https://mirrors.aliyun.com/pypi/simple
 
-          if [ ! -f "venv/bin/activate" ]; then
-            echo "❌ Failed to find venv/bin/activate"
-            ls -la venv || true
-            exit 1
-          fi
+          echo "📦 Installing dependencies..."
+          ./venv/bin/pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple
 
-          source venv/bin/activate
-          echo "🐍 Virtual environment activated"
-
-          pip install -r requirements.txt
-          echo "📦 Dependencies installed"
-
-          sudo systemctl daemon-reload
+          echo "🔄 Restarting service..."
+          sudo systemctl daemon-reload || true
           sudo systemctl restart rag-backend
-          sudo systemctl status rag-backend --no-pager
 
-          echo "🩺 Checking health endpoint..."
-          curl -f http://localhost:8001/health || (echo '❌ Health check failed' && exit 1)
+          echo "✅ Service status:"
+          sudo systemctl status rag-backend --no-pager || true
+
+          echo "🌐 Health check:"
+          curl -fsSL http://localhost:8001/health || echo "❌ Health check failed"
         EOF
