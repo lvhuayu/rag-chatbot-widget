@@ -1,4 +1,4 @@
-name: 🚀 Deploy to ECS Node
+name: 🚀 Deploy to ECS Nodes
 
 on:
   push:
@@ -10,71 +10,101 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: 📦 Checkout code
+    - name: 📦 Checkout repo
       uses: actions/checkout@v3
 
-    - name: 🔐 Set up SSH key
+    - name: 🔐 Setup SSH key
       run: |
-        set -e
+        set -eux
         mkdir -p ~/.ssh
         echo "${{ secrets.ECS_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.ECS1_HOST }} >> ~/.ssh/known_hosts
+        ssh-keyscan -H ${{ secrets.ECS2_HOST }} >> ~/.ssh/known_hosts
 
     - name: 🚀 Deploy to ECS1
       run: |
-        ssh -o StrictHostKeyChecking=no ${{ secrets.ECS_USER }}@${{ secrets.ECS1_HOST }} << 'EOF'
-          set -e
-          echo "🚀 Starting deployment on ECS1..."
+        ssh ${{ secrets.ECS_USER }}@${{ secrets.ECS1_HOST }} << 'EOF'
+          set -eux
+          echo "🚀 Deploying to ECS1"
 
-          # Clone repo if needed
+          # Clone or update repo
           if [ ! -d "/opt/rag-chatbot-widget" ]; then
-            echo "📁 Creating project directory..."
             sudo mkdir -p /opt/rag-chatbot-widget
             sudo chown $USER:$USER /opt/rag-chatbot-widget
             git clone git@github.com:lvhuayu/rag-chatbot-widget.git /opt/rag-chatbot-widget
           else
             cd /opt/rag-chatbot-widget
-            echo "📥 Pulling latest changes..."
             git pull origin main
           fi
 
           cd /opt/rag-chatbot-widget/backend
 
-          # Ensure Python venv
+          # Install Python venv if needed
+          sudo apt-get update -y
+          sudo apt-get install -y python3.10-venv
+
+          # Create venv
           if [ ! -d "venv" ]; then
-            echo "🐍 Creating virtual environment..."
-            sudo apt-get update && sudo apt-get install -y python3.10-venv
             python3 -m venv venv
           fi
 
           source venv/bin/activate
-          echo "🐍 Virtual environment activated"
+          python -m pip install --upgrade pip -i https://mirrors.aliyun.com/pypi/simple
+          pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple
 
-          # Install Python deps
-          pip install --upgrade pip
-          pip install -r requirements.txt
-
-          # Install node + npx + prisma if needed
+          # Install Node.js and Prisma
           if ! command -v npx &> /dev/null; then
-            echo "📦 Installing Node.js & Prisma..."
             curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-            sudo apt-get install -y nodejs npm
+            sudo apt-get install -y nodejs
             sudo npm install -g prisma
           fi
 
-          # Run Prisma client generation
-          if [ -f "../prisma/schema.prisma" ]; then
-            echo "⚙️ Running Prisma generate..."
-            cd ..
-            npx prisma generate || echo "⚠️ Prisma generation failed"
-            cd backend
-          fi
+          # Prisma generate
+          cd /opt/rag-chatbot-widget/backend
+          npx prisma generate
 
           # Restart service
           sudo systemctl daemon-reload
           sudo systemctl restart rag-backend
-          echo "✅ Service restarted"
-
           sudo systemctl status rag-backend --no-pager
         EOF
+
+    # - name: 🚀 Deploy to ECS2
+    #   run: |
+    #     ssh ${{ secrets.ECS_USER }}@${{ secrets.ECS2_HOST }} << 'EOF'
+    #       set -eux
+    #       echo "🚀 Deploying to ECS2"
+
+    #       if [ ! -d "/opt/rag-chatbot-widget" ]; then
+    #         sudo mkdir -p /opt/rag-chatbot-widget
+    #         sudo chown $USER:$USER /opt/rag-chatbot-widget
+    #         git clone git@github.com:lvhuayu/rag-chatbot-widget.git /opt/rag-chatbot-widget
+    #       else
+    #         cd /opt/rag-chatbot-widget
+    #         git pull origin main
+    #       fi
+
+    #       cd /opt/rag-chatbot-widget/backend
+    #       sudo apt-get update -y
+    #       sudo apt-get install -y python3.10-venv
+
+    #       if [ ! -d "venv" ]; then
+    #         python3 -m venv venv
+    #       fi
+
+    #       source venv/bin/activate
+    #       python -m pip install --upgrade pip -i https://mirrors.aliyun.com/pypi/simple
+    #       pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple
+
+    #       if ! command -v npx &> /dev/null; then
+    #         curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+    #         sudo apt-get install -y nodejs
+    #         sudo npm install -g prisma
+    #       fi
+
+    #       npx prisma generate
+    #       sudo systemctl daemon-reload
+    #       sudo systemctl restart rag-backend
+    #       sudo systemctl status rag-backend --no-pager
+    #     EOF
