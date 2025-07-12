@@ -1,3 +1,4 @@
+
 name: 🚀 Deploy to Multiple ECS Nodes
 
 on:
@@ -16,28 +17,27 @@ jobs:
     - name: 🔐 Set up SSH key
       run: |
         set -e
-        set -x
         mkdir -p ~/.ssh
         echo "${{ secrets.ECS_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
-        ssh-keyscan -H ${{ secrets.ECS1_HOST }} >> ~/.ssh/known_hosts
         ssh-keyscan -H github.com >> ~/.ssh/known_hosts
+        ssh-keyscan -H ${{ secrets.ECS1_HOST }} >> ~/.ssh/known_hosts
 
     - name: 🚀 Deploy to ECS1
       run: |
         ssh -T ${{ secrets.ECS_USER }}@${{ secrets.ECS1_HOST }} << 'EOF'
           set -e
+
+          echo "📦 Installing dependencies..."
+          sudo apt update
+          sudo apt install -y python3-venv git
+
           echo "🚀 Starting deployment on ECS1..."
 
-          if [ ! -d "/opt/rag-chatbot-widget" ]; then
-            echo "📁 Creating project directory..."
-            sudo mkdir -p /opt/rag-chatbot-widget
-            sudo chown $USER:$USER /opt/rag-chatbot-widget
-          fi
-
           if [ ! -d "/opt/rag-chatbot-widget/backend" ]; then
-            echo "📁 Creating backend directory..."
-            mkdir -p /opt/rag-chatbot-widget/backend
+            echo "📁 Setting up project directory..."
+            sudo mkdir -p /opt/rag-chatbot-widget/backend
+            sudo chown -R $USER:$USER /opt/rag-chatbot-widget
           fi
 
           cd /opt/rag-chatbot-widget/backend
@@ -56,26 +56,22 @@ jobs:
             python3 -m venv venv
           fi
 
-          source venv/bin/activate
-          echo "🐍 Virtual environment activated"
+          if [ -f "venv/bin/activate" ]; then
+            source venv/bin/activate
+            echo "🐍 Virtual environment activated"
+          else
+            echo "❌ Failed to find venv/bin/activate"
+            exit 1
+          fi
 
-          pip install --upgrade pip
           pip install -r requirements.txt
           echo "📦 Dependencies installed"
 
+          echo "🔄 Reloading systemd and restarting service..."
           sudo systemctl daemon-reload
-          echo "🔄 Systemd daemon reloaded"
-
           sudo systemctl restart rag-backend
-          echo "✅ Service restarted"
+          sudo systemctl status rag-backend --no-pager
 
-          # 健康检查
-          sleep 3
-          curl -f http://localhost:8001/health || (echo "❌ Health check failed" && exit 1)
-
-          sudo systemctl is-active --quiet rag-backend && echo "✅ Service is running." || (echo "❌ Service failed to start." && exit 1)
+          echo "🩺 Checking health endpoint..."
+          curl -f http://localhost:8001/health || (echo '❌ Health check failed' && exit 1)
         EOF
-
-    - name: ✅ Deployment to ECS1 complete
-      if: success()
-      run: echo "✅ All deployment steps to ECS1 completed successfully."
