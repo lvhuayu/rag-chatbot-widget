@@ -725,6 +725,12 @@
             const messagesContainer = document.getElementById('chatbot-messages');
             messagesContainer.innerHTML = '';
 
+            // 测试 Markdown 渲染
+            console.log('测试 Markdown 渲染...');
+            const testText = '这是**粗体文本**测试';
+            const testHtml = marked.parse(testText);
+            console.log('Markdown 测试:', testText, '→', testHtml);
+
             // 添加欢迎消息
             addChatMessage('bot', '嗨，我是凌问AI小助手！想了解价格、功能、适合哪些业务？直接问我就行，我马上告诉您！');
 
@@ -901,28 +907,16 @@
                                     if (text) {
                                         fullMsg += text;
                                         
-                                        // 检查是否有完整的 Markdown 语法
-                                        const hasCompleteMarkdown = /(\*\*.*?\*\*|__.*?__|\*.*?\*|`.*?`|\[.*?\]\(.*?\))/.test(fullMsg);
+                                        // 直接渲染 Markdown
+                                        const markdownHtml = marked.parse(fullMsg);
+                                        const sanitizedHtml = DOMPurify.sanitize(markdownHtml);
+                                        messageContent.innerHTML = sanitizedHtml;
                                         
-                                        if (hasCompleteMarkdown) {
-                                            // 有完整 Markdown 语法，实时渲染
-                                            const markdownHtml = marked.parse(fullMsg);
-                                            const sanitizedHtml = DOMPurify.sanitize(markdownHtml);
-                                            messageContent.innerHTML = sanitizedHtml;
-                                            console.log('✅ 应用 Markdown 格式');
-                                        } else {
-                                            // 没有完整 Markdown 语法，用纯文本
-                                            messageContent.textContent = fullMsg;
-                                            console.log('📝 使用纯文本显示');
-                                        }
-                                        
-                                        // 强制立即更新 DOM
-                                        messageContent.style.display = 'none';
-                                        messageContent.offsetHeight; // 触发重排
-                                        messageContent.style.display = '';
+                                        // 简单滚动
                                         messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                                        
                                         // 调试日志
-                                        console.log('实时更新:', text, '总长度:', fullMsg.length);
+                                        console.log('更新:', text, '→', sanitizedHtml.substring(0, 50) + '...');
                                     }
                                 }
                             });
