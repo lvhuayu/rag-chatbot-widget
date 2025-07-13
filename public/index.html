@@ -270,7 +270,7 @@
     
     .message-content h1, .message-content h2, .message-content h3, 
     .message-content h4, .message-content h5, .message-content h6 {
-        font-size: 14px !important;
+        font-size: 12px !important;
         font-weight: 600;
         margin: 0.5em 0;
     }
@@ -702,6 +702,12 @@
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
 
   <script>
+    // 测试控制台是否工作
+    console.log('=== 控制台测试开始 ===');
+    console.log('当前时间:', new Date().toLocaleString());
+    console.log('页面URL:', window.location.href);
+    console.log('=== 控制台测试结束 ===');
+    
     // Detect environment and set API base URL
     const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
     const API_BASE_URL = isLocalhost ? "http://localhost:8001" : "https://essayformatter.com";
@@ -727,12 +733,12 @@
 
             // 测试 Markdown 渲染
             console.log('测试 Markdown 渲染...');
-            const testText = '这是**粗体文本**测试';
+            const testText = '这是**粗体文本**测试\n\n- 项目符号1\n- 项目符号2\n- 项目符号3';
             const testHtml = marked.parse(testText);
             console.log('Markdown 测试:', testText, '→', testHtml);
 
             // 添加欢迎消息
-            addChatMessage('bot', '嗨，我是凌问AI小助手！想了解价格、功能、适合哪些业务？直接问我就行，我马上告诉您！');
+            addChatMessage('bot', '嗨，我是凌问AI小助手！\n\n我可以帮您了解：\n- 价格计划\n- 功能特点\n- 适用场景\n- 技术细节\n\n直接问我就行，我马上告诉您！');
 
             chatbotInitialized = true;
             updateStatus('✅ 智能RAG聊天机器人启动成功！', 'success');
@@ -782,7 +788,12 @@
         messageContent.className = 'message-content';
 
         if (sender === 'bot') {
-            messageContent.innerHTML = DOMPurify.sanitize(marked.parse(content));
+            const markdownHtml = marked.parse(content);
+            const sanitizedHtml = DOMPurify.sanitize(markdownHtml, {
+                ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote'],
+                ALLOWED_ATTR: []
+            });
+            messageContent.innerHTML = sanitizedHtml;
         } else {
             messageContent.textContent = content;
         }
@@ -909,7 +920,10 @@
                                         
                                         // 直接渲染 Markdown
                                         const markdownHtml = marked.parse(fullMsg);
-                                        const sanitizedHtml = DOMPurify.sanitize(markdownHtml);
+                                        const sanitizedHtml = DOMPurify.sanitize(markdownHtml, {
+                                            ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote'],
+                                            ALLOWED_ATTR: []
+                                        });
                                         messageContent.innerHTML = sanitizedHtml;
                                         
                                         // 简单滚动
