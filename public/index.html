@@ -37,10 +37,52 @@
     }
     
     .nav-logo {
-        font-size: 1.5rem;
-        font-weight: bold;
+        font-size: 1.4rem;
+        font-weight: 700;
         color: #667eea;
         text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        /* 移除动画 */
+    }
+    /* 移除悬停放大效果 */
+    /* .nav-logo:hover {
+        transform: scale(1.06);
+    } */
+    .nav-logo img {
+        width: 28px;
+        height: 28px;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(102,126,234,0.18);
+        background: white;
+        padding: 2px;
+        object-fit: cover;
+    }
+    .nav-logo-text {
+
+        align-items: center;
+        gap: 4px;
+    }
+    .nav-logo-main {
+        color: #667eea;
+        font-weight: 700;
+        letter-spacing: 1px;
+    }
+    .nav-logo-ai {
+        color: #5a67d8;
+        font-weight: 700;
+        /* 不设置font-size，继承父级 */
+        background: none;
+        -webkit-background-clip: unset;
+        -webkit-text-fill-color: unset;
+        background-clip: unset;
+        text-fill-color: unset;
+
+    }
+    .nav-logo-sub {
+        color: #667eea;
+        font-weight: 700;
     }
     
     .nav-menu {
@@ -479,7 +521,14 @@
     <!-- 导航栏 -->
     <nav class="navbar">
       <div class="nav-container">
-          <a href="index.html" class="nav-logo">凌问 AI - 智嵌客服</a>
+          <a href="index.html" class="nav-logo">
+              <img src="favicon.ico" alt="凌问AI" />
+              <span class="nav-logo-text">
+                <span class="nav-logo-main">凌问</span>
+                <span class="nav-logo-ai">AI</span>
+                <!-- <span class="nav-logo-sub">- 智嵌客服</span> -->
+              </span>
+          </a>
           <ul class="nav-menu">
               <!-- <li><a href="chat-ui.html" class="nav-link">💬 在线体验</a></li> -->
               <li><a href="https://portal.lingwenai.cn/" class="nav-link">📊RAG数据平台</a></li>
