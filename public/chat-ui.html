@@ -501,32 +501,38 @@
         
         // Show typing indicator
         function showTypingIndicator() {
-            const typingDiv = document.createElement('div');
-            typingDiv.className = 'message bot typing-indicator';
-            typingDiv.id = 'typing-indicator';
-            
-            const avatar = document.createElement('div');
-            avatar.className = 'message-avatar';
-            avatar.textContent = '🤖';
-            
-            const dots = document.createElement('div');
-            dots.innerHTML = `
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-            `;
-            
-            typingDiv.appendChild(avatar);
-            typingDiv.appendChild(dots);
-            messagesContainer.appendChild(typingDiv);
+            let typingDiv = document.getElementById('streaming-message');
+            let messageContent;
+            if (!typingDiv) {
+                typingDiv = document.createElement('div');
+                typingDiv.className = 'message bot';
+                typingDiv.id = 'streaming-message';
+                const avatar = document.createElement('div');
+                avatar.className = 'message-avatar';
+                avatar.textContent = '🤖';
+                messageContent = document.createElement('div');
+                messageContent.className = 'message-content';
+                typingDiv.appendChild(avatar);
+                typingDiv.appendChild(messageContent);
+                messagesContainer.appendChild(typingDiv);
+            } else {
+                messageContent = typingDiv.querySelector('.message-content');
+                if (!messageContent) {
+                    messageContent = document.createElement('div');
+                    messageContent.className = 'message-content';
+                    typingDiv.appendChild(messageContent);
+                }
+            }
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
         
         // Hide typing indicator
         function hideTypingIndicator() {
-            const typingIndicator = document.getElementById('typing-indicator');
-            if (typingIndicator) {
-                typingIndicator.remove();
+            // 流式结束后不移除气泡，直接保留最终内容
+            // 可选：移除id，变为普通bot消息
+            const typingDiv = document.getElementById('streaming-message');
+            if (typingDiv) {
+                typingDiv.removeAttribute('id');
             }
         }
         
@@ -577,7 +583,7 @@
 
         // 新增：流式更新bot消息
         function updateBotTypingMessage(content) {
-            let typingDiv = document.getElementById('typing-indicator');
+            let typingDiv = document.getElementById('streaming-message');
             if (!typingDiv) return;
             let messageContent = typingDiv.querySelector('.message-content');
             if (!messageContent) {
@@ -600,7 +606,8 @@
             try {
                 const result = await sendMessageToOllama(message);
                 hideTypingIndicator();
-                addMessage('bot', result.botReply, result.ragResults);
+                // 不再 addMessage('bot', ...)，流式内容已在streaming-message气泡中
+                // 可选：如需显示ragResults，可在此处补充
             } catch (error) {
                 hideTypingIndicator();
                 addMessage('bot', 'Sorry, I encountered an error while processing your message. Please try again.');
