@@ -961,8 +961,12 @@
 
     // 在脚本区添加fixMarkdownList函数
     function fixMarkdownList(text) {
-      // 如果行首是 - 或 *，且上一行不是空行，则补一个空行
-      return text.replace(/([^\n])\n([ \t]*[-*] )/g, '$1\n\n$2');
+      // 1. 先修正常规：如果行首是 - 或 *，且上一行不是空行，则补一个空行
+      let fixed = text.replace(/([^\n])\n([ \t]*[-*] )/g, '$1\n\n$2');
+      // 2. 针对流式输出：如果一大段文本中有多个 - ，但没有换行，自动在每个 - 前加换行（但不影响已有换行的情况）
+      // 只对非行首的 - 进行处理，避免破坏正常 markdown
+      fixed = fixed.replace(/([^\n])(- )/g, '$1\n$2');
+      return fixed;
     }
   </script>
 </body>
