@@ -734,10 +734,21 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                 max_tokens=500,
                 top_p=0.8,
             )
+            
+            # 逐字流式推送
             for chunk in response:
                 delta = chunk.choices[0].delta.content
                 if delta:
-                    yield f"data: {delta}\n\n"
+                    # 将大段文本拆分成更小的片段
+                    import re
+                    # 按标点符号和空格拆分，确保每个片段都不太大
+                    segments = re.split(r'([。！？，；：\s])', delta)
+                    for segment in segments:
+                        if segment.strip():  # 跳过空片段
+                            yield f"data: {segment}\n\n"
+                            # 添加小延迟，模拟真实的打字效果
+                            import asyncio
+                            await asyncio.sleep(0.05)  # 50ms 延迟
         except Exception as e:
             yield f"data: [ERROR] {str(e)}\n\n"
     return StreamingResponse(event_stream(), media_type="text/event-stream")
