@@ -591,6 +591,9 @@
   <script src="rag-service.js"></script>
   <script src="chatbot.js"></script>
 
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+
   <script>
     // Detect environment and set API base URL
     const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
@@ -652,25 +655,28 @@
         chatbotContainer.style.display = 'flex';
         minimizeIcon.style.display = 'none';
     }
-    
+
     function addChatMessage(sender, content) {
         const messagesContainer = document.getElementById('chatbot-messages');
         const messageDiv = document.createElement('div');
         messageDiv.className = `chatbot-message ${sender}`;
-        
+
         const avatar = document.createElement('div');
         avatar.className = 'message-avatar';
         avatar.textContent = sender === 'user' ? 'U' : '🤖';
-        
+
         const messageContent = document.createElement('div');
         messageContent.className = 'message-content';
-        messageContent.textContent = content;
-        
+
+        if (sender === 'bot') {
+            messageContent.innerHTML = DOMPurify.sanitize(marked.parse(content));
+        } else {
+            messageContent.textContent = content;
+        }
+
         messageDiv.appendChild(avatar);
         messageDiv.appendChild(messageContent);
         messagesContainer.appendChild(messageDiv);
-        
-        // 滚动到底部
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
     
