@@ -706,6 +706,7 @@
     const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
     const API_BASE_URL = isLocalhost ? "http://localhost:8001" : "https://essayformatter.com";
     let chatbotInitialized = false;
+    let sending = false;
     
     function updateStatus(message, type = 'info') {
         const statusDiv = document.getElementById('status');
@@ -826,10 +827,12 @@
     }
     
     async function sendMessage() {
+        if (sending) return;
+        sending = true;
         const input = document.getElementById('chatbot-input');
         const sendBtn = document.getElementById('chatbot-send');
         const message = input.value.trim();
-        if (!message || !chatbotInitialized) return;
+        if (!message || !chatbotInitialized) { sending = false; return; }
         addChatMessage('user', message);
         input.value = '';
         sendBtn.disabled = true;
@@ -851,12 +854,14 @@
                 hideTypingIndicator();
                 addChatMessage('bot', '无法获取认证token，AI服务不可用。');
                 sendBtn.disabled = false;
+                sending = false;
                 return;
             }
             if (!token) {
                 hideTypingIndicator();
                 addChatMessage('bot', '认证失败，AI服务不可用。');
                 sendBtn.disabled = false;
+                sending = false;
                 return;
             }
             try {
@@ -921,6 +926,7 @@
                     messageDiv.removeAttribute('id');
                     hideTypingIndicator();
                     sendBtn.disabled = false;
+                    sending = false;
                     return; // 关键：流式分支处理完直接return，避免后续再渲染一次
                 }
                 // 非流式分支
@@ -928,15 +934,18 @@
                 hideTypingIndicator();
                 addChatMessage('bot', data.context || 'AI无响应');
                 sendBtn.disabled = false;
+                sending = false;
             } catch (error) {
                 hideTypingIndicator();
                 addChatMessage('bot', '抱歉，AI服务连接失败。');
                 sendBtn.disabled = false;
+                sending = false;
             }
         } catch (error) {
             hideTypingIndicator();
             addChatMessage('bot', '抱歉，AI服务连接失败。');
             sendBtn.disabled = false;
+            sending = false;
         }
     }
     
@@ -950,6 +959,11 @@
                     sendMessage();
                 }
             });
+        }
+        // 按钮发送事件用onclick赋值，避免重复绑定
+        const sendBtn = document.getElementById('chatbot-send');
+        if (sendBtn) {
+            sendBtn.onclick = sendMessage;
         }
     });
     
