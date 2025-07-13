@@ -83,6 +83,7 @@ class SearchRequest(BaseModel):
     top_k: int = 3
     threshold: Optional[float] = 0.2  # Adjusted for better recall with BGE model
     site_id: Optional[str] = None
+    history: Optional[List[Dict[str, str]]] = None  # 新增多轮对话历史
 
 class SearchResult(BaseModel):
     document: Document
@@ -749,7 +750,7 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
 
         # Step 3: Generate answer using Ollama
         try:
-            ollama_response = await generate_with_ollama(request.query, context)
+            ollama_response = await generate_with_ollama(request.query, context, request.history)
             generated_answer = ollama_response
         except Exception as e:
             logger.error(f"Error generating with Ollama: {e}")
@@ -774,16 +775,23 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-async def generate_with_ollama(query: str, context: str) -> str:
+async def generate_with_ollama(query: str, context: str, history: Optional[List[Dict[str, str]]] = None) -> str:
     """Generate answer using DashScope (Qwen) with RAG context"""
     api_key = "sk-9ae65ad2fb8e4564be06f2a7bddf609a"
     if not api_key:
         raise RuntimeError("DASHSCOPE_API_KEY not set in environment")
 
     try:
+        # 拼接历史对话
+        history_text = ""
+        if history:
+            for turn in history[-6:]:  # 只取最近6条
+                role = "用户" if turn.get("role") == "user" else "AI"
+                history_text += f"{role}：{turn.get('content', '')}\n"
         prompt = f"""你是一位专业的中文 AI 客服助手，专门基于提供的知识内容，准确、清晰地回答用户提出的问题。
 
-请你严格遵循以下规则进行回答：
+【历史对话】
+{history_text}
 
 【上下文信息】
 {context}
@@ -792,19 +800,11 @@ async def generate_with_ollama(query: str, context: str) -> str:
 {query}
 
 【回答要求】
-1. 仅根据上述上下文信息作答，不能编造或推测。
+1. 仅根据上述上下文信息和历史对话作答，不能编造或推测。
 2. 若上下文信息中包含电话号码、时间、地点等，请直接引用并明确告知用户。
-3. 若上下文中没有足够信息，请直接说明“我暂时无法根据已有信息回答这个问题”，不要虚构内容。
+3. 若上下文中没有足够信息，请根据情况， 自行回答，尽量不要虚构内容。
 4. 回答应尽量简洁明了，语气自然亲切，使用中文。
 5. 若内容复杂，可适当使用换行、编号等格式提升可读性。
-
-【示例】
-用户：发票如何申请？
-回答：
-您可以按照以下步骤申请发票：
-1. 登录官网，点击“订单管理”
-2. 选择需要申请发票的订单，点击“申请发票”
-3. 根据提示填写发票信息并提交
 
 现在请开始回答：
 """
