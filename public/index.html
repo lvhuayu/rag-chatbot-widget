@@ -830,10 +830,45 @@
                         top_k: 1
                     })
                 });
-                const data = await response.json();
-                hideTypingIndicator();
-                addChatMessage('bot', data.context || 'AI无响应');
-                sendBtn.disabled = false;
+                const contentType = response.headers.get('content-type') || '';
+                if (contentType.includes('text/event-stream')) {
+                    if (!response.body) throw new Error('No response body');
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let done = false;
+                    let fullMsg = '';
+                    while (!done) {
+                        const { value, done: doneReading } = await reader.read();
+                        done = doneReading;
+                        if (value) {
+                            const chunk = decoder.decode(value, { stream: true });
+                            chunk.split('\n').forEach(line => {
+                                if (line.startsWith('data:')) {
+                                    const text = line.replace(/^data:/, '').trim();
+                                    if (text) {
+                                        fullMsg += text;
+                                        // 实时更新机器人消息
+                                        const typingDiv = document.getElementById('typing-indicator');
+                                        if (typingDiv) {
+                                            const messageContent = typingDiv.querySelector('.typing-indicator');
+                                            if (messageContent) {
+                                                messageContent.innerHTML = fullMsg.replace(/\n/g, '<br>');
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                        }
+                    }
+                    hideTypingIndicator();
+                    addChatMessage('bot', fullMsg || 'AI无响应');
+                    sendBtn.disabled = false;
+                } else {
+                    const data = await response.json();
+                    hideTypingIndicator();
+                    addChatMessage('bot', data.context || 'AI无响应');
+                    sendBtn.disabled = false;
+                }
             } catch (error) {
                 hideTypingIndicator();
                 addChatMessage('bot', '抱歉，AI服务连接失败。');
