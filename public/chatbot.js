@@ -728,9 +728,10 @@ iwIDAQAB
      * Search for relevant context using RAG
      * @param {string} query - The user's question
      * @param {Object} config - The chatbot configuration
+     * @param {Function} onData - Optional callback for streaming data
      * @returns {Array} Relevant documents with similarity scores
      */
-    async function searchRAGContext(query, config) {
+    async function searchRAGContext(query, config, onData) {
         if (!config.enableRAG) {
             return [];
         }
@@ -761,19 +762,49 @@ iwIDAQAB
                 return [];
             }
             
-            const data = await response.json();
-            
-            // Handle both old and new response formats
-            const documents = data.documents || data.results || [];
-            
-            // Filter by similarity threshold
-            const relevantResults = documents.filter(result => 
-                result.similarity >= config.ragThreshold
-            );
-            
-            console.log(`🔍 Found ${relevantResults.length} relevant documents for query: "${query}" (User: ${config.userId})`);
-            
-            return relevantResults;
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('text/event-stream')) {
+                // 流式 SSE 处理
+                if (!response.body) {
+                    throw new Error('No response body');
+                }
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let done = false;
+                let fullMsg = '';
+                while (!done) {
+                    const { value, done: doneReading } = await reader.read();
+                    done = doneReading;
+                    if (value) {
+                        const chunk = decoder.decode(value, { stream: true });
+                        chunk.split('\n').forEach(line => {
+                            if (line.startsWith('data:')) {
+                                const text = line.replace(/^data:/, '').trim();
+                                if (text) {
+                                    fullMsg += text;
+                                    if (onData) onData(fullMsg);
+                                }
+                            }
+                        });
+                    }
+                }
+                return [{ document: { id: '', url: '', title: '', content: fullMsg, timestamp: new Date().toISOString() }, similarity: 1 }];
+            } else {
+                // 兼容旧接口
+                const data = await response.json();
+                
+                // Handle both old and new response formats
+                const documents = data.documents || data.results || [];
+                
+                // Filter by similarity threshold
+                const relevantResults = documents.filter(result => 
+                    result.similarity >= config.ragThreshold
+                );
+                
+                console.log(`🔍 Found ${relevantResults.length} relevant documents for query: "${query}" (User: ${config.userId})`);
+                
+                return relevantResults;
+            }
             
         } catch (error) {
             console.error('❌ Error searching RAG context:', error);
