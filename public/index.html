@@ -258,6 +258,40 @@
         font-size: 14px;
     }
     
+    /* 强制 Markdown 渲染后的内容保持原有字体大小 */
+    .message-content * {
+        font-size: inherit !important;
+        line-height: inherit !important;
+    }
+    
+    .message-content p {
+        margin: 0.5em 0;
+    }
+    
+    .message-content h1, .message-content h2, .message-content h3, 
+    .message-content h4, .message-content h5, .message-content h6 {
+        font-size: 14px !important;
+        font-weight: 600;
+        margin: 0.5em 0;
+    }
+    
+    .message-content ul, .message-content ol {
+        margin: 0.5em 0;
+        padding-left: 1.5em;
+    }
+    
+    .message-content li {
+        margin: 0.2em 0;
+    }
+    
+    .message-content strong, .message-content b {
+        font-weight: 600;
+    }
+    
+    .message-content em, .message-content i {
+        font-style: italic;
+    }
+    
     .chatbot-message.user .message-content {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -866,8 +900,8 @@
                                     const text = line.replace(/^data:/, '').trim();
                                     if (text) {
                                         fullMsg += text;
-                                        // 立即更新消息内容（每个片段都立即显示）
-                                        messageContent.textContent = fullMsg;
+                                        // 实时渲染 Markdown（边输出边应用格式）
+                                        messageContent.innerHTML = DOMPurify.sanitize(marked.parse(fullMsg));
                                         // 强制立即更新 DOM
                                         messageContent.style.display = 'none';
                                         messageContent.offsetHeight; // 触发重排
@@ -881,9 +915,8 @@
                         }
                     }
                     
-                    // 流式完成，移除临时 ID，用 Markdown 重新渲染
+                    // 流式完成，移除临时 ID（Markdown 已经实时渲染完成）
                     messageDiv.removeAttribute('id');
-                    messageContent.innerHTML = DOMPurify.sanitize(marked.parse(fullMsg));
                     
                     hideTypingIndicator();
                     sendBtn.disabled = false;
