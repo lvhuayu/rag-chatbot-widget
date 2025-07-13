@@ -501,6 +501,8 @@
         
         // Show typing indicator
         function showTypingIndicator() {
+            // 移除所有已有的流式/typing bot 气泡
+            document.querySelectorAll('.message.bot.typing-indicator, #streaming-message').forEach(el => el.remove());
             let typingDiv = document.getElementById('streaming-message');
             let messageContent;
             if (!typingDiv) {
