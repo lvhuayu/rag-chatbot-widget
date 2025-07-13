@@ -900,8 +900,22 @@
                                     const text = line.replace(/^data:/, '').trim();
                                     if (text) {
                                         fullMsg += text;
-                                        // 实时渲染 Markdown（边输出边应用格式）
-                                        messageContent.innerHTML = DOMPurify.sanitize(marked.parse(fullMsg));
+                                        
+                                        // 检查是否有完整的 Markdown 语法
+                                        const hasCompleteMarkdown = /(\*\*.*?\*\*|__.*?__|\*.*?\*|`.*?`|\[.*?\]\(.*?\))/.test(fullMsg);
+                                        
+                                        if (hasCompleteMarkdown) {
+                                            // 有完整 Markdown 语法，实时渲染
+                                            const markdownHtml = marked.parse(fullMsg);
+                                            const sanitizedHtml = DOMPurify.sanitize(markdownHtml);
+                                            messageContent.innerHTML = sanitizedHtml;
+                                            console.log('✅ 应用 Markdown 格式');
+                                        } else {
+                                            // 没有完整 Markdown 语法，用纯文本
+                                            messageContent.textContent = fullMsg;
+                                            console.log('📝 使用纯文本显示');
+                                        }
+                                        
                                         // 强制立即更新 DOM
                                         messageContent.style.display = 'none';
                                         messageContent.offsetHeight; // 触发重排
