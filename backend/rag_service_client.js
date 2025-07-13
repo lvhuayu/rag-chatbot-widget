@@ -64,9 +64,8 @@ class RAGServiceClient {
         }
     }
 
-    async search(query, topK = 3) {
+    async search(query, topK = 3, onData) {
         await this.initialize();
-        
         try {
             const response = await fetch(`${this.backendUrl}/rag-generate`, {
                 method: 'POST',
@@ -79,23 +78,50 @@ class RAGServiceClient {
                 })
             });
 
-            if (!response.ok) {
-                throw new Error(`Failed to generate with RAG: ${response.status}`);
+            const contentType = response.headers.get('content-type') || '';
+            // 流式 SSE 处理
+            if (contentType.includes('text/event-stream')) {
+                if (!response.body) {
+                    throw new Error('No response body');
+                }
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let done = false;
+                let fullMsg = '';
+                while (!done) {
+                    const { value, done: doneReading } = await reader.read();
+                    done = doneReading;
+                    if (value) {
+                        const chunk = decoder.decode(value, { stream: true });
+                        chunk.split('\n').forEach(line => {
+                            if (line.startsWith('data:')) {
+                                const text = line.replace(/^data:/, '').trim();
+                                if (text) {
+                                    fullMsg += text;
+                                    if (onData) onData(fullMsg); // 实时回调
+                                }
+                            }
+                        });
+                    }
+                }
+                return [{ document: { id: '', url: '', title: '', content: fullMsg, timestamp: new Date().toISOString() }, similarity: 1 }];
+            } else {
+                // 兼容旧接口
+                if (!response.ok) {
+                    throw new Error(`Failed to generate with RAG: ${response.status}`);
+                }
+                const result = await response.json();
+                return result.documents.map(item => ({
+                    document: {
+                        id: item.document.url, // Use URL as ID for now
+                        url: item.document.url,
+                        title: item.document.title,
+                        content: item.document.content,
+                        timestamp: item.document.timestamp
+                    },
+                    similarity: item.similarity
+                }));
             }
-
-            const result = await response.json();
-            
-            // Convert backend format to frontend format
-            return result.documents.map(item => ({
-                document: {
-                    id: item.document.url, // Use URL as ID for now
-                    url: item.document.url,
-                    title: item.document.title,
-                    content: item.document.content,
-                    timestamp: item.document.timestamp
-                },
-                similarity: item.similarity
-            }));
         } catch (error) {
             console.error('Error generating with RAG backend:', error);
             return [];
