@@ -530,21 +530,13 @@
             }
         }
         
-        // Send message to Ollama with RAG
+        // Send message to Ollama with RAG (流式)
         async function sendMessageToOllama(userMessage) {
+            let ragResults = [];
+            let botReply = '';
+            const backendUrl = config.backendUrl || 'http://localhost:8001';
+            const topK = config.maxRAGResults || 3;
             try {
-                let ragResults = [];
-                let botReply = '';
-                
-                // Use configured backend URL or fallback to default
-                const backendUrl = config.backendUrl || 'http://localhost:8001';
-                const topK = config.maxRAGResults || 3;
-                
-                console.log('🔗 Sending request to:', backendUrl);
-                console.log('🔐 Authentication:', authToken ? 'Authenticated' : 'Not authenticated');
-                console.log('👤 User ID:', userId || 'Not provided');
-                
-                // 统一切换为 /rag-generate
                 const response = await fetch(`${backendUrl}/rag-generate`, {
                     method: 'POST',
                     headers: getAuthHeaders(),
@@ -554,48 +546,61 @@
                         top_k: topK
                     })
                 });
-                
-                if (!response.ok) {
-                    throw new Error('RAG generate API error: ' + response.status);
+                if (!response.body) {
+                    return { ragResults: [], botReply: 'AI无响应' };
                 }
-                const data = await response.json();
-                ragResults = data.documents || [];
-                botReply = data.context || '未能生成有效回答。';
-                return { ragResults, botReply };
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let done = false;
+                let fullMsg = '';
+                while (!done) {
+                    const { value, done: doneReading } = await reader.read();
+                    done = doneReading;
+                    if (value) {
+                        const chunk = decoder.decode(value, { stream: true });
+                        chunk.split('\n').forEach(line => {
+                            if (line.startsWith('data:')) {
+                                const text = line.replace(/^data:/, '').trim();
+                                if (text) {
+                                    fullMsg += text;
+                                    updateBotTypingMessage(fullMsg);
+                                }
+                            }
+                        });
+                    }
+                }
+                return { ragResults: [], botReply: fullMsg || 'AI无响应' };
             } catch (err) {
-                console.error('RAG generate error:', err);
                 return { ragResults: [], botReply: '❌ 大模型生成失败：' + err.message };
             }
         }
 
-        
-        // Handle send button click
+        // 新增：流式更新bot消息
+        function updateBotTypingMessage(content) {
+            let typingDiv = document.getElementById('typing-indicator');
+            if (!typingDiv) return;
+            let messageContent = typingDiv.querySelector('.message-content');
+            if (!messageContent) {
+                messageContent = document.createElement('div');
+                messageContent.className = 'message-content';
+                typingDiv.appendChild(messageContent);
+            }
+            messageContent.innerHTML = content.replace(/\n/g, '<br>');
+        }
+
+        // Handle send button click (流式)
         async function handleSend() {
             const message = messageInput.value.trim();
             if (!message || isTyping) return;
-            
-            console.log('[User Input]', message); // Log user input
-            
-            // Add user message
             addMessage('user', message);
             messageInput.value = '';
-            
-            // Check if Ollama is connected
-            if (!ollamaConnected) {
-                addMessage('bot', 'Sorry, I\'m not connected to Ollama. Please make sure Ollama is running on localhost:11434.');
-                return;
-            }
-            
-            // Show typing indicator
             isTyping = true;
             showTypingIndicator();
             sendButton.disabled = true;
-            
             try {
                 const result = await sendMessageToOllama(message);
                 hideTypingIndicator();
                 addMessage('bot', result.botReply, result.ragResults);
-                
             } catch (error) {
                 hideTypingIndicator();
                 addMessage('bot', 'Sorry, I encountered an error while processing your message. Please try again.');
