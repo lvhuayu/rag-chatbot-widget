@@ -592,6 +592,9 @@
   <script src="chatbot.js"></script>
 
   <script>
+    // Detect environment and set API base URL
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    const API_BASE_URL = isLocalhost ? "http://localhost:8001" : "https://essayformatter.com";
     let chatbotInitialized = false;
     
     function updateStatus(message, type = 'info') {
@@ -613,7 +616,7 @@
             messagesContainer.innerHTML = '';
 
             // 添加欢迎消息
-            addChatMessage('bot', '您好！我是您的AI助手，具备智能RAG能力。我可以搜索页面内容为您提供准确答案！');
+            addChatMessage('bot', '嗨，我是凌问AI小助手！想了解价格、功能、适合哪些业务？直接问我就行，我马上告诉您！');
 
             chatbotInitialized = true;
             updateStatus('✅ 智能RAG聊天机器人启动成功！', 'success');
@@ -717,7 +720,7 @@
             const apiKey = 'cmcu4th0r0005wouf9qpp3s0d';
             let token = null;
             try {
-                const tokenResp = await fetch('https://essayformatter.com/auth/token', {
+                const tokenResp = await fetch(`${API_BASE_URL}/auth/token`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ apiKey })
@@ -737,7 +740,7 @@
                 return;
             }
             try {
-                const response = await fetch('https://essayformatter.com/rag-generate', {
+                const response = await fetch(`${API_BASE_URL}/rag-generate`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
