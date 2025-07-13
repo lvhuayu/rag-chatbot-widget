@@ -884,19 +884,30 @@
                     const decoder = new TextDecoder();
                     let done = false;
                     let fullMsg = '';
-                    // 创建机器人消息容器用于实时更新
+                    // 复用或创建机器人消息容器用于实时更新
                     const messagesContainer = document.getElementById('chatbot-messages');
-                    const messageDiv = document.createElement('div');
-                    messageDiv.className = 'chatbot-message bot';
-                    messageDiv.id = 'streaming-message';
-                    const avatar = document.createElement('div');
-                    avatar.className = 'message-avatar';
-                    avatar.textContent = '🤖';
-                    const messageContent = document.createElement('div');
-                    messageContent.className = 'message-content';
-                    messageDiv.appendChild(avatar);
-                    messageDiv.appendChild(messageContent);
-                    messagesContainer.appendChild(messageDiv);
+                    let messageDiv = document.getElementById('streaming-message');
+                    let messageContent;
+                    if (!messageDiv) {
+                        messageDiv = document.createElement('div');
+                        messageDiv.className = 'chatbot-message bot';
+                        messageDiv.id = 'streaming-message';
+                        const avatar = document.createElement('div');
+                        avatar.className = 'message-avatar';
+                        avatar.textContent = '🤖';
+                        messageContent = document.createElement('div');
+                        messageContent.className = 'message-content';
+                        messageDiv.appendChild(avatar);
+                        messageDiv.appendChild(messageContent);
+                        messagesContainer.appendChild(messageDiv);
+                    } else {
+                        messageContent = messageDiv.querySelector('.message-content');
+                        if (!messageContent) {
+                            messageContent = document.createElement('div');
+                            messageContent.className = 'message-content';
+                            messageDiv.appendChild(messageContent);
+                        }
+                    }
                     messagesContainer.scrollTop = messagesContainer.scrollHeight;
                     while (!done) {
                         const { value, done: doneReading } = await reader.read();
