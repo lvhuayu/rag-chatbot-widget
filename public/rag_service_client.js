@@ -79,7 +79,7 @@ export class RAGServiceClient {
         }
     }
 
-    async search(query, topK = 3) {
+    async search(query, topK = 3, onData) {
         if (!this.isInitialized) {
             throw new Error('RAG service not initialized');
         }
@@ -96,14 +96,37 @@ export class RAGServiceClient {
                 })
             });
 
-            if (!response.ok) {
-                throw new Error(`RAG generate failed: ${response.status}`);
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('text/event-stream')) {
+                if (!response.body) throw new Error('No response body');
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let done = false;
+                let fullMsg = '';
+                while (!done) {
+                    const { value, done: doneReading } = await reader.read();
+                    done = doneReading;
+                    if (value) {
+                        const chunk = decoder.decode(value, { stream: true });
+                        chunk.split('\n').forEach(line => {
+                            if (line.startsWith('data:')) {
+                                const text = line.replace(/^data:/, '').trim();
+                                if (text) {
+                                    fullMsg += text;
+                                    if (onData) onData(fullMsg);
+                                }
+                            }
+                        });
+                    }
+                }
+                return { content: fullMsg };
+            } else {
+                if (!response.ok) {
+                    throw new Error(`RAG generate failed: ${response.status}`);
+                }
+                const results = await response.json();
+                return results;
             }
-
-            const results = await response.json();
-            console.log('✅ RAG generate results:', results);
-            return results;
-
         } catch (error) {
             console.error('❌ Error generating with RAG backend:', error);
             throw error;
