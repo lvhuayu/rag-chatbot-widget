@@ -859,7 +859,6 @@
                 sendBtn.disabled = false;
                 return;
             }
-            let streamingHandled = false;
             try {
                 const response = await fetch(`${API_BASE_URL}/rag-generate`, {
                     method: 'POST',
@@ -874,7 +873,7 @@
                 });
                 const contentType = response.headers.get('content-type') || '';
                 if (contentType.includes('text/event-stream')) {
-                    streamingHandled = true;
+                    // 流式分支
                     if (!response.body) throw new Error('No response body');
                     const reader = response.body.getReader();
                     const decoder = new TextDecoder();
@@ -922,14 +921,13 @@
                     messageDiv.removeAttribute('id');
                     hideTypingIndicator();
                     sendBtn.disabled = false;
+                    return; // 关键：流式分支处理完直接return，避免后续再渲染一次
                 }
-                // 只在非流式情况下调用 addChatMessage
-                if (!streamingHandled) {
-                    const data = await response.json();
-                    hideTypingIndicator();
-                    addChatMessage('bot', data.context || 'AI无响应');
-                    sendBtn.disabled = false;
-                }
+                // 非流式分支
+                const data = await response.json();
+                hideTypingIndicator();
+                addChatMessage('bot', data.context || 'AI无响应');
+                sendBtn.disabled = false;
             } catch (error) {
                 hideTypingIndicator();
                 addChatMessage('bot', '抱歉，AI服务连接失败。');
