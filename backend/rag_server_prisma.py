@@ -47,11 +47,15 @@ app = FastAPI(title="RAG Chatbot Backend (Prisma)", version="2.0.0")
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://lingwenai.cn"],
+    allow_origins=[
+        "https://lingwenai.cn",
+        "http://localhost:5500"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Security
 security = HTTPBearer()
@@ -305,7 +309,7 @@ async def get_current_user(current_user: User = Depends(verify_token)):
     return current_user
 
 @app.post("/auth/token", response_model=SiteTokenResponse)
-async def get_token_by_apikey(request: Request, origin: Optional[str] = Header(None)):
+async def get_token_by_apikey(request: Request):
     """通过apiKey换取JWT token，后端查siteId签发token，不信任前端siteId"""
     try:
         data = await request.json()
@@ -321,14 +325,9 @@ async def get_token_by_apikey(request: Request, origin: Optional[str] = Header(N
         if not row:
             raise HTTPException(status_code=401, detail="Invalid or inactive apiKey")
         site_id, allowed_origins = row
-        # 校验Origin
-        if allowed_origins and allowed_origins != '*' and origin:
-            allowed = [o.strip() for o in allowed_origins.split(',')]
-            if origin not in allowed:
-                raise HTTPException(status_code=403, detail="Origin not allowed")
         payload = {
             "siteId": site_id,
-            "origin": origin,
+            # "origin": origin,  # 不再校验 origin
             "exp": datetime.utcnow() + timedelta(hours=1)
         }
         token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
@@ -625,6 +624,10 @@ async def get_stats(site_id: Optional[str] = None):
         logger.error(f"Error getting stats: {e}")
         raise HTTPException(status_code=500, detail=f"Error getting stats: {str(e)}")
 
+import random
+from fastapi import HTTPException, Depends
+from fastapi.security import HTTPAuthorizationCredentials
+
 @app.post("/rag-generate", response_model=RAGResponse)
 async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
     # 闲聊意图识别
@@ -633,7 +636,32 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
             context="你好！我是智能助手，有什么可以帮您？",
             documents=[]
         )
-    """RAG: Search for relevant documents and generate answer using Ollama (multi-tenant, token required)"""
+
+    def get_friendly_fallback_response(query: str) -> str:
+        suggestions = {
+            "退货": ["如何退货？", "退货流程是怎样的？"],
+            "发票": ["如何开具发票？", "电子发票支持吗？"],
+            "客服": ["客服电话是多少？", "如何联系人工客服？"],
+        }
+
+        fallback_templates = [
+            "这个问题我还不太了解，但我正在努力学习中 😊",
+            "我暂时没有找到确切答案，也许我们可以换个方式问问？",
+            "目前我的知识库中没有明确的信息，您可以联系客服进一步了解。",
+        ]
+
+        matched_suggestions = []
+        for keyword, guesses in suggestions.items():
+            if keyword in query:
+                matched_suggestions = guesses
+                break
+
+        hint_block = ""
+        if matched_suggestions:
+            hint_block = "\n\n您可能想问：\n" + "\n".join(f"- {s}" for s in matched_suggestions)
+
+        return random.choice(fallback_templates) + hint_block
+
     try:
         # Step 0: 校验token并提取siteId
         try:
@@ -643,6 +671,7 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                 raise HTTPException(status_code=401, detail="Invalid token: missing siteId")
         except Exception as e:
             raise HTTPException(status_code=401, detail=f"Invalid or expired token: {str(e)}")
+
         # Step 1: Search for relevant documents
         user_documents, user_embeddings = storage.get_documents_by_site(site_id)
         if not user_documents:
@@ -651,6 +680,7 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                 context="我的知识库中没有相关信息来回答您的问题。请联系客服或查看我们的文档获取更多详情。",
                 documents=[]
             )
+
         query_embedding = generate_simple_embedding(request.query)
         similarities = []
         for i, doc in enumerate(user_documents):
@@ -658,51 +688,52 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                 embedding_list = user_embeddings[i].tolist() if hasattr(user_embeddings[i], 'tolist') else user_embeddings[i]
                 similarity = calculate_similarity(query_embedding, embedding_list)
                 similarities.append((doc, similarity, i))
+
         similarities.sort(key=lambda x: x[1], reverse=True)
         best_similarity = similarities[0][1] if similarities else 0.0
         quality_threshold = 0.25
         if best_similarity < quality_threshold:
             logger.info(f"Query: '{request.query}', Best similarity {best_similarity:.3f} below quality threshold {quality_threshold}")
             return RAGResponse(
-                context="我没有足够的相关信息来回答您的问题。请尝试重新表述您的问题或询问其他话题。",
+                context=get_friendly_fallback_response(request.query),
                 documents=[]
             )
+
         filtered_results = [
             (doc, sim, idx) for doc, sim, idx in similarities 
             if sim >= request.threshold
         ][:max(request.top_k, 10)]  # top_k至少10，保证高召回
+
         logger.info(f"Query: '{request.query}', Found: {len(filtered_results)} segments (best: {best_similarity:.3f})")
         for doc, sim, idx in filtered_results:
             logger.info(f"  - Title: {doc['title']}, Segment: {idx}, Similarity: {sim:.3f}")
-        # Step 2: 通用context构建，优先包含query关键词的片段
+
+        # Step 2: 构建上下文
         def query_terms_match(text, query):
-            # 检查文本是否包含query中的关键词（至少包含一个）
             query_terms = query.split()
             return any(term in text for term in query_terms)
-        
+
         context_parts = []
         priority_snippets = []
         other_snippets = []
-        
+
         for doc, similarity, idx in filtered_results:
             content = doc["content"]
             if query_terms_match(content, request.query):
                 priority_snippets.append((content, similarity))
             else:
                 other_snippets.append((content, similarity))
-        
-        # 按相似度排序，优先选择高相似度的片段
+
         priority_snippets.sort(key=lambda x: x[1], reverse=True)
         other_snippets.sort(key=lambda x: x[1], reverse=True)
-        
-        # 先添加包含关键词的片段
+
         context_parts.extend([content for content, _ in priority_snippets[:3]])
-        # 再补充其他高相似度片段
         if len(context_parts) < request.top_k:
             context_parts.extend([content for content, _ in other_snippets[:request.top_k - len(context_parts)]])
-        
+
         context = "\n\n".join(context_parts)
         logger.info(f"Prepared context with {len(context_parts)} snippets, total length: {len(context)}")
+
         search_results = []
         for doc, similarity, idx in filtered_results:
             search_results.append(SearchResult(
@@ -715,18 +746,20 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                 ),
                 similarity=similarity
             ))
+
         # Step 3: Generate answer using Ollama
         try:
             ollama_response = await generate_with_ollama(request.query, context)
             generated_answer = ollama_response
         except Exception as e:
             logger.error(f"Error generating with Ollama: {e}")
-            # Fallback to context if Ollama fails
             generated_answer = f"根据可用的信息：\n\n{context}"
+
         return RAGResponse(
             context=generated_answer,
             documents=search_results
         )
+
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -748,22 +781,34 @@ async def generate_with_ollama(query: str, context: str) -> str:
         raise RuntimeError("DASHSCOPE_API_KEY not set in environment")
 
     try:
-        prompt = f"""你是一个专业的AI助手，专门回答基于提供上下文的问题。
+        prompt = f"""你是一位专业的中文 AI 客服助手，专门基于提供的知识内容，准确、清晰地回答用户提出的问题。
 
-请仔细分析以下上下文信息，然后准确回答用户的问题。
+请你严格遵循以下规则进行回答：
 
-上下文信息：
+【上下文信息】
 {context}
 
-用户问题：{query}
+【用户问题】
+{query}
 
-重要提示：
-1. 只基于提供的上下文信息回答问题
-2. 如果上下文中包含具体的电话号码、地址、时间等信息，请直接提供
-3. 如果上下文信息不足以回答问题，请明确说明
-4. 请用中文回答，保持简洁准确
+【回答要求】
+1. 仅根据上述上下文信息作答，不能编造或推测。
+2. 若上下文信息中包含电话号码、时间、地点等，请直接引用并明确告知用户。
+3. 若上下文中没有足够信息，请直接说明“我暂时无法根据已有信息回答这个问题”，不要虚构内容。
+4. 回答应尽量简洁明了，语气自然亲切，使用中文。
+5. 若内容复杂，可适当使用换行、编号等格式提升可读性。
 
-回答："""
+【示例】
+用户：发票如何申请？
+回答：
+您可以按照以下步骤申请发票：
+1. 登录官网，点击“订单管理”
+2. 选择需要申请发票的订单，点击“申请发票”
+3. 根据提示填写发票信息并提交
+
+现在请开始回答：
+"""
+
 
         client = OpenAI(
             api_key=api_key,
