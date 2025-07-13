@@ -837,6 +837,25 @@
                     const decoder = new TextDecoder();
                     let done = false;
                     let fullMsg = '';
+                    
+                    // 创建机器人消息容器用于实时更新
+                    const messagesContainer = document.getElementById('chatbot-messages');
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'chatbot-message bot';
+                    messageDiv.id = 'streaming-message';
+                    
+                    const avatar = document.createElement('div');
+                    avatar.className = 'message-avatar';
+                    avatar.textContent = '🤖';
+                    
+                    const messageContent = document.createElement('div');
+                    messageContent.className = 'message-content';
+                    
+                    messageDiv.appendChild(avatar);
+                    messageDiv.appendChild(messageContent);
+                    messagesContainer.appendChild(messageDiv);
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                    
                     while (!done) {
                         const { value, done: doneReading } = await reader.read();
                         done = doneReading;
@@ -847,21 +866,26 @@
                                     const text = line.replace(/^data:/, '').trim();
                                     if (text) {
                                         fullMsg += text;
-                                        // 实时更新机器人消息
-                                        const typingDiv = document.getElementById('typing-indicator');
-                                        if (typingDiv) {
-                                            const messageContent = typingDiv.querySelector('.typing-indicator');
-                                            if (messageContent) {
-                                                messageContent.innerHTML = fullMsg.replace(/\n/g, '<br>');
-                                            }
-                                        }
+                                        // 立即更新消息内容（每个片段都立即显示）
+                                        messageContent.textContent = fullMsg;
+                                        // 强制立即更新 DOM
+                                        messageContent.style.display = 'none';
+                                        messageContent.offsetHeight; // 触发重排
+                                        messageContent.style.display = '';
+                                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                                        // 调试日志
+                                        console.log('实时更新:', text, '总长度:', fullMsg.length);
                                     }
                                 }
                             });
                         }
                     }
+                    
+                    // 流式完成，移除临时 ID，用 Markdown 重新渲染
+                    messageDiv.removeAttribute('id');
+                    messageContent.innerHTML = DOMPurify.sanitize(marked.parse(fullMsg));
+                    
                     hideTypingIndicator();
-                    addChatMessage('bot', fullMsg || 'AI无响应');
                     sendBtn.disabled = false;
                 } else {
                     const data = await response.json();
