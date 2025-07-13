@@ -32,6 +32,7 @@ from cryptography.hazmat.primitives import serialization
 import rag_storage_prisma as storage
 import sqlite3
 from openai import OpenAI
+from fastapi.responses import StreamingResponse
 
 # Add the parent directory to the path to import the Prisma storage
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -629,14 +630,13 @@ import random
 from fastapi import HTTPException, Depends
 from fastapi.security import HTTPAuthorizationCredentials
 
-@app.post("/rag-generate", response_model=RAGResponse)
+@app.post("/rag-generate")
 async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
     # 闲聊意图识别
     if is_chitchat(request.query):
-        return RAGResponse(
-            context="你好！我是智能助手，有什么可以帮您？",
-            documents=[]
-        )
+        def chitchat_stream():
+            yield f"data: 你好！我是智能助手，有什么可以帮您？\n\n"
+        return StreamingResponse(chitchat_stream(), media_type="text/event-stream")
 
     def get_friendly_fallback_response(query: str) -> str:
         suggestions = {
@@ -644,130 +644,103 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
             "发票": ["如何开具发票？", "电子发票支持吗？"],
             "客服": ["客服电话是多少？", "如何联系人工客服？"],
         }
-
         fallback_templates = [
             "这个问题我还不太了解，但我正在努力学习中 😊",
             "我暂时没有找到确切答案，也许我们可以换个方式问问？",
             "目前我的知识库中没有明确的信息，您可以联系客服进一步了解。",
         ]
-
         matched_suggestions = []
         for keyword, guesses in suggestions.items():
             if keyword in query:
                 matched_suggestions = guesses
                 break
-
         hint_block = ""
         if matched_suggestions:
             hint_block = "\n\n您可能想问：\n" + "\n".join(f"- {s}" for s in matched_suggestions)
-
         return random.choice(fallback_templates) + hint_block
 
-    try:
-        # Step 0: 校验token并提取siteId
+    async def event_stream():
         try:
-            payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-            site_id = payload.get("siteId")
-            if not site_id:
-                raise HTTPException(status_code=401, detail="Invalid token: missing siteId")
-        except Exception as e:
-            raise HTTPException(status_code=401, detail=f"Invalid or expired token: {str(e)}")
+            # Step 0: 校验token并提取siteId
+            try:
+                payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+                site_id = payload.get("siteId")
+                if not site_id:
+                    yield f"data: [ERROR] Invalid token: missing siteId\n\n"
+                    return
+            except Exception as e:
+                yield f"data: [ERROR] Invalid or expired token: {str(e)}\n\n"
+                return
 
-        # Step 1: Search for relevant documents
-        user_documents, user_embeddings = storage.get_documents_by_site(site_id)
-        if not user_documents:
-            logger.info(f"No documents available for site: {site_id}")
-            return RAGResponse(
-                context="我的知识库中没有相关信息来回答您的问题。请联系客服或查看我们的文档获取更多详情。",
-                documents=[]
+            # Step 1: Search for relevant documents
+            user_documents, user_embeddings = storage.get_documents_by_site(site_id)
+            if not user_documents:
+                yield f"data: 我的知识库中没有相关信息来回答您的问题。请联系客服或查看我们的文档获取更多详情。\n\n"
+                return
+
+            query_embedding = generate_simple_embedding(request.query)
+            similarities = []
+            for i, doc in enumerate(user_documents):
+                if i < len(user_embeddings) and len(user_embeddings[i]) > 0:
+                    embedding_list = user_embeddings[i].tolist() if hasattr(user_embeddings[i], 'tolist') else user_embeddings[i]
+                    similarity = calculate_similarity(query_embedding, embedding_list)
+                    similarities.append((doc, similarity, i))
+            similarities.sort(key=lambda x: x[1], reverse=True)
+            best_similarity = similarities[0][1] if similarities else 0.0
+            quality_threshold = 0.25
+            if best_similarity < quality_threshold:
+                yield f"data: {get_friendly_fallback_response(request.query)}\n\n"
+                return
+
+            filtered_results = [
+                (doc, sim, idx) for doc, sim, idx in similarities 
+                if sim >= request.threshold
+            ][:max(request.top_k, 10)]
+
+            def query_terms_match(text, query):
+                query_terms = query.split()
+                return any(term in text for term in query_terms)
+
+            context_parts = []
+            priority_snippets = []
+            other_snippets = []
+            for doc, similarity, idx in filtered_results:
+                content = doc["content"]
+                if query_terms_match(content, request.query):
+                    priority_snippets.append((content, similarity))
+                else:
+                    other_snippets.append((content, similarity))
+            priority_snippets.sort(key=lambda x: x[1], reverse=True)
+            other_snippets.sort(key=lambda x: x[1], reverse=True)
+            context_parts.extend([content for content, _ in priority_snippets[:3]])
+            if len(context_parts) < request.top_k:
+                context_parts.extend([content for content, _ in other_snippets[:request.top_k - len(context_parts)]])
+            context = "\n\n".join(context_parts)
+
+            # Step 2: LLM流式生成
+            client = OpenAI(
+                api_key="sk-9ae65ad2fb8e4564be06f2a7bddf609a",
+                base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
             )
-
-        query_embedding = generate_simple_embedding(request.query)
-        similarities = []
-        for i, doc in enumerate(user_documents):
-            if i < len(user_embeddings) and len(user_embeddings[i]) > 0:
-                embedding_list = user_embeddings[i].tolist() if hasattr(user_embeddings[i], 'tolist') else user_embeddings[i]
-                similarity = calculate_similarity(query_embedding, embedding_list)
-                similarities.append((doc, similarity, i))
-
-        similarities.sort(key=lambda x: x[1], reverse=True)
-        best_similarity = similarities[0][1] if similarities else 0.0
-        quality_threshold = 0.25
-        if best_similarity < quality_threshold:
-            logger.info(f"Query: '{request.query}', Best similarity {best_similarity:.3f} below quality threshold {quality_threshold}")
-            return RAGResponse(
-                context=get_friendly_fallback_response(request.query),
-                documents=[]
+            prompt = f"你是一位专业的中文 AI 客服助手，专门基于提供的知识内容，准确、清晰地回答用户提出的问题。\n\n【上下文信息】\n{context}\n\n【用户问题】\n{request.query}\n\n【回答要求】\n1. 仅根据上述上下文信息作答，不能编造或推测。\n2. 若上下文信息中没有足够信息，请如实告知。\n3. 回答应尽量简洁明了，语气自然亲切，使用中文。\n4. 若内容复杂，可适当使用换行、编号等格式提升可读性。\n现在请开始回答："
+            response = client.chat.completions.create(
+                model="qwen-plus",
+                messages=[
+                    {"role": "system", "content": "你是一个专业的AI助手。"},
+                    {"role": "user", "content": prompt},
+                ],
+                stream=True,
+                temperature=0.3,
+                max_tokens=500,
+                top_p=0.8,
             )
-
-        filtered_results = [
-            (doc, sim, idx) for doc, sim, idx in similarities 
-            if sim >= request.threshold
-        ][:max(request.top_k, 10)]  # top_k至少10，保证高召回
-
-        logger.info(f"Query: '{request.query}', Found: {len(filtered_results)} segments (best: {best_similarity:.3f})")
-        for doc, sim, idx in filtered_results:
-            logger.info(f"  - Title: {doc['title']}, Segment: {idx}, Similarity: {sim:.3f}")
-
-        # Step 2: 构建上下文
-        def query_terms_match(text, query):
-            query_terms = query.split()
-            return any(term in text for term in query_terms)
-
-        context_parts = []
-        priority_snippets = []
-        other_snippets = []
-
-        for doc, similarity, idx in filtered_results:
-            content = doc["content"]
-            if query_terms_match(content, request.query):
-                priority_snippets.append((content, similarity))
-            else:
-                other_snippets.append((content, similarity))
-
-        priority_snippets.sort(key=lambda x: x[1], reverse=True)
-        other_snippets.sort(key=lambda x: x[1], reverse=True)
-
-        context_parts.extend([content for content, _ in priority_snippets[:3]])
-        if len(context_parts) < request.top_k:
-            context_parts.extend([content for content, _ in other_snippets[:request.top_k - len(context_parts)]])
-
-        context = "\n\n".join(context_parts)
-        logger.info(f"Prepared context with {len(context_parts)} snippets, total length: {len(context)}")
-
-        search_results = []
-        for doc, similarity, idx in filtered_results:
-            search_results.append(SearchResult(
-                document=Document(
-                    url=doc["url"],
-                    title=doc["title"],
-                    content=doc["content"],
-                    timestamp=doc.get("timestamp") or doc.get("created_at"),
-                    site_id=doc["site_id"]
-                ),
-                similarity=similarity
-            ))
-
-        # Step 3: Generate answer using Ollama
-        try:
-            ollama_response = await generate_with_ollama(request.query, context, request.history)
-            generated_answer = ollama_response
+            for chunk in response:
+                delta = chunk.choices[0].delta.content
+                if delta:
+                    yield f"data: {delta}\n\n"
         except Exception as e:
-            logger.error(f"Error generating with Ollama: {e}")
-            generated_answer = f"根据可用的信息：\n\n{context}"
-
-        return RAGResponse(
-            context=generated_answer,
-            documents=search_results
-        )
-
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        import traceback
-        logger.error(f"Error in /rag-generate endpoint: {e}")
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Error generating answer: {str(e)}")
+            yield f"data: [ERROR] {str(e)}\n\n"
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 import os
 import logging
