@@ -838,8 +838,6 @@
         sendBtn.disabled = true;
         showTypingIndicator();
         try {
-            // 调用后端 /rag-generate 接口
-            // 1. 先用 apiKey 换取 token
             const apiKey = 'cmcu4th0r0005wouf9qpp3s0d';
             let token = null;
             try {
@@ -871,44 +869,18 @@
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify({
-                        query: message,
-                        top_k: 1
-                    })
+                    body: JSON.stringify({ query: message, top_k: 1 })
                 });
                 const contentType = response.headers.get('content-type') || '';
                 if (contentType.includes('text/event-stream')) {
-                    // 流式分支
                     if (!response.body) throw new Error('No response body');
                     const reader = response.body.getReader();
                     const decoder = new TextDecoder();
                     let done = false;
                     let fullMsg = '';
-                    // 复用或创建机器人消息容器用于实时更新
+                    let messageDiv = null;
+                    let messageContent = null;
                     const messagesContainer = document.getElementById('chatbot-messages');
-                    let messageDiv = document.getElementById('streaming-message');
-                    let messageContent;
-                    if (!messageDiv) {
-                        messageDiv = document.createElement('div');
-                        messageDiv.className = 'chatbot-message bot';
-                        messageDiv.id = 'streaming-message';
-                        const avatar = document.createElement('div');
-                        avatar.className = 'message-avatar';
-                        avatar.textContent = '🤖';
-                        messageContent = document.createElement('div');
-                        messageContent.className = 'message-content';
-                        messageDiv.appendChild(avatar);
-                        messageDiv.appendChild(messageContent);
-                        messagesContainer.appendChild(messageDiv);
-                    } else {
-                        messageContent = messageDiv.querySelector('.message-content');
-                        if (!messageContent) {
-                            messageContent = document.createElement('div');
-                            messageContent.className = 'message-content';
-                            messageDiv.appendChild(messageContent);
-                        }
-                    }
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
                     while (!done) {
                         const { value, done: doneReading } = await reader.read();
                         done = doneReading;
@@ -919,28 +891,39 @@
                                     const text = line.replace(/^data:/, '').trim();
                                     if (text) {
                                         fullMsg += text;
-                                        // 直接渲染 Markdown
+                                        if (!messageDiv) {
+                                            // 第一次收到内容时
+                                            hideTypingIndicator();
+                                            messageDiv = document.createElement('div');
+                                            messageDiv.className = 'chatbot-message bot';
+                                            messageDiv.id = 'streaming-message';
+                                            const avatar = document.createElement('div');
+                                            avatar.className = 'message-avatar';
+                                            avatar.textContent = '🤖';
+                                            messageContent = document.createElement('div');
+                                            messageContent.className = 'message-content';
+                                            messageDiv.appendChild(avatar);
+                                            messageDiv.appendChild(messageContent);
+                                            messagesContainer.appendChild(messageDiv);
+                                        }
                                         const markdownHtml = marked.parse(fixMarkdownList(fullMsg));
                                         const sanitizedHtml = DOMPurify.sanitize(markdownHtml, {
                                             ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote'],
                                             ALLOWED_ATTR: []
                                         });
                                         messageContent.innerHTML = sanitizedHtml;
-                                        // 简单滚动
                                         messagesContainer.scrollTop = messagesContainer.scrollHeight;
                                     }
                                 }
                             });
                         }
                     }
-                    // 流式完成，移除临时 ID（Markdown 已经实时渲染完成）
-                    messageDiv.removeAttribute('id');
-                    hideTypingIndicator();
+                    if (messageDiv) messageDiv.removeAttribute('id');
                     sendBtn.disabled = false;
                     sending = false;
-                    return; // 关键：流式分支处理完直接return，避免后续再渲染一次
+                    return;
                 }
-                // 非流式分支
+                // 非流式处理
                 const data = await response.json();
                 hideTypingIndicator();
                 addChatMessage('bot', data.context || 'AI无响应');

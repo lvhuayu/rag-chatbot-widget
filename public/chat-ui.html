@@ -539,54 +539,102 @@
         }
         
         // Send message to Ollama with RAG (流式)
-        async function sendMessageToOllama(userMessage) {
-            let ragResults = [];
-            let botReply = '';
-            const backendUrl = config.backendUrl || 'http://localhost:8001';
-            const topK = config.maxRAGResults || 3;
-            try {
-                const response = await fetch(`${backendUrl}/rag-generate`, {
-                    method: 'POST',
-                    headers: getAuthHeaders(),
-                    body: JSON.stringify({ 
-                        query: userMessage, 
-                        user_id: userId || undefined, 
-                        top_k: topK
-                    })
-                });
-                if (!response.body) {
-                    return { ragResults: [], botReply: 'AI无响应' };
-                }
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let done = false;
-                let fullMsg = '';
-                while (!done) {
-                    const { value, done: doneReading } = await reader.read();
-                    done = doneReading;
-                    if (value) {
-                        const chunk = decoder.decode(value, { stream: true });
-                        chunk.split('\n').forEach(line => {
-                            if (line.startsWith('data:')) {
-                                const text = line.replace(/^data:/, '').trim();
-                                if (text) {
-                                    fullMsg += text;
-                                    updateBotTypingMessage(fullMsg);
-                                }
+// ✅ 修改后的 sendMessageToOllama + typing bubble复用
+
+async function sendMessageToOllama(userMessage) {
+    let ragResults = [];
+    let botReply = '';
+    const backendUrl = config.backendUrl || 'http://localhost:8001';
+    const topK = config.maxRAGResults || 3;
+    try {
+        const response = await fetch(`${backendUrl}/rag-generate`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ 
+                query: userMessage, 
+                user_id: userId || undefined, 
+                top_k: topK
+            })
+        });
+        if (!response.body) {
+            return { ragResults: [], botReply: 'AI无响应' };
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let done = false;
+        let fullMsg = '';
+        let hasStarted = false;
+        while (!done) {
+            const { value, done: doneReading } = await reader.read();
+            done = doneReading;
+            if (value) {
+                const chunk = decoder.decode(value, { stream: true });
+                chunk.split('\n').forEach(line => {
+                    if (line.startsWith('data:')) {
+                        const text = line.replace(/^data:/, '').trim();
+                        if (text) {
+                            fullMsg += text;
+                            if (!hasStarted) {
+                                hasStarted = true;
+                                convertTypingToContentBubble();
                             }
-                        });
+                            updateBotTypingMessage(fullMsg);
+                        }
                     }
-                }
-                return { ragResults: [], botReply: fullMsg || 'AI无响应' };
-            } catch (err) {
-                return { ragResults: [], botReply: '❌ 大模型生成失败：' + err.message };
+                });
             }
         }
+        return { ragResults: [], botReply: fullMsg || 'AI无响应' };
+    } catch (err) {
+        return { ragResults: [], botReply: '❌ 大模型生成失败：' + err.message };
+    }
+}
 
-        // 新增：流式更新bot消息
-        function updateBotTypingMessage(content) {
-            let typingDiv = document.getElementById('streaming-message');
+        // ✅ 修改 showTypingIndicator，创建气泡并插入打字动画
+        function showTypingIndicator() {
+            document.querySelectorAll('#streaming-message').forEach(el => el.remove());
+
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message bot';
+            typingDiv.id = 'streaming-message';
+
+            const avatar = document.createElement('div');
+            avatar.className = 'message-avatar';
+            avatar.textContent = '🤖';
+
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+            messageContent.innerHTML = `
+                <div class="typing-indicator">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+            `;
+
+            typingDiv.appendChild(avatar);
+            typingDiv.appendChild(messageContent);
+            messagesContainer.appendChild(typingDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // ✅ 新增 convertTypingToContentBubble 函数：清除typing动画，保留容器
+        function convertTypingToContentBubble() {
+            const typingDiv = document.getElementById('streaming-message');
             if (!typingDiv) return;
+
+            const messageContent = typingDiv.querySelector('.message-content');
+            if (!messageContent) return;
+
+            messageContent.innerHTML = ''; // 清空动画
+            typingDiv.classList.remove('typing-indicator'); // 可选：如果你用了该类
+        }
+
+        // ✅ 保持 updateBotTypingMessage 不变
+        function updateBotTypingMessage(content) {
+            const typingDiv = document.getElementById('streaming-message');
+            if (!typingDiv) return;
+
             let messageContent = typingDiv.querySelector('.message-content');
             if (!messageContent) {
                 messageContent = document.createElement('div');
@@ -595,6 +643,7 @@
             }
             messageContent.innerHTML = content.replace(/\n/g, '<br>');
         }
+        
 
         // Handle send button click (流式)
         async function handleSend() {
