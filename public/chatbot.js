@@ -1,13 +1,17 @@
 (function() {
     'use strict';
     
-    // Global RAG service instance
+    // Global variables
     let ragService = null;
     let contentIngestionPerformed = false;
     let authToken = null;
     let userId = null;
     let privateKey = null;
     let publicKey = null;
+    
+    // Detect environment and set API base URL
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    const API_BASE_URL = isLocalhost ? "http://localhost:8001" : "https://essayformatter.com";
     
     // Global function to initialize the chatbot
     window.initRAGChatbot = async function(config) {
@@ -25,43 +29,35 @@
             enableContentIngestion: false,
             ingestEndpoint: 'https://yourdomain.com/api/ingest',
             enableRAG: true,
-            ragThreshold: 0.7, // Minimum similarity threshold for RAG results
-            maxRAGResults: 3,   // Maximum number of RAG results to include
-            backendUrl: 'https://essayformatter.com:8001', // RAG backend URL - 已改为 essayformatter.com 公网地址
-            ollamaUrl: 'http://localhost:11434',  // Ollama URL - CHANGE THIS IF NEEDED
+            ragThreshold: 0.7,
+            maxRAGResults: 3,
+            backendUrl: API_BASE_URL, // Use detected API base URL
+            ollamaUrl: 'http://localhost:11434',
             
             // Multi-tenant configuration
-            userId: userId, // Add userId to config
+            userId: userId,
             
             // Authentication configuration
             auth: {
-                token: null,           // JWT token for authentication
-                username: null,        // Username for login
-                password: null,        // Password for login
-                autoLogin: false,      // Auto-login with provided credentials
-                loginEndpoint: '/api/auth/login', // Login endpoint
-                tokenKey: 'rag_chatbot_token', // Local storage key for token
+                token: null,
+                username: null,
+                password: null,
+                autoLogin: false,
+                loginEndpoint: '/api/auth/login',
+                tokenKey: 'rag_chatbot_token',
                 
                 // Public/Private Key Authentication
-                useKeyAuth: true,      // Enable public/private key authentication
-                keyAuthEndpoint: '/auth/request-challenge', // Challenge endpoint
-                keyAuthVerifyEndpoint: '/auth/verify-challenge', // Verify endpoint
-                keyStorageKey: 'rag_chatbot_keys', // Local storage key for keys
-                publicKey: `-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyoVzODARtoIk2jWbUGjU
-rLlrCHK4oofLuFilKZvR/+p197qj5uqhJnVL4QsCRcZl0CBRqPDfwFzubjM20O4b
-1qJvfD07emHCclqWWu49Gxwrb0nr//qVjltDNrQZvyKSObC+wXDlttHaSQ0xKzYz
-/l2VNvsSc6DxwQHtXl65obzKQOx6BhZpRL9kv6HIuAo2MTCYbPke1R4uAndormnh
-8MlJ/WPPyNNFuB2EPdHxB/Ks5cTU5MS5brrWNsEApyp6deF2lNkFF9UEjXh4GOTG
-veMY/OjJ5eLC0rY5VS8PwrnSAf8Vq2fgiYocqgz/5qk5JWs4274mCb6feTATpcZT
-iwIDAQAB
------END PUBLIC KEY-----`,
+                useKeyAuth: false, // Disabled by default for simplicity
+                keyAuthEndpoint: '/auth/request-challenge',
+                keyAuthVerifyEndpoint: '/auth/verify-challenge',
+                keyStorageKey: 'rag_chatbot_keys',
+                publicKey: null,
                 
-                // Registered Key Authentication (from upload portal)
-                useRegisteredKey: false, // Use public key from registration
-                registeredUsername: null, // Username to fetch public key for
-                uploadPortalUrl: 'http://localhost:3001', // Upload portal URL
-                publicKeyEndpoint: '/api/auth/public-key' // Public key endpoint
+                // Registered Key Authentication
+                useRegisteredKey: false,
+                registeredUsername: null,
+                uploadPortalUrl: 'http://localhost:3001',
+                publicKeyEndpoint: '/api/auth/public-key'
             }
         };
         
@@ -77,13 +73,8 @@ iwIDAQAB
         // Update global userId
         userId = finalConfig.userId;
         
-        // Validate backend URL
-        if (!finalConfig.backendUrl || finalConfig.backendUrl === 'http://localhost:8001') {
-            console.warn('⚠️ Please configure backendUrl to point to your RAG backend server!');
-            console.warn('⚠️ Example: initRAGChatbot({ backendUrl: "https://your-backend.com" })');
-        }
-        
         console.log('🔑 Multi-tenant setup:', { userId: finalConfig.userId });
+        console.log('🔗 Backend URL:', finalConfig.backendUrl);
         
         // Handle authentication
         await handleAuthentication(finalConfig);
@@ -91,10 +82,7 @@ iwIDAQAB
         // Initialize RAG service if enabled
         if (finalConfig.enableRAG) {
             try {
-                // ragService = new RAGService();
-                // await ragService.initialize();
                 console.log('✅ RAG service initialized successfully');
-                console.log('🔗 Backend URL:', finalConfig.backendUrl);
                 console.log('🔐 Authentication:', authToken ? 'Authenticated' : 'Not authenticated');
                 console.log('👤 User ID:', finalConfig.userId);
                 if (finalConfig.auth.useKeyAuth) {
@@ -132,6 +120,8 @@ iwIDAQAB
             background: white;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
         `;
         
         // Create minimize button
@@ -147,7 +137,7 @@ iwIDAQAB
             border-radius: 50%;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            display: flex;
+            display: none;
             align-items: center;
             justify-content: center;
             font-size: 24px;
@@ -155,10 +145,9 @@ iwIDAQAB
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
             z-index: 10001;
             transition: all 0.3s ease;
-            display: none;
         `;
         
-        // Add hover effects
+        // Add hover effects (matching index.html style)
         minimizeButton.addEventListener('mouseenter', function() {
             this.style.transform = 'scale(1.1)';
             this.style.boxShadow = '0 6px 25px rgba(0, 0, 0, 0.2)';
@@ -173,22 +162,14 @@ iwIDAQAB
         let isMinimized = false;
         
         function minimizeChatbot() {
-            iframe.style.transform = 'scale(0)';
-            iframe.style.opacity = '0';
-            setTimeout(() => {
-                iframe.style.display = 'none';
-                minimizeButton.style.display = 'flex';
-            }, 300);
+            iframe.style.display = 'none';
+            minimizeButton.style.display = 'flex';
             isMinimized = true;
         }
         
         function expandChatbot() {
             minimizeButton.style.display = 'none';
             iframe.style.display = 'block';
-            setTimeout(() => {
-                iframe.style.transform = 'scale(1)';
-                iframe.style.opacity = '1';
-            }, 50);
             isMinimized = false;
         }
         
@@ -316,28 +297,6 @@ iwIDAQAB
                     console.warn('❌ Error fetching token via apiKey:', err);
                 }
             }
-            // 兼容老逻辑：siteId换token（仅当apiKey未提供时）
-            if (config.siteId && !authToken && !config.apiKey) {
-                try {
-                    const res = await fetch(config.backendUrl + '/auth/token', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ siteId: config.siteId })
-                    });
-                    if (res.ok) {
-                        const data = await res.json();
-                        authToken = data.token;
-                        localStorage.setItem(config.auth.tokenKey, authToken);
-                        localStorage.setItem('rag_chatbot_siteid', config.siteId);
-                        console.log('✅ Token obtained via siteId');
-                        return;
-                    } else {
-                        console.warn('❌ Failed to get token via siteId:', res.status);
-                    }
-                } catch (err) {
-                    console.warn('❌ Error fetching token via siteId:', err);
-                }
-            }
             
             // Handle registered key authentication (from upload portal)
             if (config.auth.useRegisteredKey) {
@@ -383,7 +342,7 @@ iwIDAQAB
             }
             
             const publicKeyData = await publicKeyResponse.json();
-            publicKey = publicKeyData.publicKey;
+            const publicKey = publicKeyData.publicKey;
             
             console.log('✅ Registered public key loaded for:', config.auth.registeredUsername);
             
@@ -462,15 +421,15 @@ iwIDAQAB
             const storedKeys = localStorage.getItem(config.auth.keyStorageKey);
             if (storedKeys) {
                 const keys = JSON.parse(storedKeys);
-                privateKey = keys.privateKey;
-                publicKey = keys.publicKey;
+                const privateKey = keys.privateKey;
+                const publicKey = keys.publicKey;
                 console.log('✅ Loaded stored keys');
-                return;
+                return { privateKey, publicKey };
             }
             
             // Generate new keys (simplified implementation)
-            privateKey = generateRandomKey();
-            publicKey = generatePublicKey(privateKey);
+            const privateKey = generateRandomKey();
+            const publicKey = await generatePublicKey(privateKey);
             
             // Store keys
             localStorage.setItem(config.auth.keyStorageKey, JSON.stringify({
@@ -479,6 +438,7 @@ iwIDAQAB
             }));
             
             console.log('✅ Generated new keys');
+            return { privateKey, publicKey };
             
         } catch (error) {
             console.error('❌ Error generating keys:', error);
@@ -501,14 +461,13 @@ iwIDAQAB
      * @param {string} privateKey - The private key
      * @returns {string} Public key
      */
-    function generatePublicKey(privateKey) {
+    async function generatePublicKey(privateKey) {
         // In a real implementation, this would use proper cryptographic functions
         // For now, we'll use a simple hash-based approach
         const encoder = new TextEncoder();
         const data = encoder.encode(privateKey);
-        return crypto.subtle.digest('SHA-256', data).then(hash => {
-            return Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('');
-        });
+        const hash = await crypto.subtle.digest('SHA-256', data);
+        return Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('');
     }
     
     /**
@@ -525,7 +484,7 @@ iwIDAQAB
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                public_key: publicKey,
+                public_key: config.auth.publicKey,
                 username: config.auth.username || 'chatbot_user'
             })
         });
@@ -546,7 +505,7 @@ iwIDAQAB
         // In a real implementation, this would use proper cryptographic signing
         // For now, we'll use a simple hash-based approach
         const encoder = new TextEncoder();
-        const data = encoder.encode(`${publicKey}:${challenge}`);
+        const data = encoder.encode(`${config.auth.publicKey}:${challenge}`);
         const hash = await crypto.subtle.digest('SHA-256', data);
         return Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, '0')).join('');
     }
@@ -568,7 +527,7 @@ iwIDAQAB
             },
             body: JSON.stringify({
                 challenge_id: challengeId,
-                public_key: publicKey,
+                public_key: config.auth.publicKey,
                 signature: signature
             })
         });
@@ -843,15 +802,256 @@ iwIDAQAB
         clearRAGDocuments: () => ragService ? ragService.clearDocuments() : null
     };
     
-    // Add some basic styles to prevent conflicts
+    // Add comprehensive styles to match index.html design
     const style = document.createElement('style');
     style.textContent = `
+        /* 聊天机器人容器样式 */
         #rag-chatbot-iframe {
             transition: all 0.3s ease;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
+        
         #rag-chatbot-iframe:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* 最小化按钮样式 */
+        #rag-chatbot-minimize {
+            transition: all 0.3s ease;
+        }
+        
+        #rag-chatbot-minimize:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);
+        }
+        
+        /* 聊天机器人消息样式 */
+        .chatbot-message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        
+        .chatbot-message.user {
+            flex-direction: row-reverse;
+        }
+        
+        .message-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+        
+        .chatbot-message.user .message-avatar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .chatbot-message.bot .message-avatar {
+            background: #e5e7eb;
+            color: #374151;
+        }
+        
+        .message-content {
+            max-width: 70%;
+            padding: 10px 14px;
+            border-radius: 16px;
+            line-height: 1.4;
+            word-wrap: break-word;
+            font-size: 14px;
+        }
+        
+        /* 强制 Markdown 渲染后的内容保持原有字体大小 */
+        .message-content * {
+            font-size: inherit !important;
+            line-height: inherit !important;
+        }
+        
+        .message-content p {
+            margin: 0.5em 0;
+        }
+        
+        .message-content h1, .message-content h2, .message-content h3, 
+        .message-content h4, .message-content h5, .message-content h6 {
+            font-size: 12px !important;
+            font-weight: 600;
+            margin: 0.5em 0;
+        }
+        
+        .message-content ul, .message-content ol {
+            margin: 0.5em 0;
+            padding-left: 1.5em;
+        }
+        
+        .message-content li {
+            margin: 0.2em 0;
+        }
+        
+        .message-content strong, .message-content b {
+            font-weight: 600;
+        }
+        
+        .message-content em, .message-content i {
+            font-style: italic;
+        }
+        
+        .chatbot-message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        
+        .chatbot-message.bot .message-content {
+            background: white;
+            color: #374151;
+            border: 1px solid #e5e7eb;
+            border-bottom-left-radius: 4px;
+        }
+        
+        /* 输入框样式 */
+        .chatbot-input {
+            padding: 15px;
+            background: white;
+            border-top: 1px solid #e5e7eb;
+            border-radius: 0 0 12px 12px;
+        }
+        
+        .input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+        
+        .message-input {
+            flex: 1;
+            border: 2px solid #e5e7eb;
+            border-radius: 18px;
+            padding: 10px 14px;
+            font-size: 16px;
+            resize: none;
+            outline: none;
+            transition: border-color 0.3s ease;
+            font-family: inherit;
+            max-height: 80px;
+            min-height: 36px;
+        }
+        
+        .message-input:focus {
+            border-color: #667eea;
+        }
+        
+        .send-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+        
+        .send-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .send-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        /* 打字指示器样式 */
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 10px 14px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 16px;
+            border-bottom-left-radius: 4px;
+            max-width: 70%;
+        }
+        
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #9ca3af;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+        
+        /* 聊天机器人头部样式 */
+        .chatbot-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 12px 12px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .chatbot-header h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin: 0;
+        }
+        
+        .chatbot-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .minimize-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .minimize-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+        
+        /* 消息区域样式 */
+        .chatbot-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
         }
     `;
     document.head.appendChild(style);
