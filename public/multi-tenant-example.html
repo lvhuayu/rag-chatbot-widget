@@ -348,10 +348,7 @@
                 // Initialize chatbot with apiKey
                 currentChatbot = initRAGChatbot({
                     apiKey: apiKey,
-                    backendUrl: 'http://localhost:8001',
                     enableRAG: true,
-                    ragThreshold: 0.7,
-                    maxRAGResults: 3,
                     welcomeMessage: `Hello! I'm your AI assistant for site: ${siteId}. How can I help you today?`
                 });
                 statusDiv.className = 'status success';
