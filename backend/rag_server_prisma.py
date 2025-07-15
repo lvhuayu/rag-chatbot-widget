@@ -17,7 +17,7 @@ import string
 import math
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
-from fastapi import FastAPI, HTTPException, Depends, status, Request, Header
+from fastapi import FastAPI, HTTPException, Depends, status, Request, Header, Body
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -185,6 +185,82 @@ def verify_signature(public_key: str, challenge: str, signature: str) -> bool:
         return signature == expected_signature
     except Exception:
         return False
+
+# --- Admin Authentication ---
+class AdminLoginRequest(BaseModel):
+    username: str
+    password: str
+
+class AdminLoginResponse(BaseModel):
+    token: str
+    expires_in: int
+
+# Hardcoded admin credentials (replace with DB/env in production)
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "admin123"  # Change in production!
+
+# Admin JWT verification
+def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
+    try:
+        token = credentials.credentials
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        if not payload.get("is_admin"):
+            raise HTTPException(status_code=403, detail="Admin privileges required")
+        return User(id=payload.get("id", "admin"), username=payload.get("username", "admin"))
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token has expired")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=f"Authentication error: {str(e)}")
+
+@app.post("/admin/login", response_model=AdminLoginResponse)
+async def admin_login(request: AdminLoginRequest):
+    if request.username == ADMIN_USERNAME and request.password == ADMIN_PASSWORD:
+        payload = {
+            "id": "admin",
+            "username": ADMIN_USERNAME,
+            "is_admin": True,
+            "exp": datetime.utcnow() + timedelta(hours=8)
+        }
+        token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+        return AdminLoginResponse(token=token, expires_in=8*3600)
+    else:
+        raise HTTPException(status_code=401, detail="Invalid admin credentials")
+
+# --- User Management Endpoints (admin only) ---
+@app.get("/users")
+async def list_users(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    user = verify_admin_token(credentials)
+    # Dummy: Replace with real PrismaRAGStorage logic
+    users = storage.get_all_users() if hasattr(storage, 'get_all_users') else [
+        {"id": "1", "username": "user1", "email": "user1@example.com", "registered": "2024-01-01", "status": "active"},
+        {"id": "2", "username": "user2", "email": "user2@example.com", "registered": "2024-01-02", "status": "inactive"},
+    ]
+    return users
+
+@app.put("/users/{user_id}")
+async def edit_user(user_id: str, data: dict = Body(...), credentials: HTTPAuthorizationCredentials = Depends(security)):
+    user = verify_admin_token(credentials)
+    # Dummy: Replace with real update logic
+    # e.g., storage.update_user(user_id, data)
+    return {"success": True, "user_id": user_id, "updated": data}
+
+@app.delete("/users/{user_id}")
+async def delete_user(user_id: str, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    user = verify_admin_token(credentials)
+    # Dummy: Replace with real delete logic
+    # e.g., storage.delete_user(user_id)
+    return {"success": True, "user_id": user_id}
+
+# --- Logs Endpoint (admin only) ---
+@app.get("/logs")
+async def get_logs(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    user = verify_admin_token(credentials)
+    # Dummy: Replace with real log retrieval
+    logs = storage.get_logs() if hasattr(storage, 'get_logs') else [
+        {"time": "2024-07-05 10:00:00", "user": "user1", "action": "login", "detail": "User logged in"},
+        {"time": "2024-07-05 10:05:00", "user": "user2", "action": "delete", "detail": "User deleted a document"},
+    ]
+    return logs
 
 @app.get("/")
 async def root():
