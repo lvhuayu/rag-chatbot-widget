@@ -589,6 +589,90 @@ runQuery();
             logger.error(f"Error clearing all documents: {e}")
             return False
 
+    def get_all_users(self):
+        """Return all users as a list of dicts."""
+        try:
+            query = """
+                await prisma.users.findMany({
+                    orderBy: { created_at: 'desc' }
+                })
+            """
+            users_data = self._run_prisma_query(query)
+            users = []
+            for user in users_data:
+                users.append({
+                    "id": user["id"],
+                    "username": user["username"],
+                    "email": user.get("email"),
+                    "registered": user.get("created_at"),
+                    "status": "active"  # You can add a status field to your users table if needed
+                })
+            return users
+        except Exception as e:
+            logger.error(f"Error getting all users: {e}")
+            return []
+
+    def update_user(self, user_id: str, data: dict):
+        """Update user info by user_id."""
+        try:
+            set_fields = []
+            if "username" in data:
+                set_fields.append(f"username: '{_escape_js_string(data['username'])}'")
+            if "email" in data:
+                set_fields.append(f"email: '{_escape_js_string(data['email'])}'")
+            # Add more fields as needed
+            if not set_fields:
+                return False
+            set_str = ', '.join(set_fields)
+            query = f"""
+                await prisma.users.update({{
+                    where: {{ id: '{user_id}' }},
+                    data: {{ {set_str} }}
+                }})
+            """
+            self._run_prisma_query(query)
+            return True
+        except Exception as e:
+            logger.error(f"Error updating user {user_id}: {e}")
+            return False
+
+    def delete_user(self, user_id: str):
+        """Delete user by user_id."""
+        try:
+            query = f"""
+                await prisma.users.delete({{
+                    where: {{ id: '{user_id}' }}
+                }})
+            """
+            self._run_prisma_query(query)
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting user {user_id}: {e}")
+            return False
+
+    def get_logs(self, limit: int = 100):
+        """Return recent chat logs as a list of dicts."""
+        try:
+            query = f"""
+                await prisma.chat_logs.findMany({{
+                    orderBy: {{ timestamp: 'desc' }},
+                    take: {limit}
+                }})
+            """
+            logs_data = self._run_prisma_query(query)
+            logs = []
+            for log in logs_data:
+                logs.append({
+                    "time": log.get("timestamp"),
+                    "user": log.get("site_id"),
+                    "action": log.get("model_used", "chat"),
+                    "detail": f"Q: {log.get('question')}\nA: {log.get('answer')}"
+                })
+            return logs
+        except Exception as e:
+            logger.error(f"Error getting logs: {e}")
+            return []
+
 # Factory function for backward compatibility
 def get_prisma_storage() -> PrismaRAGStorage:
     """Get Prisma-based RAG storage instance"""

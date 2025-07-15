@@ -230,36 +230,26 @@ async def admin_login(request: AdminLoginRequest):
 @app.get("/users")
 async def list_users(credentials: HTTPAuthorizationCredentials = Depends(security)):
     user = verify_admin_token(credentials)
-    # Dummy: Replace with real PrismaRAGStorage logic
-    users = storage.get_all_users() if hasattr(storage, 'get_all_users') else [
-        {"id": "1", "username": "user1", "email": "user1@example.com", "registered": "2024-01-01", "status": "active"},
-        {"id": "2", "username": "user2", "email": "user2@example.com", "registered": "2024-01-02", "status": "inactive"},
-    ]
+    users = storage.get_all_users()
     return users
 
 @app.put("/users/{user_id}")
 async def edit_user(user_id: str, data: dict = Body(...), credentials: HTTPAuthorizationCredentials = Depends(security)):
     user = verify_admin_token(credentials)
-    # Dummy: Replace with real update logic
-    # e.g., storage.update_user(user_id, data)
-    return {"success": True, "user_id": user_id, "updated": data}
+    ok = storage.update_user(user_id, data)
+    return {"success": ok, "user_id": user_id, "updated": data}
 
 @app.delete("/users/{user_id}")
 async def delete_user(user_id: str, credentials: HTTPAuthorizationCredentials = Depends(security)):
     user = verify_admin_token(credentials)
-    # Dummy: Replace with real delete logic
-    # e.g., storage.delete_user(user_id)
-    return {"success": True, "user_id": user_id}
+    ok = storage.delete_user(user_id)
+    return {"success": ok, "user_id": user_id}
 
 # --- Logs Endpoint (admin only) ---
 @app.get("/logs")
 async def get_logs(credentials: HTTPAuthorizationCredentials = Depends(security)):
     user = verify_admin_token(credentials)
-    # Dummy: Replace with real log retrieval
-    logs = storage.get_logs() if hasattr(storage, 'get_logs') else [
-        {"time": "2024-07-05 10:00:00", "user": "user1", "action": "login", "detail": "User logged in"},
-        {"time": "2024-07-05 10:05:00", "user": "user2", "action": "delete", "detail": "User deleted a document"},
-    ]
+    logs = storage.get_logs()
     return logs
 
 @app.get("/")
