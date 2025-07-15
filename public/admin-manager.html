@@ -185,8 +185,13 @@
             try {
                 const res = await fetch(`${API_BASE}/users/${id}`, { method: 'DELETE' });
                 if (res.ok) {
-                    showSuccess(t('success_delete'));
-                    fetchUsers();
+                    const result = await res.json();
+                    if (result.success) {
+                        showSuccess(t('success_delete'));
+                        fetchUsers();
+                    } else {
+                        showError(t('error_delete'));
+                    }
                 } else throw new Error();
             } catch { showError(t('error_delete')); }
         }
@@ -318,8 +323,13 @@
             try {
                 const res = await authFetch(`${API_BASE}/users/${id}`, { method: 'DELETE' });
                 if (res.ok) {
-                    showSuccess(t('success_delete'));
-                    fetchUsers();
+                    const result = await res.json();
+                    if (result.success) {
+                        showSuccess(t('success_delete'));
+                        fetchUsers();
+                    } else {
+                        showError(t('error_delete'));
+                    }
                 } else throw new Error();
             } catch { showError(t('error_delete')); }
         }
