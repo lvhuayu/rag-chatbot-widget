@@ -702,6 +702,11 @@
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
 
   <script>
+    // Configure marked for better list handling
+    marked.setOptions({
+      breaks: true,
+      gfm: true
+    });
     // Detect environment and set API base URL
     const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
     const API_BASE_URL = isLocalhost ? "http://localhost:8001" : "https://essayformatter.com";
@@ -732,6 +737,10 @@
 
             // 添加欢迎消息
             addChatMessage('bot', '嗨，我是凌问AI小助手！\n\n我可以帮您解答一些问题， 例如：\n- 资费\n- 功能特点\n- 适用场景\n\n有问题直接问我就行，我马上告诉您！');
+
+            // 添加模拟资费方案 markdown 消息
+            const mockPricing = '我们提供以下几种收费版本，供不同需求的用户选择：\n- **免费版**：适合博客、测试用户，每月有一定对话次数限制，不支持知识库功能。\n- **基础版**：每月￥49，适合内容站和咨询类网站，支持知识库功能，每日最多100条对话。\n- **专业版**：每月￥199，适合企业官网、电商平台，支持无限知识库，每月2000次对话，并可自定义聊天窗口风格。\n- **私有化版**：每月￥999，面向企业或教育客户，支持私有部署、定制化支持。';
+            addChatMessage('bot', mockPricing);
 
             chatbotInitialized = true;
             updateStatus('✅ 智能RAG聊天机器人启动成功！', 'success');
@@ -919,6 +928,15 @@
                         }
                     }
                     if (messageDiv) messageDiv.removeAttribute('id');
+                    // --- 新增：流结束后，做一次完整的markdown修正和最终渲染 ---
+                    if (messageContent && fullMsg) {
+                        const finalHtml = marked.parse(fixMarkdownList(fullMsg));
+                        const sanitizedHtml = DOMPurify.sanitize(finalHtml, {
+                            ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote'],
+                            ALLOWED_ATTR: []
+                        });
+                        messageContent.innerHTML = sanitizedHtml;
+                    }
                     sendBtn.disabled = false;
                     sending = false;
                     return;
@@ -967,12 +985,18 @@
 
     // 在脚本区添加fixMarkdownList函数
     function fixMarkdownList(text) {
-      // 1. 先修正常规：如果行首是 - 或 *，且上一行不是空行，则补一个空行
-      let fixed = text.replace(/([^\n])\n([ \t]*[-*] )/g, '$1\n\n$2');
-      // 2. 针对流式输出：如果一大段文本中有多个 - ，但没有换行，自动在每个 - 前加换行（但不影响已有换行的情况）
-      // 只对非行首的 - 进行处理，避免破坏正常 markdown
-      fixed = fixed.replace(/([^\n])(- )/g, '$1\n$2');
-      return fixed;
+      if (!text || text.length < 3) {
+        return text;
+      }
+      // 转义换行
+      text = text.replace(/\\n/g, '\n');
+      // 把 - 开头的伪列表项分行（前面不是换行的 -，前面加换行）
+      text = text.replace(/-([^\n-])/g, '\n- $1');
+      // 补空行
+      text = text.replace(/([^\n])\n([ \t]*[-*] )/g, '$1\n\n$2');
+      text = text.replace(/^([ \t]*[-*] )/m, '\n$1');
+      text = text.replace(/([^\n])(- )/g, '$1\n$2');
+      return text;
     }
   </script>
 </body>
