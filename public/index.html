@@ -990,9 +990,6 @@
     function fixMarkdownList(text) {
       if (!text || text.length < 3) return text;
 
-      // 0. 后端换行占位符处理
-      text = text.replace(/\[\[PBR\]\]/g, '\n\n').replace(/\[\[BR\]\]/g, '\n');
-
       // 1. 转义 \n
       text = text.replace(/\\n/g, '\n');
 
@@ -1007,12 +1004,6 @@
 
       // 4. 列表项前自动补空行
       text = text.replace(/([^\n])\n([ \t]*[-*] )/g, '$1\n\n$2');
-
-      // 5. 功能说明后跟总结语，自动断行
-      text = text.replace(
-        /(功能限制[：:].{1,60}?)(?=(如有|如需|如果|欢迎|请联系|更多信息|客服))/g,
-        '$1\n\n'
-      );
 
       return text.trim();
     }
