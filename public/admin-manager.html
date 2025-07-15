@@ -140,7 +140,7 @@
                         <td>${user.registered||''}</td>
                         <td><input class='edit-input' id='editStatus' value='${user.status||''}'></td>
                         <td>
-                            <button class='btn btn-primary' onclick='saveUser(${user.id})'>${t('th_save')}</button>
+                            <button class='btn btn-primary' onclick='saveUser("${user.id}")'>${t('th_save')}</button>
                             <button class='btn btn-secondary' onclick='cancelEdit()'>${t('th_cancel')}</button>
                         </td>
                     </tr>`;
@@ -152,8 +152,8 @@
                         <td>${user.registered||''}</td>
                         <td>${user.status||''}</td>
                         <td>
-                            <button class='btn btn-primary' onclick='editUser(${user.id})'>${t('th_edit')}</button>
-                            <button class='btn btn-danger' onclick='deleteUser(${user.id})'>${t('th_delete')}</button>
+                            <button class='btn btn-primary' onclick='editUser("${user.id}")'>${t('th_edit')}</button>
+                            <button class='btn btn-danger' onclick='deleteUser("${user.id}")'>${t('th_delete')}</button>
                         </td>
                     </tr>`;
                 }
