@@ -190,7 +190,7 @@
                         showSuccess(t('success_delete'));
                         fetchUsers();
                     } else {
-                        showError(t('error_delete'));
+                        showError(result.error || t('error_delete'));
                     }
                 } else throw new Error();
             } catch { showError(t('error_delete')); }
@@ -328,7 +328,7 @@
                         showSuccess(t('success_delete'));
                         fetchUsers();
                     } else {
-                        showError(t('error_delete'));
+                        showError(result.error || t('error_delete'));
                     }
                 } else throw new Error();
             } catch { showError(t('error_delete')); }
