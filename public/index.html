@@ -788,7 +788,6 @@
         messageContent.className = 'message-content';
 
         if (sender === 'bot') {
-            console.log(content)
             const markdownHtml = marked.parse(fixMarkdownList(content));
             const sanitizedHtml = DOMPurify.sanitize(markdownHtml, {
                 ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote'],
@@ -897,11 +896,9 @@
                         if (value) {
                             const chunk = decoder.decode(value, { stream: true });
                             chunk.split('\n').forEach(line => {
-                                console.log(line)
                                 if (line.startsWith('data:')) {
                                     const text = line.replace(/^data:/, '').trim();
                                     if (text) {
-                                        console.log(text)
                                         fullMsg += text;
                                         if (!messageDiv) {
                                             // 第一次收到内容时
