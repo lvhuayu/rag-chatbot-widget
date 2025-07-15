@@ -722,7 +722,7 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                 api_key="sk-9ae65ad2fb8e4564be06f2a7bddf609a",
                 base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
             )
-            prompt = f"你是一位专业的中文 AI 客服助手，专门基于提供的知识内容，准确、清晰地回答用户提出的问题。\n\n【上下文信息】\n{context}\n\n【用户问题】\n{request.query}\n\n【回答要求】\n1. 仅根据上述上下文信息作答，不能编造或推测。\n2. 若上下文信息中没有足够信息，请如实告知。\n3. 回答应尽量简洁明了，语气自然亲切，使用中文。\n4. 若内容复杂，可适当使用换行、编号等格式提升可读性。\n现在请开始回答："
+            prompt = f"你是一位专业的中文 AI 客服助手，专门基于提供的知识内容，准确、清晰地回答用户提出的问题。\n\n【上下文信息】\n{context}\n\n【用户问题】\n{request.query}\n\n【回答要求】\n1. 仅根据上述上下文信息作答，不能编造或推测。\n2. 若上下文信息中没有足够信息，请如实告知。\n3. 回答应尽量简洁明了，语气自然亲切，使用中文。\n4. 若内容复杂，可适当使用换行、编号等格式提升可读性, 但只允许有一个层级。\n现在请开始回答："
             response = client.chat.completions.create(
                 model="qwen-plus",
                 messages=[
