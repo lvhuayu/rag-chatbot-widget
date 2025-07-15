@@ -637,14 +637,88 @@ runQuery();
             return False
 
     def delete_user(self, user_id: str):
-        """Delete user by user_id."""
+        """Delete user by user_id, including related sites and their data. Logs each step for debugging."""
         try:
+            # First, find all sites for this user
+            site_query = f"""
+                await prisma.sites.findMany({{
+                    where: {{ user_id: '{user_id}' }}
+                }})
+            """
+            sites = self._run_prisma_query(site_query)
+            logger.info(f"Found {len(sites)} sites for user {user_id}")
+            for site in sites:
+                site_id = site['site_id']
+                logger.info(f"Deleting data for site {site_id} (user {user_id})")
+                try:
+                    emb_query = f"""
+                        await prisma.embeddings.deleteMany({{
+                            where: {{ site_id: '{site_id}' }}
+                        }})
+                    """
+                    self._run_prisma_query(emb_query)
+                    logger.info(f"Deleted embeddings for site {site_id}")
+                except Exception as e:
+                    logger.error(f"Failed to delete embeddings for site {site_id}: {e}")
+                try:
+                    doc_query = f"""
+                        await prisma.documents.deleteMany({{
+                            where: {{ site_id: '{site_id}' }}
+                        }})
+                    """
+                    self._run_prisma_query(doc_query)
+                    logger.info(f"Deleted documents for site {site_id}")
+                except Exception as e:
+                    logger.error(f"Failed to delete documents for site {site_id}: {e}")
+                try:
+                    log_query = f"""
+                        await prisma.chat_logs.deleteMany({{
+                            where: {{ site_id: '{site_id}' }}
+                        }})
+                    """
+                    self._run_prisma_query(log_query)
+                    logger.info(f"Deleted chat_logs for site {site_id}")
+                except Exception as e:
+                    logger.error(f"Failed to delete chat_logs for site {site_id}: {e}")
+                try:
+                    key_query = f"""
+                        await prisma.api_keys.deleteMany({{
+                            where: {{ site_id: '{site_id}' }}
+                        }})
+                    """
+                    self._run_prisma_query(key_query)
+                    logger.info(f"Deleted api_keys for site {site_id}")
+                except Exception as e:
+                    logger.error(f"Failed to delete api_keys for site {site_id}: {e}")
+                try:
+                    sub_query = f"""
+                        await prisma.site_subscriptions.deleteMany({{
+                            where: {{ site_id: '{site_id}' }}
+                        }})
+                    """
+                    self._run_prisma_query(sub_query)
+                    logger.info(f"Deleted site_subscriptions for site {site_id}")
+                except Exception as e:
+                    logger.error(f"Failed to delete site_subscriptions for site {site_id}: {e}")
+                try:
+                    del_site_query = f"""
+                        await prisma.sites.delete({{
+                            where: {{ site_id: '{site_id}' }}
+                        }})
+                    """
+                    self._run_prisma_query(del_site_query)
+                    logger.info(f"Deleted site {site_id}")
+                except Exception as e:
+                    logger.error(f"Failed to delete site {site_id}: {e}")
+            # Now delete the user
+            logger.info(f"Attempting to delete user {user_id}")
             query = f"""
                 await prisma.users.delete({{
                     where: {{ id: '{user_id}' }}
                 }})
             """
             self._run_prisma_query(query)
+            logger.info(f"Deleted user {user_id}")
             return True
         except Exception as e:
             logger.error(f"Error deleting user {user_id}: {e}")

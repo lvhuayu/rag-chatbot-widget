@@ -86,7 +86,7 @@ model sites {
   documents          documents[]
   embeddings         embeddings[]
   site_subscriptions site_subscriptions[]
-  users              users                @relation(fields: [user_id], references: [id])
+  users              users                @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model users {
