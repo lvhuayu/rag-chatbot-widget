@@ -788,6 +788,7 @@
         messageContent.className = 'message-content';
 
         if (sender === 'bot') {
+            console.log(content)
             const markdownHtml = marked.parse(fixMarkdownList(content));
             const sanitizedHtml = DOMPurify.sanitize(markdownHtml, {
                 ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote'],
@@ -896,9 +897,11 @@
                         if (value) {
                             const chunk = decoder.decode(value, { stream: true });
                             chunk.split('\n').forEach(line => {
+                                console.log(line)
                                 if (line.startsWith('data:')) {
                                     const text = line.replace(/^data:/, '').trim();
                                     if (text) {
+                                        console.log(text)
                                         fullMsg += text;
                                         if (!messageDiv) {
                                             // 第一次收到内容时
@@ -985,19 +988,36 @@
 
     // 在脚本区添加fixMarkdownList函数
     function fixMarkdownList(text) {
-      if (!text || text.length < 3) {
-        return text;
-      }
-      // 转义换行
+      if (!text || text.length < 3) return text;
+
+      // 0. 后端换行占位符处理
+      text = text.replace(/\[\[PBR\]\]/g, '\n\n').replace(/\[\[BR\]\]/g, '\n');
+
+      // 1. 转义 \n
       text = text.replace(/\\n/g, '\n');
-      // 把 - 开头的伪列表项分行（前面不是换行的 -，前面加换行）
-      text = text.replace(/-([^\n-])/g, '\n- $1');
-      // 补空行
+
+      // 2. 多层级伪列表（--）识别
+      text = text.replace(/^(-{2,})\s*(.*)$/gm, (_, dashes, content) => {
+        const level = Math.min(dashes.length, 6);
+        return `${'  '.repeat(level - 1)}- ${content.trim()}`;
+      });
+
+      // 3. 单层 - 伪列表，前面无换行时补 \n
+      text = text.replace(/(?<![\n\r])-(\S)/g, '\n- $1');
+
+      // 4. 列表项前自动补空行
       text = text.replace(/([^\n])\n([ \t]*[-*] )/g, '$1\n\n$2');
-      text = text.replace(/^([ \t]*[-*] )/m, '\n$1');
-      text = text.replace(/([^\n])(- )/g, '$1\n$2');
-      return text;
+
+      // 5. 功能说明后跟总结语，自动断行
+      text = text.replace(
+        /(功能限制[：:].{1,60}?)(?=(如有|如需|如果|欢迎|请联系|更多信息|客服))/g,
+        '$1\n\n'
+      );
+
+      return text.trim();
     }
+
+
   </script>
 </body>
 </html>
