@@ -242,8 +242,14 @@ async def edit_user(user_id: str, data: dict = Body(...), credentials: HTTPAutho
 @app.delete("/users/{user_id}")
 async def delete_user(user_id: str, credentials: HTTPAuthorizationCredentials = Depends(security)):
     user = verify_admin_token(credentials)
-    ok = storage.delete_user(user_id)
-    return {"success": ok, "user_id": user_id}
+    try:
+        ok = storage.delete_user(user_id)
+        if ok:
+            return {"success": True, "user_id": user_id}
+        else:
+            return {"success": False, "user_id": user_id, "error": "Failed to delete user. See backend logs for details."}
+    except Exception as e:
+        return {"success": False, "user_id": user_id, "error": str(e)}
 
 # --- Logs Endpoint (admin only) ---
 @app.get("/logs")
