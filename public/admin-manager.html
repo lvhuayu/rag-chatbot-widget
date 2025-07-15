@@ -114,7 +114,8 @@
         let users = [];
         let editingUserId = null;
         async function fetchUsers() {
-            document.getElementById('userLoading').textContent = t('loading_users');
+            const loadingDiv = document.getElementById('userLoading');
+            if (loadingDiv) loadingDiv.textContent = t('loading_users');
             try {
                 const res = await fetch(`${API_BASE}/users`);
                 users = await res.json();
@@ -286,7 +287,8 @@
         }
         // Patch fetchUsers, saveUser, deleteUser, fetchLogs to use authFetch
         async function fetchUsers() {
-            document.getElementById('userLoading').textContent = t('loading_users');
+            const loadingDiv = document.getElementById('userLoading');
+            if (loadingDiv) loadingDiv.textContent = t('loading_users');
             try {
                 const res = await authFetch(`${API_BASE}/users`);
                 users = await res.json();
