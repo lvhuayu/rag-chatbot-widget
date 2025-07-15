@@ -50,7 +50,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://lingwenai.cn",
-        "http://localhost:5500"
+        "http://localhost:5500",
+        "https://portal.lingwenai.cn"
     ],
     allow_credentials=True,
     allow_methods=["*"],

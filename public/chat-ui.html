@@ -421,20 +421,20 @@
             updateAuthStatus();
         }
         
-        // Check Ollama connection
-        async function checkOllamaConnection() {
-            try {
-                const response = await fetch('http://localhost:11434/api/tags');
-                if (response.ok) {
-                    ollamaConnected = true;
-                    updateConnectionStatus(true);
-                } else {
-                    updateConnectionStatus(false);
-                }
-            } catch (error) {
-                updateConnectionStatus(false);
-            }
-        }
+        // // Check Ollama connection
+        // async function checkOllamaConnection() {
+        //     try {
+        //         const response = await fetch('http://localhost:11434/api/tags');
+        //         if (response.ok) {
+        //             ollamaConnected = true;
+        //             updateConnectionStatus(true);
+        //         } else {
+        //             updateConnectionStatus(false);
+        //         }
+        //     } catch (error) {
+        //         updateConnectionStatus(false);
+        //     }
+        // }
         
         // Update connection status
         function updateConnectionStatus(connected) {
