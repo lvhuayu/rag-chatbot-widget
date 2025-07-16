@@ -650,7 +650,7 @@
     <div class="highlight-box" id="chatbot">
         <h3>🎯 立即体验</h3>
         <p>点击下方按钮启动智能RAG聊天机器人，体验本地化AI助手的强大功能</p>
-        <button class="button" onclick="initChatbot()">🚀 启动聊天机器人</button>
+        <button class="button" onclick="showChatbot()">🚀 启动聊天机器人</button>
         <button class="button secondary" onclick="removeChatbot()">🗑️ 移除机器人</button>
         <div id="status" class="status info">准备就绪，点击启动按钮开始体验</div>
     </div>
@@ -661,358 +661,44 @@
     <p>📧 ask.lingwenai@gmail.com</p>
   </footer>
 
-  <!-- 聊天机器人容器 -->
-  <div class="chatbot-container" id="chatbot-container">
-    <div class="chatbot-header">
-      <h3>🤖 AI 助手</h3>
-      <div class="chatbot-controls">
-        <button class="minimize-btn" onclick="minimizeChatbot()" title="最小化">−</button>
-      </div>
-    </div>
-    <div class="chatbot-messages" id="chatbot-messages">
-      <!-- 消息将在这里显示 -->
-    </div>
-    <div class="chatbot-input">
-      <div class="input-wrapper">
-        <textarea 
-          id="chatbot-input" 
-          class="message-input" 
-          placeholder="输入您的问题..."
-          rows="1"
-        ></textarea>
-        <button id="chatbot-send" class="send-btn">
-          <svg fill="currentColor" viewBox="0 0 20 20" width="16" height="16">
-            <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/>
-          </svg>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 最小化图标 -->
-  <div class="minimize-icon" id="minimize-icon" onclick="expandChatbot()">
-    🤖
-  </div>
-
-  <!-- 引入RAG服务和聊天机器人脚本 -->
-  <script src="rag-service.js"></script>
+  <!-- 引入chatbot.js并自动初始化iframe聊天机器人 -->
   <script src="https://lingwenai.cn/chatbot.js"></script>
-
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
-
   <script>
-    // Configure marked for better list handling
-    marked.setOptions({
-      breaks: true,
-      gfm: true
-    });
-    // Detect environment and set API base URL
-    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-    const API_BASE_URL = isLocalhost ? "http://localhost:8001" : "https://essayformatter.com";
-    let chatbotInitialized = false;
-    let sending = false;
-    
+    function scrollToDemo() {
+      const demo = document.getElementById('chatbot');
+      if (demo) demo.scrollIntoView({ behavior: 'smooth' });
+    }
     function updateStatus(message, type = 'info') {
-        const statusDiv = document.getElementById('status');
+      const statusDiv = document.getElementById('status');
+      if (statusDiv) {
         statusDiv.textContent = message;
         statusDiv.className = `status ${type}`;
+      }
     }
-    
-    async function initChatbot() {
-        try {
-            updateStatus('🚀 正在启动智能RAG聊天机器人...', 'info');
-            const chatbotContainer = document.getElementById('chatbot-container');
-            const minimizeIcon = document.getElementById('minimize-icon');
-            chatbotContainer.style.display = 'flex';
-            minimizeIcon.style.display = 'none';
-
-            // 每次启动前清空消息区，实现焕然一新
-            const messagesContainer = document.getElementById('chatbot-messages');
-            messagesContainer.innerHTML = '';
-
-            // 测试 Markdown 渲染
-            const testText = '这是**粗体文本**测试\n\n- 项目符号1\n- 项目符号2\n- 项目符号3';
-            const testHtml = marked.parse(testText);
-
-            // 添加欢迎消息
-            addChatMessage('bot', '嗨，我是凌问AI小助手！\n\n我可以帮您解答一些问题， 例如：\n- 资费\n- 功能特点\n- 适用场景\n\n有问题直接问我就行，我马上告诉您！');
-
-            // // 添加模拟资费方案 markdown 消息
-            // const mockPricing = '我们提供以下几种收费版本，供不同需求的用户选择：\n- **免费版**：适合博客、测试用户，每月有一定对话次数限制，不支持知识库功能。\n- **基础版**：每月￥49，适合内容站和咨询类网站，支持知识库功能，每日最多100条对话。\n- **专业版**：每月￥199，适合企业官网、电商平台，支持无限知识库，每月2000次对话，并可自定义聊天窗口风格。\n- **私有化版**：每月￥999，面向企业或教育客户，支持私有部署、定制化支持。';
-            // addChatMessage('bot', mockPricing);
-
-            chatbotInitialized = true;
-            updateStatus('✅ 智能RAG聊天机器人启动成功！', 'success');
-        } catch (error) {
-            updateStatus(`❌ 启动失败: ${error.message}`, 'error');
-        }
+    function showChatbot() {
+      let iframe = document.getElementById('rag-chatbot-iframe');
+      let minimizeBtn = document.getElementById('rag-chatbot-minimize');
+      if (!iframe) {
+        // 首次点击，插入聊天机器人
+        initRAGChatbot({
+          apiKey: "cmcu4th0r0005wouf9qpp3s0d",
+          welcomeMessage: "您好，我是智能RAG客服助手，有任何问题欢迎咨询！",
+          enableRAG: true,
+          theme: { primaryColor: "#667eea" }
+        });
+        updateStatus('✅ 智能RAG聊天机器人启动成功！', 'success');
+      } else {
+        iframe.style.display = 'block';
+        if (minimizeBtn) minimizeBtn.style.display = 'none';
+        updateStatus('✅ 智能RAG聊天机器人已显示', 'success');
+      }
     }
-    
     function removeChatbot() {
-        const chatbotContainer = document.getElementById('chatbot-container');
-        const minimizeIcon = document.getElementById('minimize-icon');
-        
-        chatbotContainer.style.display = 'none';
-        minimizeIcon.style.display = 'none';
-        chatbotInitialized = false;
-        updateStatus('🗑️ 聊天机器人已移除', 'info');
+      const iframe = document.getElementById('rag-chatbot-iframe');
+      const minimizeBtn = document.getElementById('rag-chatbot-minimize');
+      if (iframe) iframe.style.display = 'none';
+      if (minimizeBtn) minimizeBtn.style.display = 'none';
     }
-    
-    function minimizeChatbot() {
-        const chatbotContainer = document.getElementById('chatbot-container');
-        const minimizeIcon = document.getElementById('minimize-icon');
-        
-        chatbotContainer.style.display = 'none';
-        minimizeIcon.style.display = 'flex';
-    }
-    
-    function expandChatbot() {
-        const chatbotContainer = document.getElementById('chatbot-container');
-        const minimizeIcon = document.getElementById('minimize-icon');
-        
-        chatbotContainer.style.display = 'flex';
-        minimizeIcon.style.display = 'none';
-    }
-
-    function addChatMessage(sender, content) {
-        const messagesContainer = document.getElementById('chatbot-messages');
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `chatbot-message ${sender}`;
-
-        const avatar = document.createElement('div');
-        avatar.className = 'message-avatar';
-        avatar.textContent = sender === 'user' ? 'U' : '🤖';
-
-        const messageContent = document.createElement('div');
-        messageContent.className = 'message-content';
-
-        if (sender === 'bot') {
-            const markdownHtml = marked.parse(fixMarkdownList(content));
-            const sanitizedHtml = DOMPurify.sanitize(markdownHtml, {
-                ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote'],
-                ALLOWED_ATTR: []
-            });
-            messageContent.innerHTML = sanitizedHtml;
-        } else {
-            messageContent.textContent = content;
-        }
-
-        messageDiv.appendChild(avatar);
-        messageDiv.appendChild(messageContent);
-        messagesContainer.appendChild(messageDiv);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-    
-    function showTypingIndicator() {
-        const messagesContainer = document.getElementById('chatbot-messages');
-        const typingDiv = document.createElement('div');
-        typingDiv.className = 'chatbot-message bot';
-        typingDiv.id = 'typing-indicator';
-        
-        const avatar = document.createElement('div');
-        avatar.className = 'message-avatar';
-        avatar.textContent = '🤖';
-        
-        const typingContent = document.createElement('div');
-        typingContent.className = 'typing-indicator';
-        typingContent.innerHTML = `
-            <div class="typing-dot"></div>
-            <div class="typing-dot"></div>
-            <div class="typing-dot"></div>
-        `;
-        
-        typingDiv.appendChild(avatar);
-        typingDiv.appendChild(typingContent);
-        messagesContainer.appendChild(typingDiv);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }
-    
-    function hideTypingIndicator() {
-        const typingIndicator = document.getElementById('typing-indicator');
-        if (typingIndicator) {
-            typingIndicator.remove();
-        }
-    }
-    
-    async function sendMessage() {
-        if (sending) return;
-        sending = true;
-        const input = document.getElementById('chatbot-input');
-        const sendBtn = document.getElementById('chatbot-send');
-        const message = input.value.trim();
-        if (!message || !chatbotInitialized) { sending = false; return; }
-        addChatMessage('user', message);
-        input.value = '';
-        sendBtn.disabled = true;
-        showTypingIndicator();
-        try {
-            const apiKey = 'cmcu4th0r0005wouf9qpp3s0d';
-            let token = null;
-            try {
-                const tokenResp = await fetch(`${API_BASE_URL}/auth/token`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ apiKey })
-                });
-                const tokenData = await tokenResp.json();
-                token = tokenData.token;
-            } catch (err) {
-                hideTypingIndicator();
-                addChatMessage('bot', '无法获取认证token，AI服务不可用。');
-                sendBtn.disabled = false;
-                sending = false;
-                return;
-            }
-            if (!token) {
-                hideTypingIndicator();
-                addChatMessage('bot', '认证失败，AI服务不可用。');
-                sendBtn.disabled = false;
-                sending = false;
-                return;
-            }
-            try {
-                const response = await fetch(`${API_BASE_URL}/rag-generate`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ query: message, top_k: 1 })
-                });
-                const contentType = response.headers.get('content-type') || '';
-                if (contentType.includes('text/event-stream')) {
-                    if (!response.body) throw new Error('No response body');
-                    const reader = response.body.getReader();
-                    const decoder = new TextDecoder();
-                    let done = false;
-                    let fullMsg = '';
-                    let messageDiv = null;
-                    let messageContent = null;
-                    const messagesContainer = document.getElementById('chatbot-messages');
-                    while (!done) {
-                        const { value, done: doneReading } = await reader.read();
-                        done = doneReading;
-                        if (value) {
-                            const chunk = decoder.decode(value, { stream: true });
-                            chunk.split('\n').forEach(line => {
-                                if (line.startsWith('data:')) {
-                                    const text = line.replace(/^data:/, '').trim();
-                                    if (text) {
-                                        fullMsg += text;
-                                        if (!messageDiv) {
-                                            // 第一次收到内容时
-                                            hideTypingIndicator();
-                                            messageDiv = document.createElement('div');
-                                            messageDiv.className = 'chatbot-message bot';
-                                            messageDiv.id = 'streaming-message';
-                                            const avatar = document.createElement('div');
-                                            avatar.className = 'message-avatar';
-                                            avatar.textContent = '🤖';
-                                            messageContent = document.createElement('div');
-                                            messageContent.className = 'message-content';
-                                            messageDiv.appendChild(avatar);
-                                            messageDiv.appendChild(messageContent);
-                                            messagesContainer.appendChild(messageDiv);
-                                        }
-                                        const markdownHtml = marked.parse(fixMarkdownList(fullMsg));
-                                        const sanitizedHtml = DOMPurify.sanitize(markdownHtml, {
-                                            ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote'],
-                                            ALLOWED_ATTR: []
-                                        });
-                                        messageContent.innerHTML = sanitizedHtml;
-                                        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-                                    }
-                                }
-                            });
-                        }
-                    }
-                    if (messageDiv) messageDiv.removeAttribute('id');
-                    // --- 新增：流结束后，做一次完整的markdown修正和最终渲染 ---
-                    if (messageContent && fullMsg) {
-                        const finalHtml = marked.parse(fixMarkdownList(fullMsg));
-                        const sanitizedHtml = DOMPurify.sanitize(finalHtml, {
-                            ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote'],
-                            ALLOWED_ATTR: []
-                        });
-                        messageContent.innerHTML = sanitizedHtml;
-                    }
-                    sendBtn.disabled = false;
-                    sending = false;
-                    return;
-                }
-                // 非流式处理
-                const data = await response.json();
-                hideTypingIndicator();
-                addChatMessage('bot', data.context || 'AI无响应');
-                sendBtn.disabled = false;
-                sending = false;
-            } catch (error) {
-                hideTypingIndicator();
-                addChatMessage('bot', '抱歉，AI服务连接失败。');
-                sendBtn.disabled = false;
-                sending = false;
-            }
-        } catch (error) {
-            hideTypingIndicator();
-            addChatMessage('bot', '抱歉，AI服务连接失败。');
-            sendBtn.disabled = false;
-            sending = false;
-        }
-    }
-    
-    // 处理回车键发送消息
-    document.addEventListener('DOMContentLoaded', function() {
-        const input = document.getElementById('chatbot-input');
-        if (input) {
-            input.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                }
-            });
-        }
-        // 按钮发送事件用onclick赋值，避免重复绑定
-        const sendBtn = document.getElementById('chatbot-send');
-        if (sendBtn) {
-            sendBtn.onclick = sendMessage;
-        }
-    });
-    
-    function scrollToDemo() {
-      document.getElementById('chatbot').scrollIntoView({ behavior: 'smooth' });
-    }
-
-    // 在脚本区添加fixMarkdownList函数
-    function fixMarkdownList(text) {
-      if (!text || text.length < 3) return text;
-
-      // 1. 转义 \n
-      text = text.replace(/\\n/g, '\n');
-
-      // 2. 多层级伪列表（--）识别
-      text = text.replace(/^(-{2,})\s*(.*)$/gm, (_, dashes, content) => {
-        const level = Math.min(dashes.length, 6);
-        return `${'  '.repeat(level - 1)}- ${content.trim()}`;
-      });
-
-      // 3. 单层 - 伪列表，前面无换行时补 \n
-      text = text.replace(/(?<![\n\r])-(\S)/g, '\n- $1');
-
-      // 4. 列表项前自动补空行
-      text = text.replace(/([^\n])\n([ \t]*[-*] )/g, '$1\n\n$2');
-
-
-      // 总结语前自动断行（如需、如果、欢迎、更多信息、客服等）
-      text = text.replace(
-        /([^\n])((如需|如果|更多)[^\n]*)/g,
-        '$1\n\n$2'
-      );
-
-      return text.trim();
-    }
-
-
   </script>
 </body>
 </html>
