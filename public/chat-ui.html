@@ -489,7 +489,7 @@
             messageContent.className = 'message-content';
 
             if (sender === 'bot') {
-                const markdownHtml = marked.parse(fixMarkdownList(content));
+                const markdownHtml = marked.parse(content);
                 const sanitizedHtml = DOMPurify.sanitize(markdownHtml, {
                     ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote'],
                     ALLOWED_ATTR: []
@@ -667,7 +667,7 @@ async function sendMessageToOllama(userMessage) {
                 messageContent.className = 'message-content';
                 typingDiv.appendChild(messageContent);
             }
-            const markdownHtml = marked.parse(fixMarkdownList(content));
+            const markdownHtml = marked.parse(content);
             const sanitizedHtml = DOMPurify.sanitize(markdownHtml, {
                 ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote'],
                 ALLOWED_ATTR: []
