@@ -304,6 +304,20 @@
     const API_BASE_URL = isLocalhost ? "http://localhost:8001" : "https://essayformatter.com";
     let chatbotInitialized = false;
     let sending = false;
+    // 新增：用于存储通过 postMessage 传递的 apiKey
+    let apiKey = null;
+    // 监听 postMessage，接收 config.apiKey
+    window.addEventListener('message', function(event) {
+      if (event.data && event.data.type === 'CHATBOT_CONFIG') {
+        if (event.data.config && event.data.config.apiKey) {
+          apiKey = event.data.config.apiKey;
+          // 可选：自动初始化
+          if (!chatbotInitialized) {
+            initChatbot();
+          }
+        }
+      }
+    });
     function updateStatus(message, type = 'info') {}
     // 连接状态检测
     function updateConnectionStatus(connected) {
@@ -396,7 +410,14 @@
         sendBtn.disabled = true;
         showTypingIndicator();
         try {
-            const apiKey = 'cmcu4th0r0005wouf9qpp3s0d';
+            // 用变量 apiKey，而不是写死
+            if (!apiKey) {
+                hideTypingIndicator();
+                addChatMessage('bot', '未配置 apiKey，AI服务不可用。');
+                sendBtn.disabled = false;
+                sending = false;
+                return;
+            }
             let token = null;
             try {
                 const tokenResp = await fetch(`${API_BASE_URL}/auth/token`, {
