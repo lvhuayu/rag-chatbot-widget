@@ -306,15 +306,20 @@
     let sending = false;
     // 新增：用于存储通过 postMessage 传递的 apiKey
     let apiKey = null;
-    // 监听 postMessage，接收 config.apiKey
+    // 新增：用于存储通过 postMessage 传递的 welcomeMessage
+    let welcomeMessage = null;
+    // 监听 postMessage，接收 config.apiKey 和 config.welcomeMessage
     window.addEventListener('message', function(event) {
       if (event.data && event.data.type === 'CHATBOT_CONFIG') {
         if (event.data.config && event.data.config.apiKey) {
           apiKey = event.data.config.apiKey;
-          // 可选：自动初始化
-          if (!chatbotInitialized) {
-            initChatbot();
-          }
+        }
+        if (event.data.config && event.data.config.welcomeMessage) {
+          welcomeMessage = event.data.config.welcomeMessage;
+        }
+        // 可选：自动初始化
+        if (!chatbotInitialized) {
+          initChatbot();
         }
       }
     });
@@ -345,7 +350,7 @@
         chatbotContainer.style.display = 'flex';
         const messagesContainer = document.getElementById('chatbot-messages');
         messagesContainer.innerHTML = '';
-        addChatMessage('bot', '嗨，我是凌问AI小助手！\n\n我可以帮您解答一些问题， 例如：\n- 资费\n- 功能特点\n- 适用场景\n\n有问题直接问我就行，我马上告诉您！');
+        addChatMessage('bot', welcomeMessage || '嗨，我是凌问AI小助手！\n\n我可以帮您解答一些问题， 例如：\n- 资费\n- 功能特点\n- 适用场景\n\n有问题直接问我就行，我马上告诉您！');
         chatbotInitialized = true;
     }
     function addChatMessage(sender, content) {
