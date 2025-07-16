@@ -241,9 +241,9 @@
             outline: none;
             transition: border-color 0.3s ease;
             font-family: inherit;
-            height: 36px;
-            min-height: 36px;
-            max-height: 36px;
+            height: 60px;
+            max-height: 80px;
+            min-height: 60px;
             overflow: hidden;
             box-sizing: border-box;
             line-height: 20px;
@@ -421,20 +421,20 @@
             updateAuthStatus();
         }
         
-        // // Check Ollama connection
-        // async function checkOllamaConnection() {
-        //     try {
-        //         const response = await fetch('http://localhost:11434/api/tags');
-        //         if (response.ok) {
-        //             ollamaConnected = true;
-        //             updateConnectionStatus(true);
-        //         } else {
-        //             updateConnectionStatus(false);
-        //         }
-        //     } catch (error) {
-        //         updateConnectionStatus(false);
-        //     }
-        // }
+        // Check Ollama connection
+        async function checkOllamaConnection() {
+            try {
+                const response = await fetch('https://essayformatter.com/health');
+                if (response.ok) {
+                    ollamaConnected = true;
+                    updateConnectionStatus(true);
+                } else {
+                    updateConnectionStatus(false);
+                }
+            } catch (error) {
+                updateConnectionStatus(false);
+            }
+        }
         
         // Update connection status
         function updateConnectionStatus(connected) {
