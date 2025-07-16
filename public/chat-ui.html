@@ -552,7 +552,7 @@
         // 默认都为已连接和已认证
         updateConnectionStatus(true);
         updateAuthStatus(true);
-        initChatbot();
+        // initChatbot(); // 注释掉，防止页面加载时自动显示默认欢迎语
     });
     function fixMarkdownList(text) {
       if (!text || text.length < 3) return text;
