@@ -1056,4 +1056,26 @@
     `;
     document.head.appendChild(style);
     
+    // Add fixMarkdownList function for markdown list formatting
+    function fixMarkdownList(text) {
+      if (!text || text.length < 3) return text;
+      // 1. 转义 \n
+      text = text.replace(/\\n/g, '\n');
+      // 2. 多层级伪列表（--）识别
+      text = text.replace(/^(-{2,})\s*(.*)$/gm, (_, dashes, content) => {
+        const level = Math.min(dashes.length, 6);
+        return `${'  '.repeat(level - 1)}- ${content.trim()}`;
+      });
+      // 3. 单层 - 伪列表，前面无换行时补 \n
+      text = text.replace(/(?<![\n\r])-(\S)/g, '\n- $1');
+      // 4. 列表项前自动补空行
+      text = text.replace(/([^\n])\n([ \t]*[-*] )/g, '$1\n\n$2');
+      // 总结语前自动断行（如需、如果、欢迎、更多信息、客服等）
+      text = text.replace(
+        /([^\n])((如需|如果|更多)[^\n]*)/g,
+        '$1\n\n$2'
+      );
+      return text.trim();
+    }
+    
 })(); 
