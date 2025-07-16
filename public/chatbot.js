@@ -741,7 +741,7 @@
                                 const text = line.replace(/^data:/, '').trim();
                                 if (text) {
                                     fullMsg += text;
-                                    if (onData) onData(fullMsg);
+                                    if (onData) onData(fixMarkdownList(fullMsg));
                                 }
                             }
                         });
