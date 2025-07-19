@@ -50,12 +50,7 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI app
 app = FastAPI(title="RAG Chatbot Backend (Prisma)", version="2.0.0")
 
-# Initialize rate limiter
-limiter = Limiter(key_func=get_remote_address)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-# Configure CORS with more flexible origin handling
+# Configure CORS FIRST (before rate limiting)
 def get_allowed_origins():
     """Get allowed origins from environment or use defaults"""
     env_origins = os.getenv("ALLOWED_ORIGINS")
@@ -86,6 +81,56 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"]
 )
+
+# Add CORS debugging middleware
+@app.middleware("http")
+async def cors_debug_middleware(request: Request, call_next):
+    """Log CORS-related requests for debugging"""
+    origin = request.headers.get("origin")
+    method = request.method
+    
+    if method == "OPTIONS" or origin:
+        logger.info(f"CORS Request: {method} {request.url.path} from {origin}")
+    
+    response = await call_next(request)
+    
+    # Log CORS response headers
+    if method == "OPTIONS" or origin:
+        cors_headers = {k: v for k, v in response.headers.items() if k.lower().startswith('access-control')}
+        if cors_headers:
+            logger.info(f"CORS Response Headers: {cors_headers}")
+    
+    return response
+
+# Initialize rate limiter AFTER CORS
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Custom rate limiting function that skips OPTIONS requests
+def conditional_rate_limit(limit_string: str):
+    """Apply rate limiting only to non-OPTIONS requests"""
+    def decorator(func):
+        async def wrapper(*args, **kwargs):
+            # Get the request object
+            request_obj = None
+            for arg in args:
+                if isinstance(arg, Request):
+                    request_obj = arg
+                    break
+            for value in kwargs.values():
+                if isinstance(value, Request):
+                    request_obj = value
+                    break
+            
+            # Skip rate limiting for OPTIONS requests (preflight)
+            if request_obj and request_obj.method == "OPTIONS":
+                return await func(*args, **kwargs)
+            
+            # Apply rate limiting for other requests
+            return await limiter.limit(limit_string)(func)(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
 # Security
@@ -298,9 +343,10 @@ async def root():
     return {"message": "RAG Chatbot Backend API (Prisma)", "status": "running"}
 
 @app.options("/{full_path:path}")
-async def options_handler(full_path: str):
-    """Handle CORS preflight requests for all endpoints"""
-    return {"message": "CORS preflight handled"}
+async def options_handler(full_path: str, request: Request):
+    """Handle CORS preflight requests for all endpoints - NO RATE LIMITING"""
+    # This endpoint should never be rate limited as it's for CORS preflight
+    return {"message": "CORS preflight handled", "path": full_path}
 
 @app.get("/health")
 async def health_check():
@@ -482,6 +528,10 @@ async def get_current_user(current_user: User = Depends(verify_token)):
 @limiter.limit("20/minute")  # 20 token requests per minute
 async def get_token_by_apikey(request: Request):
     """通过apiKey换取JWT token，后端查siteId签发token，不信任前端siteId"""
+    # Log the request for debugging
+    origin = request.headers.get("origin")
+    logger.info(f"Token request from origin: {origin}")
+    
     try:
         data = await request.json()
         api_key = data.get('apiKey') or data.get('api_key')
