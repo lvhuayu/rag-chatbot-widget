@@ -64,7 +64,7 @@ security = HTTPBearer()
 JWT_SECRET = "your-secret-key-change-in-production"
 JWT_ALGORITHM = "HS256"
 
-# Initialize storage
+# Initialize storage 
 storage = PrismaRAGStorage()
 
 # In-memory storage for challenges and sessions (in production, use Redis)
