@@ -34,6 +34,11 @@ import sqlite3
 from openai import OpenAI
 from fastapi.responses import StreamingResponse
 
+# Rate limiting imports
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
 # Add the parent directory to the path to import the Prisma storage
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.rag_storage_prisma import PrismaRAGStorage
@@ -44,6 +49,11 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
 app = FastAPI(title="RAG Chatbot Backend (Prisma)", version="2.0.0")
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure CORS
 app.add_middleware(
@@ -214,7 +224,8 @@ def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends(secur
         raise HTTPException(status_code=401, detail=f"Authentication error: {str(e)}")
 
 @app.post("/admin/login", response_model=AdminLoginResponse)
-async def admin_login(request: AdminLoginRequest):
+@limiter.limit("5/minute")  # 5 login attempts per minute
+async def admin_login(request: AdminLoginRequest, request_obj: Request):
     if request.username == ADMIN_USERNAME and request.password == ADMIN_PASSWORD:
         payload = {
             "id": "admin",
@@ -229,19 +240,22 @@ async def admin_login(request: AdminLoginRequest):
 
 # --- User Management Endpoints (admin only) ---
 @app.get("/users")
-async def list_users(credentials: HTTPAuthorizationCredentials = Depends(security)):
+@limiter.limit("30/minute")  # 30 user list requests per minute
+async def list_users(request_obj: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
     user = verify_admin_token(credentials)
     users = storage.get_all_users()
     return users
 
 @app.put("/users/{user_id}")
-async def edit_user(user_id: str, data: dict = Body(...), credentials: HTTPAuthorizationCredentials = Depends(security)):
+@limiter.limit("20/minute")  # 20 user edits per minute
+async def edit_user(user_id: str, request_obj: Request, data: dict = Body(...), credentials: HTTPAuthorizationCredentials = Depends(security)):
     user = verify_admin_token(credentials)
     ok = storage.update_user(user_id, data)
     return {"success": ok, "user_id": user_id, "updated": data}
 
 @app.delete("/users/{user_id}")
-async def delete_user(user_id: str, credentials: HTTPAuthorizationCredentials = Depends(security)):
+@limiter.limit("10/minute")  # 10 user deletions per minute
+async def delete_user(user_id: str, request_obj: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
     user = verify_admin_token(credentials)
     try:
         ok = storage.delete_user(user_id)
@@ -254,7 +268,8 @@ async def delete_user(user_id: str, credentials: HTTPAuthorizationCredentials = 
 
 # --- Logs Endpoint (admin only) ---
 @app.get("/logs")
-async def get_logs(credentials: HTTPAuthorizationCredentials = Depends(security)):
+@limiter.limit("30/minute")  # 30 log requests per minute
+async def get_logs(request_obj: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
     user = verify_admin_token(credentials)
     logs = storage.get_logs()
     return logs
@@ -270,11 +285,48 @@ async def health_check():
         "status": "healthy", 
         "model": "simple-character-frequency", 
         "storage": "Prisma Unified Database",
-        "database_info": db_info
+        "database_info": db_info,
+        "rate_limiting": "enabled"
     }
 
+@app.get("/rate-limit-status")
+async def get_rate_limit_status(request: Request):
+    """Get current rate limit status for the requesting IP"""
+    try:
+        # Get current rate limit info for the IP
+        key = get_remote_address(request)
+        current_limits = limiter.get_window_stats(key)
+        
+        return {
+            "ip": key,
+            "rate_limiting_enabled": True,
+            "current_limits": current_limits,
+            "limits": {
+                "admin_login": "5/minute",
+                "auth_challenge": "10/minute", 
+                "auth_verify": "10/minute",
+                "auth_register": "5/minute",
+                "auth_token": "20/minute",
+                "add_documents": "10/minute",
+                "add_scraped_data": "5/minute",
+                "search": "60/minute",
+                "rag_generate": "30/minute",
+                "admin_users": "30/minute",
+                "admin_edit_user": "20/minute",
+                "admin_delete_user": "10/minute",
+                "admin_logs": "30/minute"
+            }
+        }
+    except Exception as e:
+        return {
+            "ip": get_remote_address(request),
+            "rate_limiting_enabled": True,
+            "error": str(e)
+        }
+
 @app.post("/auth/request-challenge", response_model=ChallengeResponse)
-async def request_challenge(request: ChallengeRequest):
+@limiter.limit("10/minute")  # 10 challenge requests per minute
+async def request_challenge(request: ChallengeRequest, request_obj: Request):
     """Request a challenge for public key authentication"""
     try:
         # Generate a random challenge
@@ -306,7 +358,8 @@ async def request_challenge(request: ChallengeRequest):
         raise HTTPException(status_code=500, detail=f"Error generating challenge: {str(e)}")
 
 @app.post("/auth/verify-challenge", response_model=VerifyChallengeResponse)
-async def verify_challenge(request: VerifyChallengeRequest):
+@limiter.limit("10/minute")  # 10 verification attempts per minute
+async def verify_challenge(request: VerifyChallengeRequest, request_obj: Request):
     """Verify challenge signature and issue JWT token"""
     try:
         # Get challenge data
@@ -354,7 +407,8 @@ async def verify_challenge(request: VerifyChallengeRequest):
         raise HTTPException(status_code=500, detail=f"Error verifying challenge: {str(e)}")
 
 @app.post("/auth/register-key", response_model=RegisteredKeyAuthResponse)
-async def authenticate_with_registered_key(request: RegisteredKeyAuthRequest):
+@limiter.limit("5/minute")  # 5 registration attempts per minute
+async def authenticate_with_registered_key(request: RegisteredKeyAuthRequest, request_obj: Request):
     """Authenticate using a registered public key"""
     try:
         # In a real implementation, you would check against a database of registered keys
@@ -384,6 +438,7 @@ async def get_current_user(current_user: User = Depends(verify_token)):
     return current_user
 
 @app.post("/auth/token", response_model=SiteTokenResponse)
+@limiter.limit("20/minute")  # 20 token requests per minute
 async def get_token_by_apikey(request: Request):
     """通过apiKey换取JWT token，后端查siteId签发token，不信任前端siteId"""
     try:
@@ -444,7 +499,8 @@ def split_text(text, max_length=300):
     return [c for c in merged if c.strip()]
 
 @app.post("/add-documents", response_model=Dict[str, Any])
-async def add_documents(documents: List[Document]):
+@limiter.limit("10/minute")  # 10 document uploads per minute
+async def add_documents(documents: List[Document], request_obj: Request):
     """批量上传多个文档，每个文档自动分段批量入库"""
     all_results = []
     for doc in documents:
@@ -497,7 +553,8 @@ class ScrapedDataRequest(BaseModel):
     documents: List[ScrapedDocument]
 
 @app.post("/add-scraped-data", response_model=Dict[str, Any])
-async def add_scraped_data(request: ScrapedDataRequest):
+@limiter.limit("5/minute")  # 5 scraped data uploads per minute
+async def add_scraped_data(request: ScrapedDataRequest, request_obj: Request):
     """直接接收爬虫数据并存储到向量数据库"""
     try:
         logger.info(f"开始处理爬取数据，站点: {request.site_id}, 文档数: {len(request.documents)}")
@@ -584,7 +641,8 @@ def is_chitchat(query: str) -> bool:
     return any(kw in q for kw in CHITCHAT_KEYWORDS)
 
 @app.post("/search", response_model=RAGResponse)
-async def search_documents(request: SearchRequest):
+@limiter.limit("60/minute")  # 60 searches per minute
+async def search_documents(request: SearchRequest, request_obj: Request):
     # 闲聊意图识别
     if is_chitchat(request.query):
         return RAGResponse(
@@ -704,7 +762,8 @@ from fastapi import HTTPException, Depends
 from fastapi.security import HTTPAuthorizationCredentials
 
 @app.post("/rag-generate")
-async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
+@limiter.limit("30/minute")  # 30 RAG generations per minute
+async def rag_generate(request: SearchRequest, request_obj: Request, credentials: HTTPAuthorizationCredentials = Depends(security)):
     # 闲聊意图识别
     if is_chitchat(request.query):
         def chitchat_stream():
