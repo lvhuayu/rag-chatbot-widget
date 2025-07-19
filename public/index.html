@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>凌问科技 - 智嵌AI客服</title>
+  <title data-i18n="title">凌问科技 - 智嵌AI客服</title>
   <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
   <link rel="icon" type="image/x-icon" href="favicon.ico">
   <style>
@@ -91,6 +91,7 @@
         gap: 30px;
         margin: 0;
         padding: 0;
+        align-items: center;
     }
     
     .nav-link {
@@ -105,6 +106,85 @@
     .nav-link:hover {
         background: #667eea;
         color: white;
+    }
+
+    /* Language Switcher Styles */
+    .language-switcher {
+        position: relative;
+        display: inline-block;
+    }
+
+    .language-btn {
+        background: rgba(102, 126, 234, 0.1);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        color: #667eea;
+        padding: 8px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.3s ease;
+    }
+
+    .language-btn:hover {
+        background: rgba(102, 126, 234, 0.2);
+        border-color: rgba(102, 126, 234, 0.5);
+    }
+
+    .language-btn::after {
+        content: '▼';
+        font-size: 10px;
+        transition: transform 0.3s ease;
+    }
+
+    .language-btn.active::after {
+        transform: rotate(180deg);
+    }
+
+    .language-dropdown {
+        position: absolute;
+        top: 100%;
+        right: 0;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        min-width: 120px;
+        z-index: 1001;
+        display: none;
+        overflow: hidden;
+    }
+
+    .language-dropdown.show {
+        display: block;
+    }
+
+    .language-option {
+        padding: 10px 15px;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .language-option:hover {
+        background-color: #f8f9fa;
+    }
+
+    .language-option.active {
+        background-color: #667eea;
+        color: white;
+    }
+
+    .flag-icon {
+        width: 16px;
+        height: 12px;
+        border-radius: 2px;
+        object-fit: cover;
     }
     
     .highlight-box {
@@ -573,55 +653,72 @@
     <nav class="navbar">
       <div class="nav-container">
           <a href="index.html" class="nav-logo">
-              <img src="favicon.ico" alt="凌问AI" />
+              <img src="favicon.ico" alt="凌问 AI" />
               <span class="nav-logo-text">
-                <span class="nav-logo-main">凌问</span>
+                <span class="nav-logo-main" data-i18n="nav-logo-main">凌问</span>
                 <span class="nav-logo-ai">AI</span>
                 <!-- <span class="nav-logo-sub">- 智嵌客服</span> -->
               </span>
           </a>
           <ul class="nav-menu">
               <!-- <li><a href="chat-ui.html" class="nav-link">💬 在线体验</a></li> -->
-              <li><a href="https://portal.lingwenai.cn/" class="nav-link rag-platform"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:inline-block;vertical-align:middle;"><rect x="3" y="10" width="3" height="7" rx="1" fill="white"/><rect x="8.5" y="6" width="3" height="11" rx="1" fill="white"/><rect x="14" y="13" width="3" height="4" rx="1" fill="white"/></svg><span style="margin-left:6px;">RAG数据平台</span></a></li>
+              <li><a href="https://portal.lingwenai.cn/" class="nav-link rag-platform"><span style="margin-left:6px;" data-i18n="rag_platform">登录</span></a></li>
+              <li>
+                <div class="language-switcher">
+                  <button class="language-btn" onclick="toggleLanguageDropdown()">
+                    <span class="current-lang">中文</span>
+                  </button>
+                  <div class="language-dropdown" id="languageDropdown">
+                    <div class="language-option active" data-lang="zh-CN" onclick="changeLanguage('zh-CN')">
+                      <span>🇨🇳</span>
+                      <span>中文</span>
+                    </div>
+                    <div class="language-option" data-lang="en-US" onclick="changeLanguage('en-US')">
+                      <span>🇺🇸</span>
+                      <span>English</span>
+                    </div>
+                  </div>
+                </div>
+              </li>
           </ul>
       </div>
   </nav>
 
   <header>
-    <h1>💬 一行代码，即刻拥有中文智能客服</h1>
-    <p>本地部署 · 私有数据 · 智能语义理解</p>
-    <button class="button" onclick="scrollToDemo()">🚀 立即体验</button>
+    <h1 data-i18n="hero_title">💬 一行代码，即刻拥有中文智能客服</h1>
+    <p data-i18n="hero_subtitle">本地部署 · 私有数据 · 智能语义理解</p>
+    <button class="button" onclick="scrollToDemo()" data-i18n="hero_button">🚀 立即体验</button>
   </header>
 
   <div class="container">
     <section>
-      <h2>⚡ 三大核心能力</h2>
+      <h2 data-i18n="core_features_title">⚡ 三大核心能力</h2>
       <div class="grid">
         <div class="card">
-          <h3>🧩 一行接入</h3>
-          <p>将代码嵌入网站，无需额外开发，3分钟上线聊天机器人。</p>
+          <h3 data-i18n="feature_one_title">🧩 一行接入</h3>
+          <p data-i18n="feature_one_desc">将代码嵌入网站，无需额外开发，3分钟上线聊天机器人。</p>
         </div>
         <div class="card">
-          <h3>🔐 数据私有</h3>
-          <p>支持多租户隔离与权限管理，确保每个站点数据独立、安全、私有。</p>
+          <h3 data-i18n="feature_two_title">🔐 数据私有</h3>
+          <p data-i18n="feature_two_desc">支持多租户隔离与权限管理，确保每个站点数据独立、安全、私有。</p>
         </div>
         <div class="card">
-          <h3>🧠 中文RAG</h3>
-          <p>优化中文搜索与上下文增强，准确应答用户问题，适配多行业场景。</p>
+          <h3 data-i18n="feature_three_title">🧠 中文RAG</h3>
+          <p data-i18n="feature_three_desc">优化中文搜索与上下文增强，准确应答用户问题，适配多行业场景。</p>
         </div>
       </div>
     </section>
 
     <section id="demo">
-      <h2 class="quick-demo-title">📦 快速集成示例</h2>
+      <h2 class="quick-demo-title" data-i18n="demo_title">📦 快速集成示例</h2>
       <div class="code-block">
-        <span class="comment">&lt;!-- 一行代码，轻松嵌入聊天机器人 --&gt;</span><br>
+        <span class="comment" data-i18n="code_comment_1">&lt;!-- 一行代码，轻松嵌入聊天机器人 --&gt;</span><br>
         &lt;script src="https://lingwenai.cn/chatbot.js"&gt;&lt;/script&gt;<br>
         &lt;script&gt;<br>
-        &nbsp;&nbsp;<span class="comment">// 初始化智能RAG聊天机器人</span><br>
+        &nbsp;&nbsp;<span class="comment" data-i18n="code_comment_2">// 初始化智能RAG聊天机器人</span><br>
         &nbsp;&nbsp;initRAGChatbot({<br>
         &nbsp;&nbsp;&nbsp;&nbsp;apiKey: "<span class="string">your_api_key</span>",<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;welcomeMessage: "<span class="string">您好，我是智能客服小助手，有任何问题欢迎咨询！</span>",<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;welcomeMessage: "<span class="string" data-i18n="code_welcome_message">您好，我是智能客服小助手，有任何问题欢迎咨询！</span>",<br>
         &nbsp;&nbsp;&nbsp;&nbsp;enableRAG: <span class="keyword">true</span>,<br>
         &nbsp;&nbsp;&nbsp;&nbsp;theme: { primaryColor: "<span class="string">#667eea</span>" },<br>
         &nbsp;&nbsp;});<br>
@@ -630,44 +727,180 @@
     </section>
 
     <section>
-      <h2 class="scene-title">🎯 应用场景</h2>
+      <h2 class="scene-title" data-i18n="scenarios_title">🎯 应用场景</h2>
       <div class="grid">
         <div class="card">
-          <h3>🛍️ 电商客服</h3>
-          <p>支持常见订单、售后、退换货咨询自动应答，降低人工成本。</p>
+          <h3 data-i18n="scenario_one_title">🛍️ 电商客服</h3>
+          <p data-i18n="scenario_one_desc">支持常见订单、售后、退换货咨询自动应答，降低人工成本。</p>
         </div>
         <div class="card">
-          <h3>🏢 企业官网</h3>
-          <p>智能答疑用户问题，提升品牌形象与访问转化率。</p>
+          <h3 data-i18n="scenario_two_title">🏢 企业官网</h3>
+          <p data-i18n="scenario_two_desc">智能答疑用户问题，提升品牌形象与访问转化率。</p>
         </div>
         <div class="card">
-          <h3>📁 内部问答</h3>
-          <p>为员工提供制度流程文档自动化查询，提升效率。</p>
+          <h3 data-i18n="scenario_three_title">📁 内部问答</h3>
+          <p data-i18n="scenario_three_desc">为员工提供制度流程文档自动化查询，提升效率。</p>
         </div>
       </div>
     </section>
 
     <div class="highlight-box" id="chatbot">
-        <h3>🎯 立即体验</h3>
-        <p>点击下方按钮启动智能RAG聊天机器人，体验本地化AI助手的强大功能</p>
-        <button class="button" onclick="showChatbot()">🚀 启动聊天机器人</button>
-        <button class="button secondary" onclick="removeChatbot()">🗑️ 移除机器人</button>
-        <div id="status" class="status info">准备就绪，点击启动按钮开始体验</div>
+        <h3 data-i18n="demo_box_title">🎯 立即体验</h3>
+        <p data-i18n="demo_box_desc">点击下方按钮启动智能RAG聊天机器人，体验本地化AI助手的强大功能</p>
+        <button class="button" onclick="showChatbot()" data-i18n="demo_start_button">🚀 启动聊天机器人</button>
+        <button class="button secondary" onclick="removeChatbot()" data-i18n="demo_remove_button">🗑️ 移除机器人</button>
+        <div id="status" class="status info" data-i18n="demo_status_ready">准备就绪，点击启动按钮开始体验</div>
     </div>
   </div>
 
   <footer>
-    <p>© 2025 凌问 AI | 专为中文场景打造的私有AI客服</p>
+    <p data-i18n="footer_copyright">© 2025 LingAsk AI | 专为中文场景打造的私有AI客服</p>
     <p>📧 ask.lingwenai@gmail.com</p>
   </footer>
 
   <!-- 引入chatbot.js并自动初始化iframe聊天机器人 -->
   <script src="https://lingwenai.cn/chatbot.js"></script>
   <script>
+    // 多语言支持
+    const translations = {
+              'zh-CN': {
+          'title': '凌问 AI - 智嵌客服',
+          'nav-logo-main': '凌问',
+          'rag_platform': '登录',
+          'hero_title': '💬 一行代码，即刻拥有中文智能客服',
+          'hero_subtitle': '本地部署 · 私有数据 · 智能语义理解',
+          'hero_button': '🚀 立即体验',
+          'core_features_title': '⚡ 三大核心能力',
+          'feature_one_title': '🧩 一行接入',
+          'feature_one_desc': '将代码嵌入网站，无需额外开发，3分钟上线聊天机器人。',
+          'feature_two_title': '🔐 数据私有',
+          'feature_two_desc': '支持多租户隔离与权限管理，确保每个站点数据独立、安全、私有。',
+          'feature_three_title': '🧠 中文RAG',
+          'feature_three_desc': '优化中文搜索与上下文增强，准确应答用户问题，适配多行业场景。',
+          'demo_title': '📦 快速集成示例',
+          'code_comment_1': '<!-- 一行代码，轻松嵌入聊天机器人 -->',
+          'code_comment_2': '// 初始化智能RAG聊天机器人',
+          'code_welcome_message': '您好，我是智能客服小助手，有任何问题欢迎咨询！',
+          'scenarios_title': '🎯 应用场景',
+          'scenario_one_title': '🛍️ 电商客服',
+          'scenario_one_desc': '支持常见订单、售后、退换货咨询自动应答，降低人工成本。',
+          'scenario_two_title': '🏢 企业官网',
+          'scenario_two_desc': '智能答疑用户问题，提升品牌形象与访问转化率。',
+          'scenario_three_title': '📁 内部问答',
+          'scenario_three_desc': '为员工提供制度流程文档自动化查询，提升效率。',
+          'demo_box_title': '🎯 立即体验',
+          'demo_box_desc': '点击下方按钮启动智能RAG聊天机器人，体验本地化AI助手的强大功能',
+          'demo_start_button': '🚀 启动聊天机器人',
+          'demo_remove_button': '🗑️ 移除机器人',
+          'demo_status_ready': '准备就绪，点击启动按钮开始体验',
+          'demo_status_success': '✅ 智能RAG聊天机器人启动成功！',
+          'demo_status_shown': '✅ 智能RAG聊天机器人已显示',
+          'demo_status_removed': '🗑️ 聊天机器人已移除',
+          'footer_copyright': '© 2025 LingAsk AI | 专为中文场景打造的私有AI客服'
+        },
+              'en-US': {
+          'title': 'LingAsk AI - Smart Customer Service',
+          'nav-logo-main': 'LingAsk',
+          'rag_platform': 'Login',
+          'hero_title': '💬 One Line of Code, Instant Smart Customer Service',
+          'hero_subtitle': 'Local Deployment · Private Data · Intelligent Semantic Understanding',
+          'hero_button': '🚀 Try Now',
+          'core_features_title': '⚡ Three Core Capabilities',
+          'feature_one_title': '🧩 One-Line Integration',
+          'feature_one_desc': 'Embed code into your website, no additional development needed, launch chatbot in 3 minutes.',
+          'feature_two_title': '🔐 Private Data',
+          'feature_two_desc': 'Support multi-tenant isolation and permission management, ensuring independent, secure, and private data for each site.',
+          'feature_three_title': '🧠 Chinese RAG',
+          'feature_three_desc': 'Optimized Chinese search and context enhancement, accurate response to user questions, adaptable to multiple industry scenarios.',
+          'demo_title': '📦 Quick Integration Example',
+          'code_comment_1': '<!-- One line of code, easily embed chatbot -->',
+          'code_comment_2': '// Initialize smart RAG chatbot',
+          'code_welcome_message': 'Hello, I am your smart customer service assistant. Feel free to ask any questions!',
+          'scenarios_title': '🎯 Application Scenarios',
+          'scenario_one_title': '🛍️ E-commerce Support',
+          'scenario_one_desc': 'Support automatic responses for common orders, after-sales, returns and exchanges, reducing labor costs.',
+          'scenario_two_title': '🏢 Corporate Website',
+          'scenario_two_desc': 'Intelligent Q&A for user questions, enhancing brand image and conversion rates.',
+          'scenario_three_title': '📁 Internal Q&A',
+          'scenario_three_desc': 'Provide automated document queries for employees, improving efficiency.',
+          'demo_box_title': '🎯 Try Now',
+          'demo_box_desc': 'Click the button below to launch the smart RAG chatbot and experience the powerful features of localized AI assistant',
+          'demo_start_button': '🚀 Launch Chatbot',
+          'demo_remove_button': '🗑️ Remove Bot',
+          'demo_status_ready': 'Ready, click the launch button to start experience',
+          'demo_status_success': '✅ Smart RAG chatbot launched successfully!',
+          'demo_status_shown': '✅ Smart RAG chatbot is now visible',
+          'demo_status_removed': '🗑️ Chatbot has been removed',
+          'footer_copyright': '© 2025 LingAsk AI | Private AI Customer Service Built for Chinese Scenarios'
+        }
+    };
+
+    let currentLanguage = 'zh-CN';
+
+    // 切换语言下拉菜单
+    function toggleLanguageDropdown() {
+      const dropdown = document.getElementById('languageDropdown');
+      const btn = document.querySelector('.language-btn');
+      dropdown.classList.toggle('show');
+      btn.classList.toggle('active');
+    }
+
+    // 切换语言
+    function changeLanguage(lang) {
+      currentLanguage = lang;
+      document.documentElement.lang = lang;
+      
+      // 更新所有带有 data-i18n 属性的元素
+      const elements = document.querySelectorAll('[data-i18n]');
+      elements.forEach(element => {
+        const key = element.getAttribute('data-i18n');
+        if (translations[lang] && translations[lang][key]) {
+          element.textContent = translations[lang][key];
+        }
+      });
+
+      // 更新当前语言显示
+      const currentLangSpan = document.querySelector('.current-lang');
+      if (currentLangSpan) {
+        currentLangSpan.textContent = lang === 'zh-CN' ? '中文' : 'English';
+      }
+
+      // 更新语言选项的激活状态
+      document.querySelectorAll('.language-option').forEach(option => {
+        option.classList.remove('active');
+        if (option.getAttribute('data-lang') === lang) {
+          option.classList.add('active');
+        }
+      });
+
+      // 关闭下拉菜单
+      document.getElementById('languageDropdown').classList.remove('show');
+      document.querySelector('.language-btn').classList.remove('active');
+
+      // 保存语言偏好到本地存储
+      localStorage.setItem('preferred-language', lang);
+    }
+
+    // 初始化语言
+    function initLanguage() {
+      const savedLang = localStorage.getItem('preferred-language') || 'zh-CN';
+      changeLanguage(savedLang);
+    }
+
+    // 点击外部关闭下拉菜单
+    document.addEventListener('click', function(event) {
+      const languageSwitcher = document.querySelector('.language-switcher');
+      if (!languageSwitcher.contains(event.target)) {
+        document.getElementById('languageDropdown').classList.remove('show');
+        document.querySelector('.language-btn').classList.remove('active');
+      }
+    });
+
     function scrollToDemo() {
       const demo = document.getElementById('chatbot');
       if (demo) demo.scrollIntoView({ behavior: 'smooth' });
     }
+    
     function updateStatus(message, type = 'info') {
       const statusDiv = document.getElementById('status');
       if (statusDiv) {
@@ -675,31 +908,42 @@
         statusDiv.className = `status ${type}`;
       }
     }
+    
     function showChatbot() {
       let iframe = document.getElementById('rag-chatbot-iframe');
       let minimizeBtn = document.getElementById('rag-chatbot-minimize');
       if (!iframe) {
         // 首次点击，插入聊天机器人
+        const welcomeMessage = currentLanguage === 'zh-CN' 
+          ? "嗨，我是LingAsk AI小助手！\n\n我可以帮您解答一些问题， 例如：\n- 资费\n- 功能特点\n- 适用场景\n\n有问题直接问我就行，我马上告诉您！"
+          : "Hi, I'm LingAsk AI Assistant!\n\nI can help you answer some questions, such as:\n- Pricing\n- Features\n- Use cases\n\nJust ask me directly and I'll tell you right away!";
+        
         initRAGChatbot({
           apiKey: "cmcu4th0r0005wouf9qpp3s0d",
-          welcomeMessage: "嗨，我是凌问AI小助手！\n\n我可以帮您解答一些问题， 例如：\n- 资费\n- 功能特点\n- 适用场景\n\n有问题直接问我就行，我马上告诉您！",
+          welcomeMessage: welcomeMessage,
           enableRAG: true,
           theme: { primaryColor: "#667eea" }
         });
-        updateStatus('✅ 智能RAG聊天机器人启动成功！', 'success');
+        updateStatus(translations[currentLanguage].demo_status_success, 'success');
       } else {
         iframe.style.display = 'block';
         if (minimizeBtn) minimizeBtn.style.display = 'none';
-        updateStatus('✅ 智能RAG聊天机器人已显示', 'success');
+        updateStatus(translations[currentLanguage].demo_status_shown, 'success');
       }
     }
+    
     function removeChatbot() {
       const iframe = document.getElementById('rag-chatbot-iframe');
       const minimizeBtn = document.getElementById('rag-chatbot-minimize');
       if (iframe) iframe.style.display = 'none';
       if (minimizeBtn) minimizeBtn.style.display = 'none';
-      updateStatus('🗑️ 聊天机器人已移除', 'info');
+      updateStatus(translations[currentLanguage].demo_status_removed, 'info');
     }
+
+    // 页面加载完成后初始化语言
+    document.addEventListener('DOMContentLoaded', function() {
+      initLanguage();
+    });
   </script>
 </body>
 </html>
