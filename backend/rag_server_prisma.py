@@ -55,17 +55,36 @@ limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Configure CORS
+# Configure CORS with more flexible origin handling
+def get_allowed_origins():
+    """Get allowed origins from environment or use defaults"""
+    env_origins = os.getenv("ALLOWED_ORIGINS")
+    if env_origins:
+        return [origin.strip() for origin in env_origins.split(",")]
+    
+    return [
+        "https://lingwenai.cn",
+        "https://www.lingwenai.cn",
+        "http://localhost:5500",
+        "http://localhost:3000",
+        "http://localhost:8080",
+        "https://portal.lingwenai.cn",
+        "https://essayformatter.com",
+        "https://www.essayformatter.com",
+        "http://localhost:5173",  # Vite dev server
+        "http://127.0.0.1:5500",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8080",
+        "http://127.0.0.1:5173"
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://lingwenai.cn",
-        "http://localhost:5500",
-        "https://portal.lingwenai.cn"
-    ],
+    allow_origins=get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 
@@ -278,6 +297,11 @@ async def get_logs(request_obj: Request, credentials: HTTPAuthorizationCredentia
 async def root():
     return {"message": "RAG Chatbot Backend API (Prisma)", "status": "running"}
 
+@app.options("/{full_path:path}")
+async def options_handler(full_path: str):
+    """Handle CORS preflight requests for all endpoints"""
+    return {"message": "CORS preflight handled"}
+
 @app.get("/health")
 async def health_check():
     db_info = storage.get_database_info()
@@ -323,6 +347,23 @@ async def get_rate_limit_status(request: Request):
             "rate_limiting_enabled": True,
             "error": str(e)
         }
+
+@app.get("/cors-status")
+async def get_cors_status(request: Request):
+    """Get CORS configuration and current request info"""
+    origin = request.headers.get("origin", "No origin header")
+    referer = request.headers.get("referer", "No referer header")
+    
+    return {
+        "request_origin": origin,
+        "request_referer": referer,
+        "allowed_origins": get_allowed_origins(),
+        "cors_enabled": True,
+        "origin_allowed": origin in get_allowed_origins() if origin != "No origin header" else "Unknown",
+        "user_agent": request.headers.get("user-agent", "Unknown"),
+        "method": request.method,
+        "path": request.url.path
+    }
 
 @app.post("/auth/request-challenge", response_model=ChallengeResponse)
 @limiter.limit("10/minute")  # 10 challenge requests per minute
