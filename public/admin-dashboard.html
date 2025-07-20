@@ -131,6 +131,7 @@
             padding: 0 0 40px 0;
             background: none;
             min-width: 0;
+            overflow-x: hidden;
         }
         .main-header {
             background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
@@ -155,7 +156,8 @@
         }
         .tab-section {
             display: none;
-            padding: 30px 40px 0 40px;
+            padding: 30px 20px 0 20px;
+            overflow-x: hidden;
         }
         .tab-section h2 {
             font-family: 'Inter', sans-serif;
@@ -179,6 +181,7 @@
             box-shadow: 0 4px 20px rgba(0,0,0,0.08);
             font-family: 'Inter', sans-serif;
             border: 1px solid #e2e8f0;
+            table-layout: fixed;
         }
         .data-table th {
             background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
@@ -537,6 +540,8 @@
                 overflow-x: auto;
                 white-space: nowrap;
                 border: 1px solid #e2e8f0;
+                width: 100%;
+                max-width: 100%;
             }
             .data-table th,
             .data-table td {
