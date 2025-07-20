@@ -106,7 +106,7 @@
         // Create iframe element
         const iframe = document.createElement('iframe');
         iframe.id = 'rag-chatbot-iframe';
-        iframe.src = 'https://lingwenai.cn/chat-ui.html';
+        iframe.src = './chat-ui.html';
         iframe.style.cssText = `
             position: fixed;
             bottom: 20px;
