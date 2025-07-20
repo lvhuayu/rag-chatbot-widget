@@ -178,6 +178,7 @@
             overflow: hidden;
             box-shadow: 0 4px 20px rgba(0,0,0,0.08);
             font-family: 'Inter', sans-serif;
+            border: 1px solid #e2e8f0;
         }
         .data-table th {
             background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
@@ -188,13 +189,21 @@
             font-size: 14px;
             letter-spacing: 0.5px;
             text-transform: uppercase;
+            border-right: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .data-table th:last-child {
+            border-right: none;
         }
         .data-table td {
             padding: 16px 20px;
-            border-bottom: 1px solid #f1f3f4;
+            border-bottom: 1px solid #e2e8f0;
+            border-right: 1px solid #e2e8f0;
             font-size: 14px;
             color: #2d3748;
             vertical-align: middle;
+        }
+        .data-table td:last-child {
+            border-right: none;
         }
         .data-table tr:hover {
             background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%);
@@ -499,10 +508,12 @@
             }
             .data-table {
                 font-size: 12px;
+                border: 1px solid #e2e8f0;
             }
             .data-table th,
             .data-table td {
                 padding: 8px 6px;
+                border: 1px solid #e2e8f0;
             }
             .btn {
                 width: 100%;
@@ -525,10 +536,12 @@
                 display: block;
                 overflow-x: auto;
                 white-space: nowrap;
+                border: 1px solid #e2e8f0;
             }
             .data-table th,
             .data-table td {
                 min-width: 100px;
+                border: 1px solid #e2e8f0;
             }
             .data-table td:last-child {
                 min-width: 120px;
