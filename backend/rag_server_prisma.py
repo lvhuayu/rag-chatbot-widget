@@ -923,7 +923,7 @@ app_dependency = [Depends(RateLimiter(times=60, seconds=60))]
 def patch_routes_with_limiter(app):
     for route in app.routes:
         if hasattr(route, "dependant") and getattr(route, "include_in_schema", False):
-            if not any(isinstance(dep.dependency, RateLimiter) for dep in route.dependant.dependencies):
+            if not any(getattr(dep, 'call', None) == RateLimiter for dep in route.dependant.dependencies):
                 route.dependant.dependencies.append(Depends(RateLimiter(times=60, seconds=60)))
 
 patch_routes_with_limiter(app)
