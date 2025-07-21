@@ -1182,7 +1182,8 @@ function switchTab(tab) {
     }
 }
 // --- API BASE ---
-const API_BASE = 'https://portal.lingwenai.cn';
+const API_BASE = 'https://essayformatter.com';
+const BILLING_API_BASE = 'https://portal.lingwenai.cn';
 const ADMIN_TOKEN_KEY = 'admin_token';
 function isAuthenticated() {
     return !!localStorage.getItem(ADMIN_TOKEN_KEY);
@@ -1644,7 +1645,7 @@ async function fetchPlans() {
   const container = document.getElementById('plansTableContainer');
   container.innerHTML = '<div class="loading">Loading plans...</div>';
   try {
-    const res = await authFetch('/api/upload/billing-plans');
+    const res = await authFetch(`${BILLING_API_BASE}/api/upload/billing-plans`);
     const plans = await res.json();
     renderPlans(plans);
   } catch {
@@ -1683,7 +1684,7 @@ function editPlanField(id, field, value) {
 async function savePlan(id) {
   const data = planEdits[id] || {};
   try {
-    const res = await authFetch(`/api/upload/billing-plans/${id}`, {
+    const res = await authFetch(`${BILLING_API_BASE}/api/upload/billing-plans/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -1697,7 +1698,7 @@ async function savePlan(id) {
 async function deletePlan(id) {
   if (!confirm('确定要删除该套餐吗？')) return;
   try {
-    const res = await authFetch(`/api/upload/billing-plans/${id}`, { method: 'DELETE' });
+    const res = await authFetch(`${BILLING_API_BASE}/api/upload/billing-plans/${id}`, { method: 'DELETE' });
     if (res.ok) {
       showSuccess('删除成功');
       fetchPlans();
@@ -1730,7 +1731,7 @@ async function addPlan() {
   const features = document.getElementById('addPlanFeatures').value;
   if (!id || !name) { showError('ID和名称必填'); return; }
   try {
-    const res = await authFetch('/api/upload/billing-plans', {
+    const res = await authFetch(`${BILLING_API_BASE}/api/upload/billing-plans`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, name, monthly_price, daily_limit, features })
