@@ -1074,6 +1074,7 @@
             <li><a class="side-link" id="tab-logs" onclick="switchTab('logs')">📜 <span class="tab-label" data-key="logsTab">日志</span></a></li>
             <li><a class="side-link" id="tab-docs" onclick="switchTab('docs')">📄 <span class="tab-label" data-key="docsTab">文档管理</span></a></li>
             <li><a class="side-link" id="tab-stats" onclick="switchTab('stats')">📊 <span class="tab-label" data-key="statsTab">统计/健康</span></a></li>
+            <li><a class="side-link" id="tab-plans" onclick="switchTab('plans')">💳 <span class="tab-label">套餐管理</span></a></li>
         </ul>
         <div class="sidebar-footer">
             <button class="btn btn-secondary logout-btn-sidebar" onclick="logout()" id="logoutBtnSidebar">🚪 退出登录</button>
@@ -1113,6 +1114,12 @@
         <!-- 统计/健康 -->
         <div class="tab-section" id="statsSection">
             <div id="healthContent"><div class="loading">Loading health information...</div></div>
+        </div>
+        <!-- 套餐管理 -->
+        <div class="tab-section" id="plansSection">
+            <h2>套餐管理</h2>
+            <div id="plansTableContainer"><div class="loading">Loading plans...</div></div>
+            <button class="btn btn-success" onclick="showAddPlan()">➕ 添加套餐</button>
         </div>
         <button class="btn btn-secondary logout-btn" onclick="logout()" id="logoutBtn">Logout</button>
     </div>
@@ -1167,6 +1174,7 @@ function switchTab(tab) {
     if (tab === 'logs') document.getElementById('logsSection').classList.add('active');
     if (tab === 'docs') document.getElementById('docsSection').classList.add('active');
     if (tab === 'stats') { document.getElementById('statsSection').classList.add('active'); loadHealthInfo(); }
+    if (tab === 'plans') document.getElementById('plansSection').classList.add('active');
     
     // 在移动端点击菜单项后自动关闭菜单
     if (window.innerWidth <= 900) {
@@ -1207,6 +1215,7 @@ async function adminLogin(event) {
             refreshStats();
             loadDocuments();
             loadHealthInfo();
+            fetchPlans(); // 登录成功后加载套餐
         } else {
             showError('Login failed.');
         }
@@ -1630,6 +1639,108 @@ async function loadHealthInfo() {
         content.innerHTML = '<div class="error">Failed to load health information: ' + error.message + '</div>';
     }
 }
+// --- 套餐管理 ---
+async function fetchPlans() {
+  const container = document.getElementById('plansTableContainer');
+  container.innerHTML = '<div class="loading">Loading plans...</div>';
+  try {
+    const res = await authFetch('/api/billing-plans');
+    const plans = await res.json();
+    renderPlans(plans);
+  } catch {
+    container.innerHTML = '<div class="error">加载套餐失败</div>';
+  }
+}
+function renderPlans(plans) {
+  if (!plans.length) {
+    document.getElementById('plansTableContainer').innerHTML = '<div class="success">暂无套餐</div>';
+    return;
+  }
+  let html = `<table class='data-table'><thead><tr>
+    <th>ID</th><th>名称</th><th>价格/月</th><th>每日限制</th><th>功能(JSON)</th><th>操作</th>
+  </tr></thead><tbody>`;
+  plans.forEach(plan => {
+    html += `<tr>
+      <td>${plan.id}</td>
+      <td><input class='edit-input' value='${plan.name||''}' onchange='editPlanField("${plan.id}","name",this.value)'></td>
+      <td><input class='edit-input' value='${plan.monthly_price||0}' onchange='editPlanField("${plan.id}","monthly_price",this.value)'></td>
+      <td><input class='edit-input' value='${plan.daily_limit||''}' onchange='editPlanField("${plan.id}","daily_limit",this.value)'></td>
+      <td><input class='edit-input' value='${plan.features||''}' onchange='editPlanField("${plan.id}","features",this.value)'></td>
+      <td>
+        <button class='btn btn-primary' onclick='savePlan("${plan.id}")'>保存</button>
+        <button class='btn btn-danger' onclick='deletePlan("${plan.id}")'>删除</button>
+      </td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('plansTableContainer').innerHTML = html;
+}
+let planEdits = {};
+function editPlanField(id, field, value) {
+  if (!planEdits[id]) planEdits[id] = {};
+  planEdits[id][field] = value;
+}
+async function savePlan(id) {
+  const data = planEdits[id] || {};
+  try {
+    const res = await authFetch(`/api/billing-plans/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (res.ok) {
+      showSuccess('保存成功');
+      fetchPlans();
+    } else throw new Error();
+  } catch { showError('保存失败'); }
+}
+async function deletePlan(id) {
+  if (!confirm('确定要删除该套餐吗？')) return;
+  try {
+    const res = await authFetch(`/api/billing-plans/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      showSuccess('删除成功');
+      fetchPlans();
+    } else throw new Error();
+  } catch { showError('删除失败'); }
+}
+function showAddPlan() {
+  const container = document.getElementById('plansTableContainer');
+  container.innerHTML = `
+    <div class='search-form'>
+      <h3>添加新套餐</h3>
+      <div class='form-row'>
+        <div class='form-group'><label>ID</label><input type='text' id='addPlanId'></div>
+        <div class='form-group'><label>名称</label><input type='text' id='addPlanName'></div>
+      </div>
+      <div class='form-row'>
+        <div class='form-group'><label>价格/月</label><input type='number' id='addPlanPrice'></div>
+        <div class='form-group'><label>每日限制</label><input type='number' id='addPlanLimit'></div>
+      </div>
+      <div class='form-group'><label>功能(JSON)</label><input type='text' id='addPlanFeatures'></div>
+      <button class='btn btn-success' onclick='addPlan()'>添加</button>
+      <button class='btn btn-secondary' onclick='fetchPlans()'>取消</button>
+    </div>`;
+}
+async function addPlan() {
+  const id = document.getElementById('addPlanId').value;
+  const name = document.getElementById('addPlanName').value;
+  const monthly_price = Number(document.getElementById('addPlanPrice').value);
+  const daily_limit = Number(document.getElementById('addPlanLimit').value);
+  const features = document.getElementById('addPlanFeatures').value;
+  if (!id || !name) { showError('ID和名称必填'); return; }
+  try {
+    const res = await authFetch('/api/billing-plans', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, name, monthly_price, daily_limit, features })
+    });
+    if (res.ok) {
+      showSuccess('添加成功');
+      fetchPlans();
+    } else throw new Error();
+  } catch { showError('添加失败'); }
+}
 // --- 工具函数 ---
 function showSuccess(msg) {
     const div = document.createElement('div');
@@ -1726,6 +1837,7 @@ document.addEventListener('DOMContentLoaded', function() {
         refreshStats();
         loadDocuments();
         loadHealthInfo();
+        fetchPlans(); // 初始化时加载套餐
     } else {
         showLoginUI();
     }
