@@ -33,6 +33,9 @@ import rag_storage_prisma as storage
 import sqlite3
 from openai import OpenAI
 from fastapi.responses import StreamingResponse
+from fastapi_limiter import FastAPILimiter
+from fastapi_limiter.depends import RateLimiter
+import aioredis
 
 # Add the parent directory to the path to import the Prisma storage
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -905,6 +908,25 @@ async def generate_with_ollama(query: str, context: str, history: Optional[List[
     except Exception:
         logger.exception("Error calling DashScope")
         raise
+
+import asyncio
+
+@app.on_event("startup")
+async def startup():
+    redis = await aioredis.from_url("redis://localhost:6379", encoding="utf8", decode_responses=True)
+    await FastAPILimiter.init(redis)
+
+# Add a global dependency for rate limiting (60 req/min per IP)
+app_dependency = [Depends(RateLimiter(times=60, seconds=60))]
+
+# Patch all endpoints to use the global rate limiter
+def patch_routes_with_limiter(app):
+    for route in app.routes:
+        if hasattr(route, "dependant") and getattr(route, "include_in_schema", False):
+            if not any(isinstance(dep.dependency, RateLimiter) for dep in route.dependant.dependencies):
+                route.dependant.dependencies.append(Depends(RateLimiter(times=60, seconds=60)))
+
+patch_routes_with_limiter(app)
 
 if __name__ == "__main__":
     import uvicorn

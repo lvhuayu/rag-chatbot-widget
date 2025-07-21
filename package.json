@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "serve public -p 5500",
     "build": "echo 'No build step required for vanilla JS'",
-    "start": "serve public -p 5500"
+    "start": "serve public -p 5500",
+    "postinstall": "pip install fastapi-limiter redis aioredis"
   },
   "keywords": [
     "chatbot",
