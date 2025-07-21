@@ -922,9 +922,9 @@ app_dependency = [Depends(RateLimiter(times=60, seconds=60))]
 # Patch all endpoints to use the global rate limiter
 def patch_routes_with_limiter(app):
     for route in app.routes:
-        if hasattr(route, "dependant") and getattr(route, "include_in_schema", False):
-            if not any(getattr(dep, 'call', None) == RateLimiter for dep in route.dependant.dependencies):
-                route.dependant.dependencies.append(Depends(RateLimiter(times=60, seconds=60)))
+        if hasattr(route, "dependencies") and getattr(route, "include_in_schema", False):
+            if not any(getattr(dep, 'dependency', None) == RateLimiter for dep in route.dependencies):
+                route.dependencies.append(Depends(RateLimiter(times=60, seconds=60)))
 
 patch_routes_with_limiter(app)
 
