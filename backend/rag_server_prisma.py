@@ -51,11 +51,10 @@ app = FastAPI(title="RAG Chatbot Backend (Prisma)", version="2.0.0")
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://lingwenai.cn",
-        "http://localhost:5500",
-        "https://portal.lingwenai.cn"
-    ],
+    # Widget (chatbot.js) embeds on arbitrary customer sites, so any Origin must be
+    # allowed at the CORS layer. Real tenant control happens in /auth/token, which
+    # validates the apiKey against its registered allowed_origins.
+    allow_origin_regex=".*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

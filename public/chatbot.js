@@ -11,7 +11,7 @@
     
     // Detect environment and set API base URL
     const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-    const API_BASE_URL = isLocalhost ? "http://localhost:8001" : "https://essayformatter.com";
+    const API_BASE_URL = isLocalhost ? "http://localhost:8001" : "https://portal.lingwenai.cn";
     console.log(isLocalhost)
     // Global function to initialize the chatbot
     window.initRAGChatbot = async function(config) {
