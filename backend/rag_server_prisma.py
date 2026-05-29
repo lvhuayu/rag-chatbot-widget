@@ -31,7 +31,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization
 import rag_storage_prisma as storage
 import sqlite3
-from openai import OpenAI
+from openai import OpenAI, AzureOpenAI
 from fastapi.responses import StreamingResponse
 from fastapi_limiter import FastAPILimiter
 from fastapi_limiter.depends import RateLimiter
@@ -792,10 +792,11 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                 context_parts.extend([content for content, _ in other_snippets[:request.top_k - len(context_parts)]])
             context = "\n\n".join(context_parts)
 
-            # Step 2: LLM流式生成
-            client = OpenAI(
-                api_key="sk-9ae65ad2fb8e4564be06f2a7bddf609a",
-                base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            # Step 2: LLM流式生成 (Azure OpenAI)
+            client = AzureOpenAI(
+                api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
             )
             prompt = f"""
                          你是一位专业的中文 AI 客服助手，专门基于提供的知识内容，准确、清晰地回答用户提出的问题。
@@ -816,7 +817,7 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                          现在请开始回答：
                     """             
             response = client.chat.completions.create(
-                model="qwen-plus",
+                model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1"),
                 messages=[
                     {"role": "system", "content": "你是一个专业的AI助手。"},
                     {"role": "user", "content": prompt},
@@ -829,6 +830,9 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
             
             # 逐字流式推送
             for chunk in response:
+                # Azure OpenAI 的首个 chunk 可能 choices 为空(内容过滤元数据)，需跳过
+                if not chunk.choices:
+                    continue
                 delta = chunk.choices[0].delta.content
                 if delta:
                     # 将大段文本拆分成更小的片段
@@ -852,10 +856,10 @@ from openai import OpenAI
 logger = logging.getLogger(__name__)
 
 async def generate_with_ollama(query: str, context: str, history: Optional[List[Dict[str, str]]] = None) -> str:
-    """Generate answer using DashScope (Qwen) with RAG context"""
-    api_key = "sk-9ae65ad2fb8e4564be06f2a7bddf609a"
+    """Generate answer using Azure OpenAI with RAG context"""
+    api_key = os.getenv("AZURE_OPENAI_API_KEY")
     if not api_key:
-        raise RuntimeError("DASHSCOPE_API_KEY not set in environment")
+        raise RuntimeError("AZURE_OPENAI_API_KEY not set in environment")
 
     try:
         # 拼接历史对话
@@ -886,12 +890,13 @@ async def generate_with_ollama(query: str, context: str, history: Optional[List[
 """
 
 
-        client = OpenAI(
+        client = AzureOpenAI(
             api_key=api_key,
-            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
         )
         response = client.chat.completions.create(
-            model="qwen-plus",  # 根据实际模型名替换，如 "qwen-max"
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1"),
             messages=[
                 {"role": "system", "content": "你是一个专业的AI助手。"},
                 {"role": "user", "content": prompt},
