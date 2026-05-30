@@ -66,8 +66,44 @@ security = HTTPBearer()
 JWT_SECRET = "your-secret-key-change-in-production"
 JWT_ALGORITHM = "HS256"
 
-# Initialize storage 
+# Initialize storage
 storage = PrismaRAGStorage()
+
+# ===== 套餐每日对话限额（按 plan_id；None = 不限）=====
+import redis as _redis_lib
+_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rag_database.db")
+_quota_redis = _redis_lib.Redis(host="localhost", port=6379, db=0, decode_responses=True)
+PLAN_DAILY_CHATS = {"free": 100, "pro": 2000, "enterprise": None}
+
+def _resolve_plan_id(site_id: str) -> str:
+    try:
+        now_ms = int(datetime.utcnow().timestamp() * 1000)
+        conn = sqlite3.connect(_DB_PATH)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT plan_id FROM site_subscriptions WHERE site_id=? AND (expire_date IS NULL OR expire_date > ?) ORDER BY start_date DESC LIMIT 1",
+            (site_id, now_ms),
+        )
+        row = cur.fetchone()
+        conn.close()
+        return row[0] if row else "free"
+    except Exception:
+        return "free"
+
+def check_daily_quota(site_id: str):
+    """返回 (allowed, limit, count)；allowed 时把今日计数 +1。Redis 故障时放行。"""
+    plan_id = _resolve_plan_id(site_id)
+    limit = PLAN_DAILY_CHATS.get(plan_id, 100)
+    if limit is None:
+        return True, None, 0
+    try:
+        key = "chatquota:%s:%s" % (site_id, datetime.utcnow().strftime("%Y%m%d"))
+        cnt = _quota_redis.incr(key)
+        if cnt == 1:
+            _quota_redis.expire(key, 90000)  # ~25h
+        return cnt <= limit, limit, cnt
+    except Exception:
+        return True, limit, 0
 
 # In-memory storage for challenges and sessions (in production, use Redis)
 challenges = {}
@@ -745,6 +781,12 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                     return
             except Exception as e:
                 yield f"data: [ERROR] Invalid or expired token: {str(e)}\n\n"
+                return
+
+            # Step 0.5: 每日对话次数限额（按套餐）
+            allowed, qlimit, qcount = check_daily_quota(site_id)
+            if not allowed:
+                yield f"data: 今日对话次数已达上限（{qlimit} 次/天），请升级套餐后继续使用。\n\n"
                 return
 
             # Step 1: Search for relevant documents
