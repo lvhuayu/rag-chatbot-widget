@@ -265,6 +265,29 @@ async def admin_login(request: AdminLoginRequest):
     else:
         raise HTTPException(status_code=401, detail="Invalid admin credentials")
 
+@app.post("/admin/token", response_model=AdminLoginResponse)
+async def admin_token_from_basic(authorization: Optional[str] = Header(None)):
+    """单次登录辅助：此接口位于 nginx Basic 认证保护的 /rag/ 之后，浏览器会自动带上
+    已缓存的 Basic 凭据。若凭据有效即直接签发与 /admin/login 相同的管理员 JWT，
+    从而免去 dashboard 的第二次表单登录。"""
+    if not authorization or not authorization.lower().startswith("basic "):
+        raise HTTPException(status_code=401, detail="Basic credentials required")
+    try:
+        decoded = base64.b64decode(authorization.split(" ", 1)[1]).decode("utf-8")
+        user, _, pw = decoded.partition(":")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid Basic header")
+    if user == ADMIN_USERNAME and pw == ADMIN_PASSWORD:
+        payload = {
+            "id": "admin",
+            "username": ADMIN_USERNAME,
+            "is_admin": True,
+            "exp": datetime.utcnow() + timedelta(hours=8)
+        }
+        token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+        return AdminLoginResponse(token=token, expires_in=8*3600)
+    raise HTTPException(status_code=401, detail="Invalid admin credentials")
+
 # --- User Management Endpoints (admin only) ---
 @app.get("/users")
 async def list_users(credentials: HTTPAuthorizationCredentials = Depends(security)):
