@@ -323,6 +323,19 @@
         }
       }
     });
+    // 兜底：支持通过 URL 参数 ?apikey= 传入 apiKey（便于直接用 iframe 嵌入，无需 postMessage）
+    window.addEventListener('load', function() {
+      try {
+        const p = new URLSearchParams(window.location.search);
+        const k = p.get('apikey') || p.get('apiKey');
+        if (k && !apiKey) {
+          apiKey = k;
+          const w = p.get('welcome');
+          if (w) welcomeMessage = w;
+          if (!chatbotInitialized) initChatbot();
+        }
+      } catch (e) {}
+    });
     function updateStatus(message, type = 'info') {}
     // 连接状态检测
     function updateConnectionStatus(connected) {
