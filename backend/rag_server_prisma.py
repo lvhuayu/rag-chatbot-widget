@@ -714,8 +714,9 @@ async def search_documents(request: SearchRequest):
         raise HTTPException(status_code=500, detail=f"Error searching documents: {str(e)}")
 
 @app.get("/documents", response_model=List[Document])
-async def list_documents(site_id: Optional[str] = None):
-    """List all documents for a site or all documents if no site specified"""
+async def list_documents(site_id: Optional[str] = None, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """List all documents for a site or all documents if no site specified (admin only)"""
+    verify_admin_token(credentials)
     try:
         if site_id:
             documents, _ = storage.get_documents_by_site(site_id)
@@ -737,8 +738,9 @@ async def list_documents(site_id: Optional[str] = None):
         raise HTTPException(status_code=500, detail=f"Error listing documents: {str(e)}")
 
 @app.delete("/clear-documents")
-async def clear_documents(site_id: Optional[str] = None):
-    """Clear all documents for a site or all documents if no site specified"""
+async def clear_documents(site_id: Optional[str] = None, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Clear all documents for a site or all documents if no site specified (admin only)"""
+    verify_admin_token(credentials)
     try:
         if site_id:
             storage.clear_documents_by_user(site_id)
@@ -751,8 +753,9 @@ async def clear_documents(site_id: Optional[str] = None):
         raise HTTPException(status_code=500, detail=f"Error clearing documents: {str(e)}")
 
 @app.get("/stats")
-async def get_stats(site_id: Optional[str] = None):
-    """Get statistics about documents"""
+async def get_stats(site_id: Optional[str] = None, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Get statistics about documents (admin only)"""
+    verify_admin_token(credentials)
     try:
         stats = storage.get_user_stats(site_id)
         return stats
