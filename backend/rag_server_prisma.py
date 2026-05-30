@@ -63,7 +63,7 @@ app.add_middleware(
 
 # Security
 security = HTTPBearer()
-JWT_SECRET = "your-secret-key-change-in-production"
+JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
 JWT_ALGORITHM = "HS256"
 
 # Initialize storage
@@ -234,9 +234,9 @@ class AdminLoginResponse(BaseModel):
     token: str
     expires_in: int
 
-# Hardcoded admin credentials (replace with DB/env in production)
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "admin123"  # Change in production!
+# Admin credentials (from env; do NOT hardcode in production)
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
 # Admin JWT verification
 def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
