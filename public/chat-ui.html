@@ -580,6 +580,8 @@
         return `${'  '.repeat(level - 1)}- ${content.trim()}`;
       });
       // 已移除会把 e-commerce 等连字符词错误拆行的启发式（后端已保留真实换行/空格）
+      // 转义 < 防止答案中的 <script> 等被当成 HTML 标签，导致后续内容被吞掉
+      text = text.replace(/</g, '&lt;');
       text = text.replace(/([^\n])\n([ \t]*[-*] )/g, '$1\n\n$2');
       text = text.replace(
         /([^\n])((如需|如果)[^\n]*)/g,
