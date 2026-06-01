@@ -380,8 +380,8 @@
         if (sender === 'bot') {
             const markdownHtml = marked.parse(fixMarkdownList(content));
             const sanitizedHtml = DOMPurify.sanitize(markdownHtml, {
-                ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote'],
-                ALLOWED_ATTR: []
+                ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote', 'a', 'hr', 'del', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+                ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'align']
             });
             messageContent.innerHTML = sanitizedHtml;
         } else {
@@ -509,8 +509,8 @@
                                         }
                                         const markdownHtml = marked.parse(fixMarkdownList(fullMsg));
                                         const sanitizedHtml = DOMPurify.sanitize(markdownHtml, {
-                                            ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote'],
-                                            ALLOWED_ATTR: []
+                                            ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote', 'a', 'hr', 'del', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+                                            ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'align']
                                         });
                                         messageContent.innerHTML = sanitizedHtml;
                                         messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -525,8 +525,8 @@
                     if (messageContent && fullMsg) {
                         const finalHtml = marked.parse(fixMarkdownList(fullMsg));
                         const sanitizedHtml = DOMPurify.sanitize(finalHtml, {
-                            ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote'],
-                            ALLOWED_ATTR: []
+                            ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote', 'a', 'hr', 'del', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+                            ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'align']
                         });
                         messageContent.innerHTML = sanitizedHtml;
                     }
@@ -572,21 +572,24 @@
         updateAuthStatus(true);
         // initChatbot(); // 注释掉，防止页面加载时自动显示默认欢迎语
     });
+    // 让 markdown 链接在新标签打开并加 noopener（避免在 iframe 内跳走 + 安全）
+    if (window.DOMPurify && DOMPurify.addHook) {
+      DOMPurify.addHook('afterSanitizeAttributes', function (node) {
+        if (node.tagName === 'A') {
+          node.setAttribute('target', '_blank');
+          node.setAttribute('rel', 'noopener noreferrer');
+        }
+      });
+    }
     function fixMarkdownList(text) {
       if (!text || text.length < 3) return text;
       text = text.replace(/\\n/g, '\n');
-      text = text.replace(/^(-{2,})\s*(.*)$/gm, (_, dashes, content) => {
-        const level = Math.min(dashes.length, 6);
-        return `${'  '.repeat(level - 1)}- ${content.trim()}`;
-      });
-      // 已移除会把 e-commerce 等连字符词错误拆行的启发式（后端已保留真实换行/空格）
+      // 多个连字符的嵌套列表标记；内容为空(如 --- 分割线)时保持原样，不要变成空列表项
+      text = text.replace(/^(-{2,})\s*(.*)$/gm, (m, dashes, content) => content ? `${'  '.repeat(Math.min(dashes.length, 6) - 1)}- ${content.trim()}` : m);
       // 转义 < 防止答案中的 <script> 等被当成 HTML 标签，导致后续内容被吞掉
+      // （会拆连字符词、把 如需/如果 强制分段的旧启发式已移除——后端已保留真实换行）
       text = text.replace(/</g, '&lt;');
       text = text.replace(/([^\n])\n([ \t]*[-*] )/g, '$1\n\n$2');
-      text = text.replace(
-        /([^\n])((如需|如果)[^\n]*)/g,
-        '$1\n\n$2'
-      );
       return text.trim();
     }
   </script>
