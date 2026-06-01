@@ -110,7 +110,7 @@ export class RAGServiceClient {
                         const chunk = decoder.decode(value, { stream: true });
                         chunk.split('\n').forEach(line => {
                             if (line.startsWith('data:')) {
-                                const text = line.replace(/^data:/, '').trim();
+                                const text = line.replace(/^data: ?/, '');
                                 if (text) {
                                     fullMsg += text;
                                     if (onData) onData(fullMsg);
