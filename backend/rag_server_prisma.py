@@ -867,7 +867,7 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                 api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
             )
             prompt = f"""
-                         你是一位专业的中文 AI 客服助手，专门基于提供的知识内容，准确、清晰地回答用户提出的问题。
+                         你是一位专业的 AI 客服助手，专门基于提供的知识内容，准确、清晰地回答用户提出的问题。请使用与用户提问相同的语言作答（用户用中文就用中文，用英文就用英文）。
                         
                         【上下文信息】
                          {context}
@@ -879,7 +879,7 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                          1. 仅根据上述上下文信息和历史对话作答，不能编造或推测。
                          2. 若上下文信息中包含电话号码、时间、地点等，请直接引用并明确告知用户。
                          3. 若上下文中没有足够信息，请根据情况， 自行回答，尽量不要虚构内容。
-                         4. 回答应尽量简洁明了，语气自然亲切，使用中文。
+                         4. 回答应尽量简洁明了，语气自然亲切，并与用户提问的语言保持一致。
                          5. 若内容复杂，可适当使用换行、编号等格式提升可读性。编号尽量少一些，可以通过描述来补充。
 
                          现在请开始回答：
@@ -936,7 +936,7 @@ async def generate_with_ollama(query: str, context: str, history: Optional[List[
             for turn in history[-6:]:  # 只取最近6条
                 role = "用户" if turn.get("role") == "user" else "AI"
                 history_text += f"{role}：{turn.get('content', '')}\n"
-        prompt = f"""你是一位专业的中文 AI 客服助手，专门基于提供的知识内容，准确、清晰地回答用户提出的问题。
+        prompt = f"""你是一位专业的 AI 客服助手，专门基于提供的知识内容，准确、清晰地回答用户提出的问题。请使用与用户提问相同的语言作答（用户用中文就用中文，用英文就用英文）。
 
 【历史对话】
 {history_text}
@@ -951,7 +951,7 @@ async def generate_with_ollama(query: str, context: str, history: Optional[List[
 1. 仅根据上述上下文信息和历史对话作答，不能编造或推测。
 2. 若上下文信息中包含电话号码、时间、地点等，请直接引用并明确告知用户。
 3. 若上下文中没有足够信息，请根据情况， 自行回答，尽量不要虚构内容。
-4. 回答应尽量简洁明了，语气自然亲切，使用中文。
+4. 回答应尽量简洁明了，语气自然亲切，并与用户提问的语言保持一致。
 5. 若内容复杂，可适当使用换行、编号等格式提升可读性。
 
 现在请开始回答：
