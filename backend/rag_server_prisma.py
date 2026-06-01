@@ -939,9 +939,12 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                     # 按标点/空白拆分；保留普通空格（英文词间空格不能丢），仅跳过换行/制表符
                     segments = re.split(r'([。！？，；：\s])', delta)
                     for segment in segments:
-                        if segment == '' or segment in ('\n', '\r', '\t'):
+                        if segment in ('', '\r', '\t'):
                             continue
-                        yield f"data: {segment}\n\n"
+                        # 保留换行：转义为 \n 以兼容 SSE 分帧，前端 fixMarkdownList 会还原成真换行，
+                        # 保证 markdown 的有序/无序列表、分段能正确渲染（不能整段丢换行）。
+                        out = segment.replace('\n', '\\n')
+                        yield f"data: {out}\n\n"
                         await asyncio.sleep(0.02)
         except Exception as e:
             yield f"data: [ERROR] {str(e)}\n\n"
