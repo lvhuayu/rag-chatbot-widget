@@ -821,7 +821,32 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                 yield f"data: 我的知识库中没有相关信息来回答您的问题。请联系客服或查看我们的文档获取更多详情。\n\n"
                 return
 
-            query_embedding = generate_simple_embedding(request.query)
+            # 跨语言检索：知识库多为中文。若用户用非中文提问，先把问题翻译成中文再做向量检索，
+            # 否则英文 query 与中文文档向量相似度过低会检索不到。最终回答仍用用户原始语言。
+            retrieval_query = request.query
+            if not any('一' <= ch <= '鿿' for ch in request.query):
+                try:
+                    _tc = AzureOpenAI(
+                        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                        api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
+                    )
+                    _tr = _tc.chat.completions.create(
+                        model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1"),
+                        messages=[
+                            {"role": "system", "content": "你是翻译助手。把用户输入翻译成简体中文，只输出译文本身，不要加任何解释或引号。"},
+                            {"role": "user", "content": request.query},
+                        ],
+                        temperature=0,
+                        max_tokens=200,
+                    )
+                    _zh = (_tr.choices[0].message.content or "").strip()
+                    if _zh:
+                        retrieval_query = _zh
+                except Exception:
+                    retrieval_query = request.query
+
+            query_embedding = generate_simple_embedding(retrieval_query)
             similarities = []
             for i, doc in enumerate(user_documents):
                 if i < len(user_embeddings) and len(user_embeddings[i]) > 0:
@@ -849,7 +874,7 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
             other_snippets = []
             for doc, similarity, idx in filtered_results:
                 content = doc["content"]
-                if query_terms_match(content, request.query):
+                if query_terms_match(content, retrieval_query):
                     priority_snippets.append((content, similarity))
                 else:
                     other_snippets.append((content, similarity))
