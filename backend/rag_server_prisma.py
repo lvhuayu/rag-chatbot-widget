@@ -909,12 +909,18 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
 
                          现在请开始回答：
                     """             
+            # 基础版多轮记忆：system + 最近历史轮次 + 当前问题(含检索上下文)
+            chat_messages = [{"role": "system", "content": "你是一个专业的AI助手。"}]
+            if request.history:
+                for turn in request.history[-6:]:
+                    role = turn.get("role")
+                    content = (turn.get("content") or "").strip()
+                    if role in ("user", "assistant") and content:
+                        chat_messages.append({"role": role, "content": content})
+            chat_messages.append({"role": "user", "content": prompt})
             response = client.chat.completions.create(
                 model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1"),
-                messages=[
-                    {"role": "system", "content": "你是一个专业的AI助手。"},
-                    {"role": "user", "content": prompt},
-                ],
+                messages=chat_messages,
                 stream=True,
                 temperature=0.3,
                 max_tokens=500,

@@ -308,6 +308,8 @@
     let apiKey = null;
     // 新增：用于存储通过 postMessage 传递的 welcomeMessage
     let welcomeMessage = null;
+    // 多轮对话历史（基础版记忆）
+    let convHistory = [];
     // 监听 postMessage，接收 config.apiKey 和 config.welcomeMessage
     window.addEventListener('message', function(event) {
       if (event.data && event.data.type === 'CHATBOT_CONFIG') {
@@ -423,6 +425,8 @@
         const sendBtn = document.getElementById('chatbot-send');
         const message = input.value.trim();
         if (!message || !chatbotInitialized) { sending = false; return; }
+        const history = convHistory.slice(-6);
+        convHistory.push({ role: 'user', content: message });
         addChatMessage('user', message);
         input.value = '';
         sendBtn.disabled = true;
@@ -466,7 +470,7 @@
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify({ query: message, top_k: 1 })
+                    body: JSON.stringify({ query: message, top_k: 1, history })
                 });
                 const contentType = response.headers.get('content-type') || '';
                 if (contentType.includes('text/event-stream')) {
@@ -516,6 +520,7 @@
                         }
                     }
                     if (messageDiv) messageDiv.removeAttribute('id');
+                    if (fullMsg) convHistory.push({ role: 'assistant', content: fullMsg });
                     // --- 新增：流结束后，做一次完整的markdown修正和最终渲染 ---
                     if (messageContent && fullMsg) {
                         const finalHtml = marked.parse(fixMarkdownList(fullMsg));
