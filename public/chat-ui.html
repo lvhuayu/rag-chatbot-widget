@@ -579,7 +579,7 @@
         const level = Math.min(dashes.length, 6);
         return `${'  '.repeat(level - 1)}- ${content.trim()}`;
       });
-      text = text.replace(/(?<![\n\r])-(\S)/g, '\n- $1');
+      // 已移除会把 e-commerce 等连字符词错误拆行的启发式（后端已保留真实换行/空格）
       text = text.replace(/([^\n])\n([ \t]*[-*] )/g, '$1\n\n$2');
       text = text.replace(
         /([^\n])((如需|如果)[^\n]*)/g,
