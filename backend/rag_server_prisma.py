@@ -682,7 +682,7 @@ async def search_documents(request: SearchRequest, credentials: HTTPAuthorizatio
         best_similarity = similarities[0][1] if similarities else 0.0
         quality_threshold = 0.25
         if best_similarity < quality_threshold:
-            logger.info(f"Query: '{request.query}', Best similarity {best_similarity:.3f} below quality threshold {quality_threshold}")
+            logger.info(f"Query: '{request.query}', Best similarity {best_similarity:.3f} below quality threshold {quality_threshold} (/search)")
             return RAGResponse(
                 context="I don't have enough relevant information to answer your question. Please try rephrasing your query or ask about a different topic.",
                 documents=[]
@@ -804,7 +804,7 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
         hint_block = ""
         if matched_suggestions:
             hint_block = "\n\n您可能想问：\n" + "\n".join(f"- {s}" for s in matched_suggestions)
-        return random.choice(fallback_templates) + hint_block
+        return random.choice(fallback_templates) + hint_block + "\n\n如需人工帮助，您可以点右上角「✍️ 留言」留下联系方式，我们会尽快联系您。"
 
     async def event_stream():
         try:
@@ -828,7 +828,7 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
             # Step 1: Search for relevant documents
             user_documents, user_embeddings = storage.get_documents_by_site(site_id)
             if not user_documents:
-                yield f"data: 我的知识库中没有相关信息来回答您的问题。请联系客服或查看我们的文档获取更多详情。\n\n"
+                yield f"data: 我的知识库中没有相关信息来回答您的问题。您可以点右上角「✍️ 留言」留下联系方式，我们会尽快联系您。\n\n"
                 return
 
             # 跨语言检索：知识库多为中文。若用户用非中文提问，先把问题翻译成中文再做向量检索，
@@ -867,7 +867,8 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
             best_similarity = similarities[0][1] if similarities else 0.0
             quality_threshold = 0.25
             if best_similarity < quality_threshold:
-                yield f"data: {get_friendly_fallback_response(request.query)}\n\n"
+                _fb = get_friendly_fallback_response(request.query).replace('\r', '').replace('\n', '\\n')
+                yield f"data: {_fb}\n\n"
                 return
 
             filtered_results = [

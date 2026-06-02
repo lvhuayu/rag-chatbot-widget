@@ -271,6 +271,7 @@
         <span class="status-dot" id="connection-status"></span>
         <span id="status-text">Connecting...</span>
         <span class="auth-indicator" id="auth-indicator" style="display:none;">🔐 Auth</span>
+        <button class="minimize-btn" onclick="openLeadForm()" title="留言" style="margin-right:4px;">✍️</button>
         <button class="minimize-btn" onclick="window.parent.postMessage({ type: 'MINIMIZE_CHATBOT' }, '*')" title="最小化">−</button>
       </div>
     </div>
@@ -292,6 +293,18 @@
         </button>
       </div>
     </div>
+    <div id="lead-form" style="display:none; position:absolute; inset:0; background:#fff; z-index:30; padding:18px; flex-direction:column; border-radius:12px;">
+      <div style="font-weight:700; font-size:16px; margin-bottom:4px;">✍️ 给我们留言</div>
+      <div style="font-size:12px; color:#888; margin-bottom:14px;">留下您的联系方式，我们会尽快联系您。</div>
+      <input id="lead-name" placeholder="称呼（选填）" style="width:100%; box-sizing:border-box; border:1px solid #e5e7eb; border-radius:8px; padding:10px; margin-bottom:10px; font-size:14px;" />
+      <input id="lead-contact" placeholder="联系方式：手机 / 微信 / 邮箱 *" style="width:100%; box-sizing:border-box; border:1px solid #e5e7eb; border-radius:8px; padding:10px; margin-bottom:10px; font-size:14px;" />
+      <textarea id="lead-message" rows="4" placeholder="留言内容 *" style="width:100%; box-sizing:border-box; border:1px solid #e5e7eb; border-radius:8px; padding:10px; margin-bottom:8px; font-size:14px; resize:none; font-family:inherit;"></textarea>
+      <div id="lead-msg" style="font-size:12px; color:#e11d48; min-height:16px; margin-bottom:8px;"></div>
+      <div style="display:flex; gap:10px;">
+        <button id="lead-submit" onclick="submitLead()" style="flex:1; background:linear-gradient(135deg,#667eea,#764ba2); color:#fff; border:none; border-radius:8px; padding:11px; font-size:15px; cursor:pointer;">提交</button>
+        <button onclick="closeLeadForm()" style="flex:0 0 auto; background:#f3f4f6; color:#444; border:none; border-radius:8px; padding:11px 18px; font-size:15px; cursor:pointer;">取消</button>
+      </div>
+    </div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
@@ -302,6 +315,26 @@
     });
     const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
     const API_BASE_URL = isLocalhost ? "http://localhost:8001" : "https://portal.lingwenai.cn";
+    // 留言接口在 uploader（门户）后端；首页在 lingwenai.cn，需绝对指向 portal（CORS 已放行 lingwenai.cn）
+    const PORTAL_API = isLocalhost ? "http://localhost:5000" : "https://portal.lingwenai.cn";
+    function openLeadForm(){ var f=document.getElementById('lead-form'); if(f) f.style.display='flex'; }
+    function closeLeadForm(){ var f=document.getElementById('lead-form'); if(f) f.style.display='none'; var m=document.getElementById('lead-msg'); if(m) m.textContent=''; }
+    async function submitLead(){
+      var name=(document.getElementById('lead-name').value||'').trim();
+      var contact=(document.getElementById('lead-contact').value||'').trim();
+      var message=(document.getElementById('lead-message').value||'').trim();
+      var out=document.getElementById('lead-msg');
+      if(!apiKey){ out.textContent='未配置 apiKey，无法提交。'; return; }
+      if(!contact||!message){ out.textContent='请填写联系方式和留言内容。'; return; }
+      var btn=document.getElementById('lead-submit'); btn.disabled=true;
+      try{
+        var r=await fetch(PORTAL_API+'/api/upload/public-message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey:apiKey,name:name,contact:contact,message:message})});
+        var d=await r.json().catch(function(){return {};});
+        if(r.ok){ document.getElementById('lead-name').value=''; document.getElementById('lead-contact').value=''; document.getElementById('lead-message').value=''; closeLeadForm(); addChatMessage('bot', d.message||'留言已提交，我们会尽快联系您。'); }
+        else { out.textContent=d.message||'提交失败，请稍后再试。'; }
+      }catch(e){ out.textContent='提交失败，请稍后再试。'; }
+      finally{ btn.disabled=false; }
+    }
     let chatbotInitialized = false;
     let sending = false;
     // 新增：用于存储通过 postMessage 传递的 apiKey
