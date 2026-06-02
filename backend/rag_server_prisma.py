@@ -126,6 +126,7 @@ class SearchRequest(BaseModel):
     threshold: Optional[float] = 0.2  # Adjusted for better recall with BGE model
     site_id: Optional[str] = None
     history: Optional[List[Dict[str, str]]] = None  # 新增多轮对话历史
+    has_payqr: Optional[bool] = False  # 本站点是否配置了收款码（由前端告知），用于让模型决定是否展示
 
 class SearchResult(BaseModel):
     document: Document
@@ -920,8 +921,18 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
 
                          现在请开始回答：
                     """             
+            if getattr(request, "has_payqr", False):
+                prompt += "\n\n【特别指令·最高优先级】本店已配置收款码。如果用户【本条】消息是想要付款/支付/扫码付钱/结账，你必须在回答的最末尾另起一行、原样输出标记 [[SHOW_PAYQR]]（只输出这串标记本身，不要加引号、不要解释、不要翻译）。如果用户只是说已经付过款、询问是否到账、要求退款，或与付款无关，则绝对不要输出该标记。"
             # 基础版多轮记忆：system + 最近历史轮次 + 当前问题(含检索上下文)
-            chat_messages = [{"role": "system", "content": "你是一个专业的AI助手。"}]
+            sys_content = "你是一个专业的AI助手。"
+            if getattr(request, "has_payqr", False):
+                sys_content += (
+                    "\n本店已配置收款码（付款二维码）。当且仅当顾客明确表达想要付款/支付/扫码付钱时，"
+                    "在你的回复正文之后另起一行单独输出标记 [[SHOW_PAYQR]]。"
+                    "若顾客只是表示已经付过款、询问是否到账、要求退款，或与付款无关，则不要输出该标记。"
+                    "不要向顾客解释这个标记的含义。"
+                )
+            chat_messages = [{"role": "system", "content": sys_content}]
             if request.history:
                 for turn in request.history[-6:]:
                     role = turn.get("role")
