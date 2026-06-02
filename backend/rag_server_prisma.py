@@ -55,7 +55,9 @@ app.add_middleware(
     # allowed at the CORS layer. Real tenant control happens in /auth/token, which
     # validates the apiKey against its registered allowed_origins.
     allow_origin_regex=".*",
-    allow_credentials=True,
+    # 鉴权走 Authorization: Bearer（非 cookie），无需带凭据；置为 False 可消除
+    # “反射任意 Origin + 允许携带凭据”这一危险组合。
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -645,7 +647,15 @@ def is_chitchat(query: str) -> bool:
     return any(kw in q for kw in CHITCHAT_KEYWORDS)
 
 @app.post("/search", response_model=RAGResponse)
-async def search_documents(request: SearchRequest):
+async def search_documents(request: SearchRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    # 鉴权：site_id 一律从 token 解析，忽略请求体里的 site_id，防止任何人传别人的 site_id 读取其知识库
+    try:
+        _payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        token_site_id = _payload.get("siteId")
+    except Exception:
+        raise HTTPException(status_code=403, detail="Invalid or expired token")
+    if not token_site_id:
+        raise HTTPException(status_code=403, detail="Invalid token: missing siteId")
     # 闲聊意图识别
     if is_chitchat(request.query):
         return RAGResponse(
@@ -654,9 +664,9 @@ async def search_documents(request: SearchRequest):
         )
     """Search for relevant document segments with multi-tenant support, 返回 context 来源信息"""
     try:
-        user_documents, user_embeddings = storage.get_documents_by_site(request.site_id)
+        user_documents, user_embeddings = storage.get_documents_by_site(token_site_id)
         if not user_documents:
-            logger.info(f"No documents available for site: {request.site_id}")
+            logger.info(f"No documents available for site: {token_site_id}")
             return RAGResponse(
                 context="I don't have any information in my knowledge base to answer your question. Please contact support or check our documentation for more details.",
                 documents=[]
