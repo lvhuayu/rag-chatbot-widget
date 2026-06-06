@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+# 工具/内部页面不收录
+Disallow: /admin-dashboard.html
+Disallow: /chat-ui.html
+Disallow: /multi-tenant-example.html
+Disallow: /navbar-template.html
+
+Sitemap: https://lingwenai.cn/sitemap.xml
