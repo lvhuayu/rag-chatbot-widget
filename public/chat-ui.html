@@ -266,7 +266,7 @@
 <body>
   <div class="chatbot-container" id="chatbot-container">
     <div class="chatbot-header">
-      <h3>🤖 AI 助手</h3>
+      <h3><span id="chatbot-title-icon">🤖</span> AI 助手</h3>
       <div class="chatbot-status">
         <span class="status-dot" id="connection-status"></span>
         <span id="status-text">Connecting...</span>
@@ -356,14 +356,26 @@
         el.appendChild(im);
       } else { el.textContent='🤖'; }
     }
+    // 站点在门户配置的头像优先（覆盖挂件传入的默认头像，如落地页的 favicon）
     async function loadBotAvatar(){
-      if (botAvatarUrl || !apiKey) return;
+      if (!apiKey) return;
       try {
         var r = await fetch(PORTAL_API+'/api/upload/public-style-config?apiKey='+encodeURIComponent(apiKey));
         if (!r.ok) return;
         var d = await r.json();
         if (d && d.style_config){ var c = JSON.parse(d.style_config); if (c.avatarUrl) botAvatarUrl = c.avatarUrl; }
       } catch(e){}
+    }
+    // 顶部标题旁的图标也用头像
+    function applyHeaderAvatar(){
+      if (!botAvatarUrl) return;
+      var icon = document.getElementById('chatbot-title-icon');
+      if (!icon) return;
+      icon.innerHTML='';
+      var im=document.createElement('img');
+      im.src=botAvatarUrl; im.alt='';
+      im.style.cssText='width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle';
+      icon.appendChild(im);
     }
     // 监听 postMessage，接收 config.apiKey 和 config.welcomeMessage
     window.addEventListener('message', function(event) {
@@ -424,6 +436,7 @@
         const messagesContainer = document.getElementById('chatbot-messages');
         messagesContainer.innerHTML = '';
         await loadBotAvatar();
+        applyHeaderAvatar();
         addChatMessage('bot', welcomeMessage || '嗨，我是凌问AI小助手！\n\n我可以帮您解答一些问题， 例如：\n- 资费\n- 功能特点\n- 适用场景\n\n有问题直接问我就行，我马上告诉您！');
         chatbotInitialized = true;
     }
