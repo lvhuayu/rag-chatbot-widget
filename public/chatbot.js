@@ -127,7 +127,11 @@
         // Create minimize button
         const minimizeButton = document.createElement('div');
         minimizeButton.id = 'rag-chatbot-minimize';
-        minimizeButton.innerHTML = '🤖';
+        if (finalConfig.avatarUrl) {
+            minimizeButton.innerHTML = '<img src="' + finalConfig.avatarUrl + '" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;">';
+        } else {
+            minimizeButton.innerHTML = '🤖';
+        }
         minimizeButton.style.cssText = `
             position: fixed;
             bottom: 20px;
