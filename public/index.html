@@ -3,947 +3,490 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title data-i18n="title">凌问科技 - 智嵌AI客服</title>
-  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
+  <title data-i18n="title">凌问 AI · 一行代码，即刻拥有中文智能客服</title>
+  <meta name="description" data-i18n-attr="content" data-i18n="meta_desc" content="本地部署 · 私有数据 · 中文RAG。3分钟为您的网站接入企业级智能客服。" />
   <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
+    :root { color-scheme: dark; }
+    html, body { margin: 0; }
     body {
-      font-family: 'Rubik', sans-serif;
-      background: linear-gradient(135deg, #edf2ff, #e0f7fa);
-      margin: 0;
-      color: #1a202c;
-    }
-    
-    /* 导航栏样式 */
-    .navbar {
-        background: rgba(255, 255, 255, 0.95);
-        backdrop-filter: blur(10px);
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        z-index: 1000;
-        box-shadow: 0 2px 20px rgba(0,0,0,0.1);
-    }
-    
-    .nav-container {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 0 20px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        height: 70px;
-    }
-    
-    .nav-logo {
-        font-size: 1.4rem;
-        font-weight: 700;
-        color: #667eea;
-        text-decoration: none;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        /* 移除动画 */
-    }
-    /* 移除悬停放大效果 */
-    /* .nav-logo:hover {
-        transform: scale(1.06);
-    } */
-    .nav-logo img {
-        width: 28px;
-        height: 28px;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(102,126,234,0.18);
-        background: white;
-        padding: 2px;
-        object-fit: cover;
-    }
-    .nav-logo-text {
-
-        align-items: center;
-        gap: 4px;
-    }
-    .nav-logo-main {
-        color: #667eea;
-        font-weight: 700;
-        letter-spacing: 1px;
-    }
-    .nav-logo-ai {
-        color: #5a67d8;
-        font-weight: 700;
-        /* 不设置font-size，继承父级 */
-        background: none;
-        -webkit-background-clip: unset;
-        -webkit-text-fill-color: unset;
-        background-clip: unset;
-        text-fill-color: unset;
-
-    }
-    .nav-logo-sub {
-        color: #667eea;
-        font-weight: 700;
-    }
-    
-    .nav-menu {
-        display: flex;
-        list-style: none;
-        gap: 30px;
-        margin: 0;
-        padding: 0;
-        align-items: center;
-    }
-    
-    .nav-link {
-        color: #333;
-        text-decoration: none;
-        font-weight: 500;
-        padding: 10px 15px;
-        border-radius: 8px;
-        transition: all 0.3s ease;
-    }
-    
-    .nav-link:hover {
-        background: #667eea;
-        color: white;
-    }
-
-    /* Language Switcher Styles */
-    .language-switcher {
-        position: relative;
-        display: inline-block;
-    }
-
-    .language-btn {
-        background: rgba(102, 126, 234, 0.1);
-        border: 1px solid rgba(102, 126, 234, 0.3);
-        color: #667eea;
-        padding: 8px 12px;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 14px;
-        font-weight: 500;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        transition: all 0.3s ease;
-    }
-
-    .language-btn:hover {
-        background: rgba(102, 126, 234, 0.2);
-        border-color: rgba(102, 126, 234, 0.5);
-    }
-
-    .language-btn::after {
-        content: '▼';
-        font-size: 10px;
-        transition: transform 0.3s ease;
-    }
-
-    .language-btn.active::after {
-        transform: rotate(180deg);
-    }
-
-    .language-dropdown {
-        position: absolute;
-        top: 100%;
-        right: 0;
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        min-width: 120px;
-        z-index: 1001;
-        display: none;
-        overflow: hidden;
-    }
-
-    .language-dropdown.show {
-        display: block;
-    }
-
-    .language-option {
-        padding: 10px 15px;
-        cursor: pointer;
-        transition: background-color 0.2s ease;
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .language-option:hover {
-        background-color: #f8f9fa;
-    }
-
-    .language-option.active {
-        background-color: #667eea;
-        color: white;
-    }
-
-    .flag-icon {
-        width: 16px;
-        height: 12px;
-        border-radius: 2px;
-        object-fit: cover;
-    }
-    
-    .highlight-box {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-radius: 15px;
-        padding: 30px;
-        margin: 30px 0;
-        text-align: center;
-    }
-    
-    .highlight-box h3 {
-        font-size: 1.8rem;
-        margin-bottom: 15px;
-    }
-    
-    .highlight-box p {
-        font-size: 1.1rem;
-        opacity: 0.9;
-    }
-    
-    .status {
-        display: inline-block;
-        padding: 12px 24px;
-        border-radius: 25px;
-        font-weight: bold;
-        margin: 15px;
-        font-size: 1rem;
-    }
-    
-    .status.success {
-        background: #c6f6d5;
-        color: #22543d;
-    }
-    
-    .status.info {
-        background: #bee3f8;
-        color: #2a4365;
-    }
-    
-    .status.error {
-        background: #fed7d7;
-        color: #742a2a;
-    }
-    
-    /* 聊天机器人样式 */
-    .chatbot-container {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        width: 350px;
-        height: 500px;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-        z-index: 10000;
-        display: none;
-        flex-direction: column;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        transition: all 0.3s ease;
-    }
-    
-    .chatbot-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 15px 20px;
-        border-radius: 12px 12px 0 0;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    
-    .chatbot-header h3 {
-        font-size: 16px;
-        font-weight: 600;
-        margin: 0;
-    }
-    
-    .chatbot-controls {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    
-    .minimize-btn {
-        background: rgba(255, 255, 255, 0.2);
-        border: none;
-        color: white;
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 14px;
-        transition: all 0.3s ease;
-    }
-    
-    .minimize-btn:hover {
-        background: rgba(255, 255, 255, 0.3);
-        transform: scale(1.1);
-    }
-    
-    .chatbot-messages {
-        flex: 1;
-        overflow-y: auto;
-        padding: 20px;
-        background: #f8f9fa;
-    }
-    
-    .chatbot-message {
-        margin-bottom: 15px;
-        display: flex;
-        align-items: flex-start;
-        gap: 10px;
-    }
-    
-    .chatbot-message.user {
-        flex-direction: row-reverse;
-    }
-    
-    .message-avatar {
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: 600;
-        font-size: 12px;
-        flex-shrink: 0;
-    }
-    
-    .chatbot-message.user .message-avatar {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-    }
-    
-    .chatbot-message.bot .message-avatar {
-        background: #e5e7eb;
-        color: #374151;
-    }
-    
-    .message-content {
-        max-width: 70%;
-        padding: 10px 14px;
-        border-radius: 16px;
-        line-height: 1.4;
-        word-wrap: break-word;
-        font-size: 14px;
-    }
-    
-    /* 强制 Markdown 渲染后的内容保持原有字体大小 */
-    .message-content * {
-        font-size: inherit !important;
-        line-height: inherit !important;
-    }
-    
-    .message-content p {
-        margin: 0.5em 0;
-    }
-    
-    .message-content h1, .message-content h2, .message-content h3, 
-    .message-content h4, .message-content h5, .message-content h6 {
-        font-size: 12px !important;
-        font-weight: 600;
-        margin: 0.5em 0;
-    }
-    
-    .message-content ul, .message-content ol {
-        margin: 0.5em 0;
-        padding-left: 1.5em;
-    }
-    
-    .message-content li {
-        margin: 0.2em 0;
-    }
-    
-    .message-content strong, .message-content b {
-        font-weight: 600;
-    }
-    
-    .message-content em, .message-content i {
-        font-style: italic;
-    }
-    
-    .chatbot-message.user .message-content {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border-bottom-right-radius: 4px;
-    }
-    
-    .chatbot-message.bot .message-content {
-        background: white;
-        color: #374151;
-        border: 1px solid #e5e7eb;
-        border-bottom-left-radius: 4px;
-    }
-    
-    .chatbot-input {
-        padding: 15px;
-        background: white;
-        border-top: 1px solid #e5e7eb;
-        border-radius: 0 0 12px 12px;
-    }
-    
-    .input-wrapper {
-        display: flex;
-        gap: 10px;
-        align-items: flex-end;
-    }
-    
-    .message-input {
-        flex: 1;
-        border: 2px solid #e5e7eb;
-        border-radius: 18px;
-        padding: 10px 14px;
-        font-size: 16px;
-        resize: none;
-        outline: none;
-        transition: border-color 0.3s ease;
-        font-family: inherit;
-        max-height: 80px;
-        min-height: 36px;
-    }
-    
-    .message-input:focus {
-        border-color: #667eea;
-    }
-    
-    .send-btn {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        border: none;
-        border-radius: 50%;
-        width: 36px;
-        height: 36px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.3s ease;
-        flex-shrink: 0;
-    }
-    
-    .send-btn:hover {
-        transform: scale(1.05);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-    }
-    
-    .send-btn:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-        transform: none;
-    }
-    
-    .minimize-icon {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        font-size: 24px;
-        cursor: pointer;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-        z-index: 10001;
-        transition: all 0.3s ease;
-    }
-    
-    .minimize-icon:hover {
-        transform: scale(1.1);
-        box-shadow: 0 6px 25px rgba(0, 0, 0, 0.2);
-    }
-    
-    .typing-indicator {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        padding: 10px 14px;
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 16px;
-        border-bottom-left-radius: 4px;
-        max-width: 70%;
-    }
-    
-    .typing-dot {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: #9ca3af;
-        animation: typing 1.4s infinite ease-in-out;
-    }
-    
-    .typing-dot:nth-child(1) { animation-delay: -0.32s; }
-    .typing-dot:nth-child(2) { animation-delay: -0.16s; }
-    
-    @keyframes typing {
-        0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
-        40% { transform: scale(1); opacity: 1; }
-    }
-    header {
-      text-align: center;
-      padding: 100px 20px 60px;
-      color: white;
-      background: linear-gradient(120deg, #667eea, #764ba2);
-      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-    }
-    header h1 {
-      font-size: 3.2rem;
-      font-weight: 800;
-      margin-bottom: 20px;
-    }
-    header p {
-      font-size: 1.3rem;
-      font-weight: 400;
-      opacity: 0.9;
-    }
-    .container {
-      max-width: 1100px;
-      margin: auto;
-      padding: 40px 20px;
-    }
-    .button {
-      background: #667eea;
-      color: white;
-      border: none;
-      padding: 14px 30px;
-      border-radius: 30px;
-      font-size: 1rem;
-      margin: 10px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.3s ease;
-    }
-    .button:hover {
-      background: #5a67d8;
-      transform: translateY(-2px);
-      box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 30px;
-      margin: 50px 0;
-    }
-    .card {
-      background: white;
-      border-radius: 16px;
-      padding: 30px;
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
-      border-top: 5px solid #667eea;
-      transition: all 0.3s ease;
-    }
-    .card:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.12);
-    }
-    .card h3 {
-      color: #3c366b;
-      font-size: 1.4rem;
-      margin-bottom: 15px;
-    }
-    .card p {
-      font-size: 1rem;
-      color: #4a5568;
-      line-height: 1.6;
-    }
-    section h2 {
-      text-align: center;
-      font-size: 2rem;
-      font-weight: 700;
-      color: #4a5568;
-      margin-bottom: 20px;
-    }
-    pre {
-      background: #2d3748;
+      font-family: "Inter", "Noto Serif SC", system-ui, sans-serif;
+      background: #0a0b14;
       color: #e2e8f0;
-      padding: 25px;
-      border-radius: 12px;
-      overflow-x: auto;
-      font-family: 'Courier New', monospace;
-      font-size: 14px;
-      margin-bottom: 20px;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
     }
-    footer {
-      text-align: center;
-      padding: 50px 20px;
-      background: #1a202c;
-      color: white;
-      font-size: 1rem;
+    .font-serif-sc { font-family: "Noto Serif SC", serif; }
+    .font-mono-jb { font-family: "JetBrains Mono", ui-monospace, monospace; }
+    /* 背景：径向辉光 + 网格 */
+    .bg-glow {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% -10%, rgba(139,92,246,0.35), transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 10%, rgba(236,72,153,0.18), transparent 60%);
     }
-    .qrcode {
-      text-align: center;
-      margin-top: 50px;
+    .bg-grid {
+      position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.06;
+      background-image:
+        linear-gradient(rgba(255,255,255,.4) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.4) 1px, transparent 1px);
+      background-size: 60px 60px;
+      -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+      mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
     }
-    .qrcode img {
-      max-width: 180px;
-      border-radius: 8px;
-      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
-    }
-    a {
-      color: #90cdf4;
-    }
-    .code-block {
-      background: #2d3748;
-      color: #e2e8f0;
-      border-radius: 10px;
-      padding: 25px;
-      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-      font-size: 14px;
-      overflow-x: auto;
-      margin: 20px 0;
-    }
-    .code-block .comment {
-        color: #a0aec0;
-    }
-    .code-block .keyword {
-        color: #f6ad55;
-    }
-    .code-block .string {
-        color: #68d391;
-    }
-    .code-block .number {
-        color: #f687b3;
-    }
-    .comment {
-      color: #9ca3af;
-    }
-    .scene-title {
-      margin-top: 60px;
-      margin-bottom: 32px;
-    }
-    .quick-demo-title {
-      margin-top: 60px;
-      margin-bottom: 47px;
-    }
-    .nav-link.rag-platform {
-        background: #a5b4fc;
-        color: #2a4365 !important;
-        border-radius: 18px;
-        font-weight: 700;
-        padding: 8px 20px;
-        box-shadow: none;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        font-size: 1.1rem;
-        transition: color 0.2s, background 0.2s;
-    }
-    .nav-link.rag-platform:hover {
-        background: #6366f1;
-        color: #fff;
-    }
+    @keyframes lw-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .lw-pulse { animation: lw-pulse 2s infinite; }
+    @keyframes lw-bounce { 0%,80%,100%{transform:translateY(0);opacity:.5} 40%{transform:translateY(-4px);opacity:1} }
+    .lw-bounce { animation: lw-bounce 1.4s infinite ease-in-out; }
+    .glass { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.10); }
+    ::selection { background: rgba(167,139,250,0.35); }
+    /* 语言下拉 */
+    .lang-dd { display:none; }
+    .lang-dd.show { display:block; }
   </style>
 </head>
-<body>
-    <!-- 导航栏 -->
-    <nav class="navbar">
-      <div class="nav-container">
-          <a href="index.html" class="nav-logo">
-              <img src="favicon.ico" alt="凌问 AI" />
-              <span class="nav-logo-text">
-                <span class="nav-logo-main" data-i18n="nav-logo-main">凌问</span>
-                <span class="nav-logo-ai">AI</span>
-                <!-- <span class="nav-logo-sub">- 智嵌客服</span> -->
-              </span>
-          </a>
-          <ul class="nav-menu">
-              <!-- <li><a href="chat-ui.html" class="nav-link">💬 在线体验</a></li> -->
-              <li><a href="https://portal.lingwenai.cn/" class="nav-link rag-platform"><span style="margin-left:6px;" data-i18n="rag_platform">登录</span></a></li>
-              <li>
-                <div class="language-switcher">
-                  <button class="language-btn" onclick="toggleLanguageDropdown()">
-                    <span class="current-lang">中文</span>
-                  </button>
-                  <div class="language-dropdown" id="languageDropdown">
-                    <div class="language-option active" data-lang="zh-CN" onclick="changeLanguage('zh-CN')">
-                      <span>🇨🇳</span>
-                      <span>中文</span>
-                    </div>
-                    <div class="language-option" data-lang="en-US" onclick="changeLanguage('en-US')">
-                      <span>🇺🇸</span>
-                      <span>English</span>
-                    </div>
-                  </div>
-                </div>
-              </li>
-          </ul>
-      </div>
-  </nav>
+<body class="min-h-screen">
+  <div class="bg-glow"></div>
+  <div class="bg-grid"></div>
 
-  <header>
-    <h1 data-i18n="hero_title">💬 一行代码，即刻拥有中文智能客服</h1>
-    <p data-i18n="hero_subtitle">本地部署 · 私有数据 · 智能语义理解</p>
-    <button class="button" onclick="scrollToDemo()" data-i18n="hero_button">🚀 立即体验</button>
+  <!-- Nav -->
+  <header class="relative z-30 flex items-center justify-between px-6 md:px-10 lg:px-16 py-5">
+    <a href="/" class="flex items-center gap-2.5">
+      <div class="relative w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 grid place-items-center shadow-lg shadow-violet-500/30">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-4l-5 4v-4H7a3 3 0 0 1-3-3V6Z" fill="white"/><circle cx="9" cy="10" r="1.3" fill="#7c3aed"/><circle cx="15" cy="10" r="1.3" fill="#7c3aed"/></svg>
+      </div>
+      <div class="leading-tight">
+        <div class="font-serif-sc text-base font-bold tracking-wide" data-i18n="brand">凌问</div>
+        <div class="text-[10px] tracking-[0.25em] text-violet-300/70 -mt-0.5">LINGWEN&nbsp;AI</div>
+      </div>
+    </a>
+    <nav class="hidden md:flex items-center gap-8 text-sm text-slate-300">
+      <a href="#features" class="hover:text-white transition" data-i18n="nav_features">能力</a>
+      <a href="#demo" class="hover:text-white transition" data-i18n="nav_demo">演示</a>
+      <a href="#integrate" class="hover:text-white transition" data-i18n="nav_integrate">集成</a>
+      <a href="#scenarios" class="hover:text-white transition" data-i18n="nav_scenarios">场景</a>
+      <a href="#pricing" class="hover:text-white transition" data-i18n="nav_pricing">价格</a>
+    </nav>
+    <div class="flex items-center gap-2">
+      <a href="https://portal.lingwenai.cn/" class="hidden sm:inline-flex text-sm text-slate-300 hover:text-white px-3 py-2 rounded-lg transition" data-i18n="login">登录</a>
+      <a href="https://portal.lingwenai.cn/register" class="text-sm font-medium bg-white text-slate-900 hover:bg-slate-100 px-4 py-2 rounded-lg shadow-sm transition" data-i18n="start_free">免费开始 →</a>
+      <div id="langWrap" class="relative ml-1">
+        <button onclick="toggleLang(event)" class="text-sm text-slate-300 hover:text-white px-2.5 py-2 rounded-lg glass transition"><span id="curLang">中文</span> ▾</button>
+        <div id="langDD" class="lang-dd absolute right-0 mt-2 w-28 rounded-lg overflow-hidden bg-[#12142a] border border-white/10 shadow-xl z-50">
+          <button onclick="setLang('zh-CN')" class="block w-full text-left px-4 py-2 text-sm hover:bg-white/5">🇨🇳 中文</button>
+          <button onclick="setLang('en-US')" class="block w-full text-left px-4 py-2 text-sm hover:bg-white/5">🇺🇸 English</button>
+        </div>
+      </div>
+    </div>
   </header>
 
-  <div class="container">
-    <section>
-      <h2 data-i18n="core_features_title">⚡ 三大核心能力</h2>
-      <div class="grid">
-        <div class="card">
-          <h3 data-i18n="feature_one_title">🧩 一行接入</h3>
-          <p data-i18n="feature_one_desc">将代码嵌入网站，无需额外开发，3分钟上线聊天机器人。</p>
+  <!-- Hero -->
+  <section class="relative z-10 px-6 md:px-10 lg:px-16 pt-12 pb-24 md:pt-20 md:pb-32">
+    <div class="max-w-7xl mx-auto grid lg:grid-cols-[1.05fr_1fr] gap-14 items-center">
+      <div>
+        <div class="inline-flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full glass text-violet-200 backdrop-blur">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 lw-pulse"></span>
+          <span data-i18n="hero_badge">新版 v2.4 · 支持 DeepSeek / Qwen / GPT-4o</span>
         </div>
-        <div class="card">
-          <h3 data-i18n="feature_two_title">🔐 数据私有</h3>
-          <p data-i18n="feature_two_desc">支持多租户隔离与权限管理，确保每个站点数据独立、安全、私有。</p>
+        <h1 class="font-serif-sc mt-6 text-[2.5rem] md:text-6xl lg:text-[4.25rem] font-black leading-[1.1] tracking-tight text-white">
+          <span data-i18n="hero_l1">一行代码，</span><br>
+          <span data-i18n="hero_l2">即刻拥有</span>
+          <span class="relative inline-block ml-2">
+            <span class="bg-gradient-to-r from-indigo-300 via-violet-300 to-fuchsia-300 bg-clip-text text-transparent" data-i18n="hero_hl">中文智能客服</span>
+            <svg class="absolute -bottom-2 left-0 w-full" viewBox="0 0 300 12" fill="none"><path d="M2 9C70 2 200 2 298 8" stroke="url(#u)" stroke-width="3" stroke-linecap="round"/><defs><linearGradient id="u" x1="0" x2="300"><stop stop-color="#a78bfa"/><stop offset="1" stop-color="#f0abfc"/></linearGradient></defs></svg>
+          </span>。
+        </h1>
+        <p class="mt-7 text-base md:text-lg text-slate-300/90 leading-relaxed max-w-xl" data-i18n="hero_sub">
+          本地部署 · 私有数据 · 智能语义理解。基于自研中文 RAG 引擎，3 分钟将企业级智能客服嵌入您的网站。
+        </p>
+        <div class="mt-9 flex flex-wrap items-center gap-3">
+          <button onclick="showChatbot()" class="group inline-flex items-center gap-2 bg-white text-slate-900 font-semibold px-6 py-3.5 rounded-xl shadow-[0_8px_30px_rgb(167,139,250,0.25)] hover:shadow-[0_12px_40px_rgb(167,139,250,0.4)] transition">
+            🚀 <span data-i18n="hero_cta1">立即体验</span> <span class="transition group-hover:translate-x-0.5">→</span>
+          </button>
+          <a href="#demo" class="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl border border-white/15 hover:bg-white/5 transition text-slate-100">
+            <span class="w-6 h-6 rounded-full bg-white/10 grid place-items-center"><svg width="10" height="10" viewBox="0 0 12 12" fill="white"><path d="M2 1.5v9l8-4.5z"/></svg></span>
+            <span data-i18n="hero_cta2">观看演示</span>
+          </a>
         </div>
-        <div class="card">
-          <h3 data-i18n="feature_three_title">🧠 中文RAG</h3>
-          <p data-i18n="feature_three_desc">优化中文搜索与上下文增强，准确应答用户问题，适配多行业场景。</p>
-        </div>
-      </div>
-    </section>
-
-    <section id="demo">
-      <h2 class="quick-demo-title" data-i18n="demo_title">📦 快速集成示例</h2>
-      <div class="code-block">
-        <span class="comment" data-i18n="code_comment_1">&lt;!-- 一行代码，轻松嵌入聊天机器人 --&gt;</span><br>
-        &lt;script src="https://lingwenai.cn/chatbot.js"&gt;&lt;/script&gt;<br>
-        &lt;script&gt;<br>
-        &nbsp;&nbsp;<span class="comment" data-i18n="code_comment_2">// 初始化智能RAG聊天机器人</span><br>
-        &nbsp;&nbsp;initRAGChatbot({<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;apiKey: "<span class="string">your_api_key</span>",<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;welcomeMessage: "<span class="string" data-i18n="code_welcome_message">您好，我是智能客服小助手，有任何问题欢迎咨询！</span>",<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;enableRAG: <span class="keyword">true</span>,<br>
-        &nbsp;&nbsp;&nbsp;&nbsp;theme: { primaryColor: "<span class="string">#667eea</span>" },<br>
-        &nbsp;&nbsp;});<br>
-        &lt;/script&gt;
-      </div>
-    </section>
-
-    <section>
-      <h2 class="scene-title" data-i18n="scenarios_title">🎯 应用场景</h2>
-      <div class="grid">
-        <div class="card">
-          <h3 data-i18n="scenario_one_title">🛍️ 电商客服</h3>
-          <p data-i18n="scenario_one_desc">支持常见订单、售后、退换货咨询自动应答，降低人工成本。</p>
-        </div>
-        <div class="card">
-          <h3 data-i18n="scenario_two_title">🏢 企业官网</h3>
-          <p data-i18n="scenario_two_desc">智能答疑用户问题，提升品牌形象与访问转化率。</p>
-        </div>
-        <div class="card">
-          <h3 data-i18n="scenario_three_title">📁 内部问答</h3>
-          <p data-i18n="scenario_three_desc">为员工提供制度流程文档自动化查询，提升效率。</p>
+        <div class="mt-10 grid grid-cols-3 gap-6 max-w-md">
+          <div><div class="font-serif-sc text-2xl md:text-3xl font-bold bg-gradient-to-br from-white to-violet-200 bg-clip-text text-transparent">3 min</div><div class="text-xs text-slate-400 mt-1" data-i18n="stat1">平均接入耗时</div></div>
+          <div><div class="font-serif-sc text-2xl md:text-3xl font-bold bg-gradient-to-br from-white to-violet-200 bg-clip-text text-transparent">38%</div><div class="text-xs text-slate-400 mt-1" data-i18n="stat2">准确率提升</div></div>
+          <div><div class="font-serif-sc text-2xl md:text-3xl font-bold bg-gradient-to-br from-white to-violet-200 bg-clip-text text-transparent">2,400+</div><div class="text-xs text-slate-400 mt-1" data-i18n="stat3">服务企业</div></div>
         </div>
       </div>
-    </section>
 
-    <div class="highlight-box" id="chatbot">
-        <h3 data-i18n="demo_box_title">🎯 立即体验</h3>
-        <p data-i18n="demo_box_desc">点击下方按钮启动智能RAG聊天机器人，体验本地化AI助手的强大功能</p>
-        <button class="button" onclick="showChatbot()" data-i18n="demo_start_button">🚀 启动聊天机器人</button>
-        <button class="button secondary" onclick="removeChatbot()" data-i18n="demo_remove_button">🗑️ 移除机器人</button>
-        <div id="status" class="status info" data-i18n="demo_status_ready">准备就绪，点击启动按钮开始体验</div>
+      <!-- Hero chat preview -->
+      <div class="relative">
+        <div class="absolute -inset-6 bg-gradient-to-br from-violet-500/30 via-fuchsia-500/20 to-transparent blur-3xl rounded-[3rem]"></div>
+        <div class="relative rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.06] to-white/[0.02] backdrop-blur-xl shadow-2xl shadow-violet-900/30 overflow-hidden">
+          <div class="flex items-center justify-between px-5 py-3 border-b border-white/10 bg-white/[0.03]">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-400 to-fuchsia-500 grid place-items-center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-4l-5 4v-4H7a3 3 0 0 1-3-3V6Z" fill="white"/></svg></div>
+              <div class="leading-tight">
+                <div class="text-sm font-semibold text-white">凌问助手</div>
+                <div class="text-[10px] text-emerald-300 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 lw-pulse"></span> <span data-i18n="online">在线 · 平均 0.8s 响应</span></div>
+              </div>
+            </div>
+            <div class="flex gap-1.5"><span class="w-2 h-2 rounded-full bg-white/20"></span><span class="w-2 h-2 rounded-full bg-white/20"></span><span class="w-2 h-2 rounded-full bg-white/20"></span></div>
+          </div>
+          <div id="heroChat" class="px-5 py-5 h-80 overflow-y-auto space-y-3"></div>
+          <div class="px-5 py-3 border-t border-white/10 bg-white/[0.02] flex items-center gap-2">
+            <div class="flex-1 text-sm text-slate-400 px-3 py-2 rounded-full bg-white/5 border border-white/5" data-i18n="hero_input">请输入您的问题…</div>
+            <button onclick="showChatbot()" class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-fuchsia-500 grid place-items-center"><svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M3 11 22 2l-9 20-2-9-8-2Z"/></svg></button>
+          </div>
+        </div>
+      </div>
     </div>
-  </div>
 
-  <footer>
-    <p data-i18n="footer_copyright">© 2025 LingAsk AI | 专为中文场景打造的私有AI客服</p>
-    <p>📧 ask.lingwenai@gmail.com</p>
+    <!-- Logos -->
+    <div class="max-w-6xl mx-auto mt-24">
+      <p class="text-center text-xs tracking-[0.3em] text-slate-500 uppercase mb-6" data-i18n="trusted">被 2,400+ 企业与团队信赖</p>
+      <div class="flex flex-wrap justify-center items-center gap-x-12 gap-y-4 text-slate-400/80 font-serif-sc">
+        <span class="text-base md:text-lg font-bold tracking-wider opacity-70 hover:opacity-100 transition">天工科技</span>
+        <span class="text-base md:text-lg font-bold tracking-wider opacity-70 hover:opacity-100 transition">云溪集团</span>
+        <span class="text-base md:text-lg font-bold tracking-wider opacity-70 hover:opacity-100 transition">鲸智云</span>
+        <span class="text-base md:text-lg font-bold tracking-wider opacity-70 hover:opacity-100 transition">万象资本</span>
+        <span class="text-base md:text-lg font-bold tracking-wider opacity-70 hover:opacity-100 transition">拓远医疗</span>
+        <span class="text-base md:text-lg font-bold tracking-wider opacity-70 hover:opacity-100 transition">蓝石教育</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section id="features" class="relative z-10 px-6 md:px-10 lg:px-16 py-24 border-t border-white/5">
+    <div class="max-w-2xl mx-auto text-center">
+      <p class="text-xs tracking-[0.3em] uppercase text-violet-300/80">CORE CAPABILITIES</p>
+      <h2 class="font-serif-sc mt-3 text-3xl md:text-5xl font-bold tracking-tight text-white" data-i18n="features_title">三大核心能力</h2>
+      <p class="mt-4 text-slate-300/85" data-i18n="features_desc">为中文场景而生，从接入、安全到检索全栈优化。</p>
+    </div>
+    <div class="max-w-6xl mx-auto mt-14 grid md:grid-cols-3 gap-5">
+      <div class="group relative rounded-2xl p-7 border border-white/10 bg-white/[0.03] hover:bg-white/[0.05] transition overflow-hidden">
+        <div class="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-gradient-to-br from-indigo-500/30 to-transparent blur-2xl opacity-80 group-hover:opacity-100 transition"></div>
+        <div class="relative">
+          <div class="w-12 h-12 rounded-xl bg-white/5 border border-white/10 grid place-items-center mb-5 text-violet-200"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6M7 8h10v5a5 5 0 0 1-10 0V8ZM12 18v4"/></svg></div>
+          <div class="font-mono-jb text-[10px] tracking-[0.2em] text-violet-300/80 mb-2">01 · 接入</div>
+          <h3 class="font-serif-sc text-2xl font-bold mb-3 text-white" data-i18n="f1_title">一行接入</h3>
+          <p class="text-sm text-slate-300/85 leading-relaxed" data-i18n="f1_desc">将一段脚本嵌入网站，无需额外开发，3 分钟上线智能聊天机器人。</p>
+        </div>
+      </div>
+      <div class="group relative rounded-2xl p-7 border border-white/10 bg-white/[0.03] hover:bg-white/[0.05] transition overflow-hidden">
+        <div class="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-gradient-to-br from-violet-500/30 to-transparent blur-2xl opacity-80 group-hover:opacity-100 transition"></div>
+        <div class="relative">
+          <div class="w-12 h-12 rounded-xl bg-white/5 border border-white/10 grid place-items-center mb-5 text-violet-200"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.5 8.5 8 9 4.5-.5 8-4 8-9V6l-8-3Z"/><path d="m9 12 2 2 4-4"/></svg></div>
+          <div class="font-mono-jb text-[10px] tracking-[0.2em] text-violet-300/80 mb-2">02 · 安全</div>
+          <h3 class="font-serif-sc text-2xl font-bold mb-3 text-white" data-i18n="f2_title">数据私有</h3>
+          <p class="text-sm text-slate-300/85 leading-relaxed" data-i18n="f2_desc">支持多租户隔离、权限管理与本地化部署，每个站点数据独立、安全、私有。</p>
+        </div>
+      </div>
+      <div class="group relative rounded-2xl p-7 border border-white/10 bg-white/[0.03] hover:bg-white/[0.05] transition overflow-hidden">
+        <div class="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-gradient-to-br from-fuchsia-500/30 to-transparent blur-2xl opacity-80 group-hover:opacity-100 transition"></div>
+        <div class="relative">
+          <div class="w-12 h-12 rounded-xl bg-white/5 border border-white/10 grid place-items-center mb-5 text-violet-200"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3a3 3 0 0 0-3 3 3 3 0 0 0-2 5 3 3 0 0 0 2 5 3 3 0 0 0 3 3V3ZM15 3a3 3 0 0 1 3 3 3 3 0 0 1 2 5 3 3 0 0 1-2 5 3 3 0 0 1-3 3V3Z"/></svg></div>
+          <div class="font-mono-jb text-[10px] tracking-[0.2em] text-violet-300/80 mb-2">03 · 智能</div>
+          <h3 class="font-serif-sc text-2xl font-bold mb-3 text-white" data-i18n="f3_title">中文 RAG</h3>
+          <p class="text-sm text-slate-300/85 leading-relaxed" data-i18n="f3_desc">自研中文检索增强引擎，理解上下文与行业术语，准确率提升 38%。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Demo -->
+  <section id="demo" class="relative z-10 px-6 md:px-10 lg:px-16 py-24 border-t border-white/5">
+    <div class="max-w-6xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
+      <div>
+        <p class="text-xs tracking-[0.3em] text-violet-300/80 uppercase">LIVE DEMO</p>
+        <h2 class="font-serif-sc mt-3 text-3xl md:text-5xl font-bold leading-tight text-white"><span data-i18n="demo_h1">不只是 Chatbot，</span><br><span data-i18n="demo_h2">是一位</span><span class="text-violet-300" data-i18n="demo_h3">懂业务的同事</span>。</h2>
+        <p class="mt-6 text-slate-300/90 leading-relaxed max-w-lg" data-i18n="demo_p">上传您的产品文档、FAQ、内部 SOP，凌问 AI 会即时学习并以人类语气作答，附带引用来源，让每一次回答都可追溯、可审计。</p>
+        <ul class="mt-8 space-y-3" id="demoList"></ul>
+      </div>
+      <div class="relative">
+        <div class="absolute -inset-6 bg-gradient-to-br from-fuchsia-500/20 via-violet-500/20 to-transparent blur-3xl rounded-[3rem]"></div>
+        <div class="relative rounded-3xl border border-white/10 bg-white/[0.04] backdrop-blur-xl overflow-hidden shadow-2xl">
+          <div class="px-5 py-3 border-b border-white/10 flex items-center justify-between">
+            <div class="text-sm font-semibold text-white" data-i18n="demo_win">演示对话窗口</div>
+            <div class="text-[10px] text-slate-400 font-mono-jb">powered by Lingwen RAG</div>
+          </div>
+          <div id="demoChat" class="px-5 py-5 h-72 overflow-y-auto space-y-3"></div>
+          <div class="px-4 py-3 border-t border-white/10 flex gap-2">
+            <input id="demoInput" onkeydown="if(event.key==='Enter')demoSend()" placeholder="试着问点什么…" class="flex-1 text-sm px-4 py-2.5 rounded-full bg-white/5 border border-white/10 outline-none focus:border-violet-400/60 transition text-slate-100 placeholder:text-slate-500" />
+            <button onclick="demoSend()" class="text-sm font-medium px-5 py-2.5 rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 text-white shadow-lg shadow-fuchsia-900/30 hover:scale-[1.02] transition" data-i18n="send">发送</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Integration -->
+  <section id="integrate" class="relative z-10 px-6 md:px-10 lg:px-16 py-24 border-t border-white/5">
+    <div class="max-w-2xl mx-auto text-center">
+      <p class="text-xs tracking-[0.3em] uppercase text-violet-300/80">INTEGRATION</p>
+      <h2 class="font-serif-sc mt-3 text-3xl md:text-5xl font-bold tracking-tight text-white" data-i18n="int_title">3 分钟，从 0 到上线</h2>
+      <p class="mt-4 text-slate-300/85" data-i18n="int_desc">无需后端、无需训练，复制即用。</p>
+    </div>
+    <div class="max-w-4xl mx-auto mt-12 rounded-2xl overflow-hidden border border-white/10 shadow-2xl shadow-violet-900/20 bg-[#0d1020]">
+      <div class="flex items-center justify-between px-5 py-3 bg-white/[0.03] border-b border-white/5">
+        <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-400/80"></span><span class="w-3 h-3 rounded-full bg-yellow-400/80"></span><span class="w-3 h-3 rounded-full bg-emerald-400/80"></span></div>
+        <span class="text-xs text-slate-400 font-mono-jb">index.html</span>
+        <button onclick="copyCode(this)" class="text-xs text-slate-400 hover:text-white transition" data-i18n="copy">复制</button>
+      </div>
+      <pre class="font-mono-jb p-6 md:p-8 text-[13px] md:text-sm leading-relaxed overflow-x-auto"><code id="codeSnippet"><span class="text-slate-500">&lt;!-- 一行代码，轻松嵌入聊天机器人 --&gt;</span>
+<span class="text-fuchsia-300">&lt;script </span><span class="text-sky-300">src</span><span class="text-slate-400">=</span><span class="text-emerald-300">"https://lingwenai.cn/chatbot.js"</span><span class="text-fuchsia-300">&gt;&lt;/script&gt;</span>
+<span class="text-fuchsia-300">&lt;script&gt;</span>
+  <span class="text-slate-500">// 初始化智能 RAG 聊天机器人</span>
+  <span class="text-sky-300">initRAGChatbot</span>({
+    <span class="text-violet-200">apiKey</span>: <span class="text-emerald-300">"your_api_key"</span>,
+    <span class="text-violet-200">welcomeMessage</span>: <span class="text-emerald-300">"您好，我是智能客服小助手！"</span>,
+    <span class="text-violet-200">enableRAG</span>: <span class="text-amber-300">true</span>,
+    <span class="text-violet-200">theme</span>: { <span class="text-violet-200">primaryColor</span>: <span class="text-emerald-300">"#7c3aed"</span> },
+  });
+<span class="text-fuchsia-300">&lt;/script&gt;</span></code></pre>
+    </div>
+  </section>
+
+  <!-- Scenarios -->
+  <section id="scenarios" class="relative z-10 px-6 md:px-10 lg:px-16 py-24 border-t border-white/5">
+    <div class="max-w-2xl mx-auto text-center">
+      <p class="text-xs tracking-[0.3em] uppercase text-violet-300/80">USE CASES</p>
+      <h2 class="font-serif-sc mt-3 text-3xl md:text-5xl font-bold tracking-tight text-white" data-i18n="sc_title">覆盖每一个对话场景</h2>
+      <p class="mt-4 text-slate-300/85" data-i18n="sc_desc">从售前到内部协作，让每个团队都拥有专属 AI 同事。</p>
+    </div>
+    <div id="scenarioGrid" class="max-w-6xl mx-auto mt-14 grid sm:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+  </section>
+
+  <!-- Pricing / CTA -->
+  <section id="pricing" class="relative z-10 px-6 md:px-10 lg:px-16 py-24 border-t border-white/5">
+    <div class="max-w-5xl mx-auto relative overflow-hidden rounded-[2rem] p-10 md:p-16 border border-white/10">
+      <div class="absolute inset-0 bg-gradient-to-br from-indigo-600/40 via-violet-600/30 to-fuchsia-600/40"></div>
+      <div class="absolute -top-32 -left-32 w-80 h-80 rounded-full bg-fuchsia-500/30 blur-3xl"></div>
+      <div class="absolute -bottom-32 -right-32 w-96 h-96 rounded-full bg-indigo-500/40 blur-3xl"></div>
+      <div class="relative text-center">
+        <p class="text-xs tracking-[0.3em] uppercase text-violet-200/90">GET STARTED</p>
+        <h2 class="font-serif-sc mt-3 text-3xl md:text-5xl font-bold leading-tight text-white" data-i18n="cta_title">准备好让 AI 加入您的团队了吗？</h2>
+        <p class="mt-5 text-slate-100/90 max-w-xl mx-auto" data-i18n="cta_sub">免费版即可在您的网站看到它工作，无需信用卡。3 分钟即刻上线。</p>
+        <div class="mt-9 flex flex-wrap items-center justify-center gap-3">
+          <button onclick="showChatbot()" class="inline-flex items-center gap-2 bg-white text-slate-900 font-semibold px-7 py-3.5 rounded-xl shadow-xl hover:scale-[1.02] transition">🚀 <span data-i18n="cta_start">启动聊天机器人</span></button>
+          <button onclick="removeChatbot()" class="inline-flex items-center gap-2 border border-white/30 hover:bg-white/10 text-white font-semibold px-7 py-3.5 rounded-xl transition">🗑️ <span data-i18n="cta_remove">移除机器人</span></button>
+        </div>
+        <p id="ctaStatus" class="mt-6 text-sm text-violet-100/80" data-i18n="cta_ready">准备就绪 · 点击启动按钮开始体验</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="relative z-10 border-t border-white/5 px-6 md:px-10 lg:px-16 py-12">
+    <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between gap-8 text-sm text-slate-400">
+      <div>
+        <div class="flex items-center gap-2.5 mb-3">
+          <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 grid place-items-center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-4l-5 4v-4H7a3 3 0 0 1-3-3V6Z" fill="white"/></svg></div>
+          <span class="font-serif-sc font-bold text-slate-200">凌问 AI</span>
+        </div>
+        <p class="max-w-sm leading-relaxed" data-i18n="foot_tag">本地化中文智能客服平台 · 让每个企业都拥有自己的 AI 同事。</p>
+        <p class="mt-3 text-slate-500">📧 ask.lingwenai@gmail.com</p>
+      </div>
+      <div class="grid grid-cols-3 gap-10">
+        <div>
+          <h4 class="text-slate-200 font-semibold mb-3" data-i18n="foot_product">产品</h4>
+          <ul class="space-y-2">
+            <li><a href="#features" class="hover:text-white transition" data-i18n="nav_features">能力</a></li>
+            <li><a href="#demo" class="hover:text-white transition" data-i18n="nav_demo">演示</a></li>
+            <li><a href="#pricing" class="hover:text-white transition" data-i18n="nav_pricing">价格</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-slate-200 font-semibold mb-3" data-i18n="foot_resource">资源</h4>
+          <ul class="space-y-2">
+            <li><a href="https://portal.lingwenai.cn/" class="hover:text-white transition" data-i18n="login">登录</a></li>
+            <li><a href="https://portal.lingwenai.cn/register" class="hover:text-white transition" data-i18n="register">注册</a></li>
+            <li><a href="https://portal.lingwenai.cn/privacy" class="hover:text-white transition" data-i18n="privacy">隐私</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4 class="text-slate-200 font-semibold mb-3" data-i18n="foot_company">公司</h4>
+          <ul class="space-y-2">
+            <li><a href="https://portal.lingwenai.cn/terms" class="hover:text-white transition" data-i18n="terms">条款</a></li>
+            <li><a href="mailto:ask.lingwenai@gmail.com" class="hover:text-white transition" data-i18n="contact">联系</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="max-w-6xl mx-auto mt-10 pt-6 border-t border-white/5 text-xs text-slate-500 flex justify-between flex-wrap gap-2">
+      <span data-i18n="copyright">© 2025 凌问 AI · 专为中文场景打造的私有 AI 客服</span>
+      <span data-i18n="made">用 ❤️ 为中文场景而造</span>
+    </div>
   </footer>
 
-  <!-- 引入chatbot.js并自动初始化iframe聊天机器人 -->
   <script src="./chatbot.js"></script>
   <script>
-    // 多语言支持
-    const translations = {
-              'zh-CN': {
-          'title': '凌问 AI - 智嵌客服',
-          'nav-logo-main': '凌问',
-          'rag_platform': '登录',
-          'hero_title': '💬 一行代码，即刻拥有中文智能客服',
-          'hero_subtitle': '本地部署 · 私有数据 · 智能语义理解',
-          'hero_button': '🚀 立即体验',
-          'core_features_title': '⚡ 三大核心能力',
-          'feature_one_title': '🧩 一行接入',
-          'feature_one_desc': '将代码嵌入网站，无需额外开发，3分钟上线聊天机器人。',
-          'feature_two_title': '🔐 数据私有',
-          'feature_two_desc': '支持多租户隔离与权限管理，确保每个站点数据独立、安全、私有。',
-          'feature_three_title': '🧠 中文RAG',
-          'feature_three_desc': '优化中文搜索与上下文增强，准确应答用户问题，适配多行业场景。',
-          'demo_title': '📦 快速集成示例',
-          'code_comment_1': '<!-- 一行代码，轻松嵌入聊天机器人 -->',
-          'code_comment_2': '// 初始化智能RAG聊天机器人',
-          'code_welcome_message': '您好，我是智能客服小助手，有任何问题欢迎咨询！',
-          'scenarios_title': '🎯 应用场景',
-          'scenario_one_title': '🛍️ 电商客服',
-          'scenario_one_desc': '支持常见订单、售后、退换货咨询自动应答，降低人工成本。',
-          'scenario_two_title': '🏢 企业官网',
-          'scenario_two_desc': '智能答疑用户问题，提升品牌形象与访问转化率。',
-          'scenario_three_title': '📁 内部问答',
-          'scenario_three_desc': '为员工提供制度流程文档自动化查询，提升效率。',
-          'demo_box_title': '🎯 立即体验',
-          'demo_box_desc': '点击下方按钮启动智能RAG聊天机器人，体验本地化AI助手的强大功能',
-          'demo_start_button': '🚀 启动聊天机器人',
-          'demo_remove_button': '🗑️ 移除机器人',
-          'demo_status_ready': '准备就绪，点击启动按钮开始体验',
-          'demo_status_success': '✅ 智能RAG聊天机器人启动成功！',
-          'demo_status_shown': '✅ 智能RAG聊天机器人已显示',
-          'demo_status_removed': '🗑️ 聊天机器人已移除',
-          'footer_copyright': '© 2025 凌问 AI | 专为中文场景打造的私有AI客服'
-        },
-              'en-US': {
-          'title': 'LingAsk AI - Smart Customer Service',
-          'nav-logo-main': 'Ling',
-          'rag_platform': 'Login',
-          'hero_title': '💬 One Line of Code, Instant Smart Customer Service',
-          'hero_subtitle': 'Local Deployment · Private Data · Intelligent Semantic Understanding',
-          'hero_button': '🚀 Try Now',
-          'core_features_title': '⚡ Three Core Capabilities',
-          'feature_one_title': '🧩 One-Line Integration',
-          'feature_one_desc': 'Embed code into your website, no additional development needed, launch chatbot in 3 minutes.',
-          'feature_two_title': '🔐 Private Data',
-          'feature_two_desc': 'Support multi-tenant isolation and permission management, ensuring independent, secure, and private data for each site.',
-          'feature_three_title': '🧠 Chinese RAG',
-          'feature_three_desc': 'Optimized Chinese search and context enhancement, accurate response to user questions, adaptable to multiple industry scenarios.',
-          'demo_title': '📦 Quick Integration Example',
-          'code_comment_1': '<!-- One line of code, easily embed chatbot -->',
-          'code_comment_2': '// Initialize smart RAG chatbot',
-          'code_welcome_message': 'Hello, I am your smart customer service assistant. Feel free to ask any questions!',
-          'scenarios_title': '🎯 Application Scenarios',
-          'scenario_one_title': '🛍️ E-commerce Support',
-          'scenario_one_desc': 'Support automatic responses for common orders, after-sales, returns and exchanges, reducing labor costs.',
-          'scenario_two_title': '🏢 Corporate Website',
-          'scenario_two_desc': 'Intelligent Q&A for user questions, enhancing brand image and conversion rates.',
-          'scenario_three_title': '📁 Internal Q&A',
-          'scenario_three_desc': 'Provide automated document queries for employees, improving efficiency.',
-          'demo_box_title': '🎯 Try Now',
-          'demo_box_desc': 'Click the button below to launch the smart RAG chatbot and experience the powerful features of localized AI assistant',
-          'demo_start_button': '🚀 Launch Chatbot',
-          'demo_remove_button': '🗑️ Remove Bot',
-          'demo_status_ready': 'Ready, click the launch button to start experience',
-          'demo_status_success': '✅ Smart RAG chatbot launched successfully!',
-          'demo_status_shown': '✅ Smart RAG chatbot is now visible',
-          'demo_status_removed': '🗑️ Chatbot has been removed',
-          'footer_copyright': '© 2025 LingAsk AI | Private AI Customer Service Built for Chinese Scenarios'
-        }
+    var apiKey = "cmcu4th0r0005wouf9qpp3s0d";
+    /* ---------- i18n ---------- */
+    var I18N = {
+      'zh-CN': {
+        title:'凌问 AI · 一行代码，即刻拥有中文智能客服', meta_desc:'本地部署 · 私有数据 · 中文RAG。3分钟为您的网站接入企业级智能客服。',
+        brand:'凌问', nav_features:'能力', nav_demo:'演示', nav_integrate:'集成', nav_scenarios:'场景', nav_pricing:'价格',
+        login:'登录', start_free:'免费开始 →', register:'注册', privacy:'隐私', terms:'条款', contact:'联系',
+        hero_badge:'新版 v2.4 · 支持 DeepSeek / Qwen / GPT-4o', hero_l1:'一行代码，', hero_l2:'即刻拥有', hero_hl:'中文智能客服',
+        hero_sub:'本地部署 · 私有数据 · 智能语义理解。基于自研中文 RAG 引擎，3 分钟将企业级智能客服嵌入您的网站。',
+        hero_cta1:'立即体验', hero_cta2:'观看演示', stat1:'平均接入耗时', stat2:'准确率提升', stat3:'服务企业',
+        online:'在线 · 平均 0.8s 响应', hero_input:'请输入您的问题…', trusted:'被 2,400+ 企业与团队信赖',
+        features_title:'三大核心能力', features_desc:'为中文场景而生，从接入、安全到检索全栈优化。',
+        f1_title:'一行接入', f1_desc:'将一段脚本嵌入网站，无需额外开发，3 分钟上线智能聊天机器人。',
+        f2_title:'数据私有', f2_desc:'支持多租户隔离、权限管理与本地化部署，每个站点数据独立、安全、私有。',
+        f3_title:'中文 RAG', f3_desc:'自研中文检索增强引擎，理解上下文与行业术语，准确率提升 38%。',
+        demo_h1:'不只是 Chatbot，', demo_h2:'是一位', demo_h3:'懂业务的同事',
+        demo_p:'上传您的产品文档、FAQ、内部 SOP，凌问 AI 会即时学习并以人类语气作答，附带引用来源，让每一次回答都可追溯、可审计。',
+        demo_win:'演示对话窗口', send:'发送',
+        int_title:'3 分钟，从 0 到上线', int_desc:'无需后端、无需训练，复制即用。', copy:'复制',
+        sc_title:'覆盖每一个对话场景', sc_desc:'从售前到内部协作，让每个团队都拥有专属 AI 同事。',
+        cta_title:'准备好让 AI 加入您的团队了吗？', cta_sub:'免费版即可在您的网站看到它工作，无需信用卡。3 分钟即刻上线。',
+        cta_start:'启动聊天机器人', cta_remove:'移除机器人', cta_ready:'准备就绪 · 点击启动按钮开始体验',
+        foot_tag:'本地化中文智能客服平台 · 让每个企业都拥有自己的 AI 同事。', foot_product:'产品', foot_resource:'资源', foot_company:'公司',
+        copyright:'© 2025 凌问 AI · 专为中文场景打造的私有 AI 客服', made:'用 ❤️ 为中文场景而造',
+        demo_list:['支持 PDF / Word / 网页内容自动学习','多轮对话上下文记忆','引用溯源，杜绝胡说','自动收集未回答问题，持续进化'],
+        scenarios:[['🛍️','电商客服','订单、售后、退换货咨询自动应答，降低人工成本。','from-orange-500/20'],['🏢','企业官网','智能答疑访客问题，提升品牌形象与转化率。','from-indigo-500/20'],['📁','内部问答','为员工提供制度、流程、文档的秒级查询。','from-emerald-500/20'],['🎓','教育答疑','课程内容自动答疑，7×24 小时陪伴。','from-sky-500/20'],['🏥','医疗咨询','导诊、政策、健康科普，结构化可审计。','from-rose-500/20'],['🏦','金融合规','合规话术 + 私有部署，满足监管要求。','from-amber-500/20']],
+        hero_demo:[['user','你们支持私有化部署吗？'],['bot','支持。可在您的服务器一键部署，数据完全私有。'],['user','中文检索效果怎么样？'],['bot','基于自研中文 RAG 引擎，准确率较通用方案提升 38%。']],
+        hero_greet:'您好，我是凌问 AI 助手，可以为您介绍产品、生成报价或提供售后支持。',
+        demo_greet:'您好，我是凌问智能助手 ✨ 请问有什么可以帮您？', demo_reply:'已收到您的问题，正在结合知识库为您查询答案…（演示，点右下角体验真实客服）',
+        st_success:'✅ 聊天机器人已启动，请看右下角', st_removed:'🗑️ 聊天机器人已移除', copied:'已复制'
+      },
+      'en-US': {
+        title:'Lingwen AI · One line of code for a Chinese AI assistant', meta_desc:'Local deploy · Private data · Chinese RAG. Add an enterprise AI assistant to your site in 3 minutes.',
+        brand:'Lingwen', nav_features:'Features', nav_demo:'Demo', nav_integrate:'Integrate', nav_scenarios:'Use cases', nav_pricing:'Pricing',
+        login:'Log in', start_free:'Start free →', register:'Sign up', privacy:'Privacy', terms:'Terms', contact:'Contact',
+        hero_badge:'New v2.4 · DeepSeek / Qwen / GPT-4o', hero_l1:'One line of code,', hero_l2:'instantly get a', hero_hl:'Chinese AI assistant',
+        hero_sub:'Local deploy · private data · semantic understanding. Powered by our Chinese RAG engine — embed enterprise support into your site in 3 minutes.',
+        hero_cta1:'Try it now', hero_cta2:'Watch demo', stat1:'Avg. setup time', stat2:'Accuracy gain', stat3:'Companies',
+        online:'Online · ~0.8s response', hero_input:'Type your question…', trusted:'Trusted by 2,400+ teams',
+        features_title:'Three core capabilities', features_desc:'Built for Chinese — optimized end to end, from setup and security to retrieval.',
+        f1_title:'One-line setup', f1_desc:'Drop a script into your site — no extra dev work, live in 3 minutes.',
+        f2_title:'Private data', f2_desc:'Multi-tenant isolation, access control and on-prem deploy keep every site’s data private.',
+        f3_title:'Chinese RAG', f3_desc:'Our Chinese retrieval engine understands context and jargon — 38% more accurate.',
+        demo_h1:'Not just a chatbot —', demo_h2:'a teammate who ', demo_h3:'knows your business',
+        demo_p:'Upload your docs, FAQs and SOPs. Lingwen learns instantly and answers in a human tone, with citations you can audit.',
+        demo_win:'Demo chat', send:'Send',
+        int_title:'From zero to live in 3 minutes', int_desc:'No backend, no training — copy and paste.', copy:'Copy',
+        sc_title:'Every conversation, covered', sc_desc:'From pre-sales to internal ops — an AI teammate for every team.',
+        cta_title:'Ready to add AI to your team?', cta_sub:'See it working on your site on the free plan — no credit card. Live in 3 minutes.',
+        cta_start:'Launch chatbot', cta_remove:'Remove bot', cta_ready:'Ready · click launch to start',
+        foot_tag:'A localized Chinese AI support platform — an AI teammate for every company.', foot_product:'Product', foot_resource:'Resources', foot_company:'Company',
+        copyright:'© 2025 Lingwen AI · Private AI support built for Chinese', made:'Made with ❤️ for Chinese',
+        demo_list:['Auto-learns PDF / Word / web content','Multi-turn context memory','Cited sources, no hallucinations','Collects unanswered questions to improve'],
+        scenarios:[['🛍️','E-commerce','Auto-answer orders, after-sales and returns; cut support cost.','from-orange-500/20'],['🏢','Corporate site','Answer visitor questions, boost brand and conversion.','from-indigo-500/20'],['📁','Internal Q&A','Instant answers on policies, processes and docs.','from-emerald-500/20'],['🎓','Education','Course Q&A, 24/7 companion for students.','from-sky-500/20'],['🏥','Healthcare','Triage, policy and health info — structured & auditable.','from-rose-500/20'],['🏦','Finance','Compliant scripts + private deploy for regulators.','from-amber-500/20']],
+        hero_demo:[['user','Do you support private deployment?'],['bot','Yes — one-click deploy on your own server, fully private data.'],['user','How good is Chinese retrieval?'],['bot','Our Chinese RAG engine is 38% more accurate than generic ones.']],
+        hero_greet:'Hi, I’m the Lingwen AI assistant — I can introduce products, quote prices or help with support.',
+        demo_greet:'Hi, I’m the Lingwen assistant ✨ How can I help?', demo_reply:'Got your question — searching the knowledge base… (demo; try the real bot at bottom-right)',
+        st_success:'✅ Chatbot launched — see bottom-right', st_removed:'🗑️ Chatbot removed', copied:'Copied'
+      }
     };
+    var lang = localStorage.getItem('preferred-language') || 'zh-CN';
+    function t(k){ return (I18N[lang] && I18N[lang][k]) || (I18N['zh-CN'][k]) || k; }
 
-    let currentLanguage = 'zh-CN';
-
-    // 切换语言下拉菜单
-    function toggleLanguageDropdown() {
-      const dropdown = document.getElementById('languageDropdown');
-      const btn = document.querySelector('.language-btn');
-      dropdown.classList.toggle('show');
-      btn.classList.toggle('active');
-    }
-
-    // 切换语言
-    function changeLanguage(lang) {
-      currentLanguage = lang;
+    function applyI18n(){
       document.documentElement.lang = lang;
-      
-      // 更新所有带有 data-i18n 属性的元素
-      const elements = document.querySelectorAll('[data-i18n]');
-      elements.forEach(element => {
-        const key = element.getAttribute('data-i18n');
-        if (translations[lang] && translations[lang][key]) {
-          element.textContent = translations[lang][key];
-        }
+      document.querySelectorAll('[data-i18n]').forEach(function(el){
+        var k = el.getAttribute('data-i18n'); var v = t(k);
+        if (typeof v !== 'string') return;
+        if (el.hasAttribute('data-i18n-attr')) el.setAttribute(el.getAttribute('data-i18n-attr'), v);
+        else el.textContent = v;
       });
+      document.getElementById('curLang').textContent = (lang === 'zh-CN') ? '中文' : 'English';
+      renderDemoList(); renderScenarios(); renderHeroChat(true); renderDemoChat(true);
+    }
+    function toggleLang(e){ e.stopPropagation(); document.getElementById('langDD').classList.toggle('show'); }
+    function setLang(l){ lang = l; localStorage.setItem('preferred-language', l); document.getElementById('langDD').classList.remove('show'); applyI18n(); }
+    document.addEventListener('click', function(e){ var dd=document.getElementById('langDD'); if(dd && !e.target.closest('#langWrap')) dd.classList.remove('show'); });
 
-      // 更新当前语言显示
-      const currentLangSpan = document.querySelector('.current-lang');
-      if (currentLangSpan) {
-        currentLangSpan.textContent = lang === 'zh-CN' ? '中文' : 'English';
-      }
-
-      // 更新语言选项的激活状态
-      document.querySelectorAll('.language-option').forEach(option => {
-        option.classList.remove('active');
-        if (option.getAttribute('data-lang') === lang) {
-          option.classList.add('active');
-        }
+    /* ---------- demo bullet list ---------- */
+    function renderDemoList(){
+      var ul = document.getElementById('demoList'); if(!ul) return; ul.innerHTML='';
+      (t('demo_list')||[]).forEach(function(txt){
+        var li = document.createElement('li'); li.className='flex items-start gap-3 text-slate-200/90';
+        li.innerHTML = '<span class="mt-1 shrink-0 w-5 h-5 rounded-full bg-violet-500/20 border border-violet-400/40 grid place-items-center"><svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2.5 6.5 5 9l4.5-6" stroke="#c4b5fd" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span></span>';
+        li.lastChild.textContent = txt; ul.appendChild(li);
       });
-
-      // 关闭下拉菜单
-      document.getElementById('languageDropdown').classList.remove('show');
-      document.querySelector('.language-btn').classList.remove('active');
-
-      // 保存语言偏好到本地存储
-      localStorage.setItem('preferred-language', lang);
     }
-
-    // 初始化语言
-    function initLanguage() {
-      const savedLang = localStorage.getItem('preferred-language') || 'zh-CN';
-      changeLanguage(savedLang);
+    /* ---------- scenarios ---------- */
+    function renderScenarios(){
+      var g = document.getElementById('scenarioGrid'); if(!g) return; g.innerHTML='';
+      (t('scenarios')||[]).forEach(function(s){
+        var d = document.createElement('div');
+        d.className='group relative rounded-2xl p-7 border border-white/10 bg-white/[0.02] hover:bg-white/[0.04] transition overflow-hidden';
+        d.innerHTML = '<div class="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-gradient-to-br '+s[3]+' to-transparent blur-2xl opacity-70 group-hover:opacity-100 transition"></div>'
+          + '<div class="relative"><div class="text-3xl mb-4">'+s[0]+'</div><h3 class="font-serif-sc text-xl font-bold mb-2 text-white"></h3><p class="text-sm text-slate-300/85 leading-relaxed"></p></div>';
+        d.querySelector('h3').textContent = s[1]; d.querySelector('p').textContent = s[2]; g.appendChild(d);
+      });
     }
+    /* ---------- chat bubbles ---------- */
+    function bubble(role, text){
+      if(role==='user') return '<div class="flex justify-end"><div class="max-w-[80%] text-sm px-4 py-2.5 rounded-2xl rounded-br-md bg-gradient-to-br from-indigo-500 to-fuchsia-500 text-white shadow-lg shadow-fuchsia-900/30">'+escapeHtml(text)+'</div></div>';
+      return '<div class="flex gap-2"><div class="shrink-0 w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-400 to-fuchsia-500 grid place-items-center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3h-4l-5 4v-4H7a3 3 0 0 1-3-3V6Z" fill="white"/></svg></div><div class="max-w-[80%] text-sm px-4 py-2.5 rounded-2xl rounded-tl-md bg-white/[0.06] border border-white/10 text-slate-100">'+escapeHtml(text)+'</div></div>';
+    }
+    function escapeHtml(s){ return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
 
-    // 点击外部关闭下拉菜单
-    document.addEventListener('click', function(event) {
-      const languageSwitcher = document.querySelector('.language-switcher');
-      if (!languageSwitcher.contains(event.target)) {
-        document.getElementById('languageDropdown').classList.remove('show');
-        document.querySelector('.language-btn').classList.remove('active');
+    /* ---------- hero auto-typing demo ---------- */
+    var heroIdx = 0, heroTimer = null;
+    function renderHeroChat(reset){
+      var box = document.getElementById('heroChat'); if(!box) return;
+      var chats = t('hero_demo')||[];
+      if(reset){ heroIdx = 0; }
+      var html = bubble('bot', t('hero_greet'));
+      for(var i=0;i<heroIdx && i<chats.length;i++) html += bubble(chats[i][0], chats[i][1]);
+      if(heroIdx < chats.length){
+        html += '<div class="flex items-center gap-1.5 pl-2 text-slate-400"><span class="w-1.5 h-1.5 rounded-full bg-slate-400 lw-bounce"></span><span class="w-1.5 h-1.5 rounded-full bg-slate-400 lw-bounce" style="animation-delay:150ms"></span><span class="w-1.5 h-1.5 rounded-full bg-slate-400 lw-bounce" style="animation-delay:300ms"></span></div>';
       }
-    });
+      box.innerHTML = html; box.scrollTop = box.scrollHeight;
+    }
+    function startHero(){
+      if(heroTimer) clearInterval(heroTimer);
+      heroTimer = setInterval(function(){ var n=(t('hero_demo')||[]).length; heroIdx = (heroIdx+1)%(n+1); renderHeroChat(false); }, 2200);
+    }
 
-    function scrollToDemo() {
-      const demo = document.getElementById('chatbot');
-      if (demo) demo.scrollIntoView({ behavior: 'smooth' });
+    /* ---------- interactive demo chat ---------- */
+    var demoMsgs = [];
+    function renderDemoChat(reset){
+      var box = document.getElementById('demoChat'); if(!box) return;
+      if(reset){ demoMsgs = [['bot', t('demo_greet')]]; }
+      box.innerHTML = demoMsgs.map(function(m){return bubble(m[0], m[1]);}).join('');
+      box.scrollTop = box.scrollHeight;
     }
-    
-    function updateStatus(message, type = 'info') {
-      const statusDiv = document.getElementById('status');
-      if (statusDiv) {
-        statusDiv.textContent = message;
-        statusDiv.className = `status ${type}`;
-      }
+    function demoSend(){
+      var inp = document.getElementById('demoInput'); var v = (inp.value||'').trim(); if(!v) return;
+      demoMsgs.push(['user', v]); inp.value=''; renderDemoChat(false);
+      setTimeout(function(){ demoMsgs.push(['bot', t('demo_reply')]); renderDemoChat(false); }, 600);
     }
-    
-    function showChatbot() {
-      let iframe = document.getElementById('rag-chatbot-iframe');
-      let minimizeBtn = document.getElementById('rag-chatbot-minimize');
-      if (!iframe) {
-        // 首次点击，插入聊天机器人
-        const welcomeMessage = currentLanguage === 'zh-CN' 
-          ? "嗨，我是凌问 AI小助手！\n\n我可以帮您解答一些问题， 例如：\n- 资费\n- 功能特点\n- 适用场景\n\n有问题直接问我就行，我马上告诉您！"
-          : "Hi, I'm LingAsk AI Assistant!\n\nI can help you answer some questions, such as:\n- Pricing\n- Features\n- Use cases\n\nJust ask me directly and I'll tell you right away!";
-        
-        initRAGChatbot({
-          apiKey: "cmcu4th0r0005wouf9qpp3s0d",
-          welcomeMessage: welcomeMessage,
-          enableRAG: true,
-          theme: { primaryColor: "#667eea" }
-        });
-        updateStatus(translations[currentLanguage].demo_status_success, 'success');
+
+    /* ---------- copy code ---------- */
+    function copyCode(btn){
+      var code = document.getElementById('codeSnippet').innerText;
+      navigator.clipboard && navigator.clipboard.writeText(code);
+      var old = btn.textContent; btn.textContent = t('copied'); setTimeout(function(){ btn.textContent = old; }, 1500);
+    }
+
+    /* ---------- real chatbot launch ---------- */
+    function showChatbot(){
+      var iframe = document.getElementById('rag-chatbot-iframe');
+      var minimizeBtn = document.getElementById('rag-chatbot-minimize');
+      if(!iframe){
+        var welcome = (lang==='zh-CN')
+          ? "嗨，我是凌问 AI 小助手！\n\n我可以帮您解答一些问题，例如：\n- 资费\n- 功能特点\n- 适用场景\n\n有问题直接问我就行！"
+          : "Hi, I'm the Lingwen AI assistant!\n\nI can help with things like:\n- Pricing\n- Features\n- Use cases\n\nJust ask me anything!";
+        initRAGChatbot({ apiKey: apiKey, welcomeMessage: welcome, enableRAG: true, theme: { primaryColor: "#7c3aed" } });
       } else {
-        iframe.style.display = 'block';
-        if (minimizeBtn) minimizeBtn.style.display = 'none';
-        updateStatus(translations[currentLanguage].demo_status_shown, 'success');
+        iframe.style.display = 'block'; if(minimizeBtn) minimizeBtn.style.display='none';
       }
+      var s = document.getElementById('ctaStatus'); if(s) s.textContent = t('st_success');
     }
-    
-    function removeChatbot() {
-      const iframe = document.getElementById('rag-chatbot-iframe');
-      const minimizeBtn = document.getElementById('rag-chatbot-minimize');
-      if (iframe) iframe.style.display = 'none';
-      if (minimizeBtn) minimizeBtn.style.display = 'none';
-      updateStatus(translations[currentLanguage].demo_status_removed, 'info');
+    function removeChatbot(){
+      var iframe = document.getElementById('rag-chatbot-iframe');
+      var minimizeBtn = document.getElementById('rag-chatbot-minimize');
+      if(iframe) iframe.style.display='none'; if(minimizeBtn) minimizeBtn.style.display='none';
+      var s = document.getElementById('ctaStatus'); if(s) s.textContent = t('st_removed');
     }
 
-    // 页面加载完成后初始化语言
-    document.addEventListener('DOMContentLoaded', function() {
-      initLanguage();
-    });
+    document.addEventListener('DOMContentLoaded', function(){ applyI18n(); startHero(); });
   </script>
 </body>
 </html>
