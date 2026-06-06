@@ -493,7 +493,7 @@
         var welcome = (lang==='zh-CN')
           ? "嗨，我是凌问 AI 小助手！\n\n我可以帮您解答一些问题，例如：\n- 资费\n- 功能特点\n- 适用场景\n\n有问题直接问我就行！"
           : "Hi, I'm the Lingwen AI assistant!\n\nI can help with things like:\n- Pricing\n- Features\n- Use cases\n\nJust ask me anything!";
-        initRAGChatbot({ apiKey: apiKey, welcomeMessage: welcome, enableRAG: true, theme: { primaryColor: "#7c3aed" } });
+        initRAGChatbot({ apiKey: apiKey, welcomeMessage: welcome, enableRAG: true, avatarUrl: "https://lingwenai.cn/favicon.ico", theme: { primaryColor: "#7c3aed" } });
       } else {
         iframe.style.display = 'block'; if(minimizeBtn) minimizeBtn.style.display='none';
       }
