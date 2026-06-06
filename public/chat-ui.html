@@ -356,9 +356,9 @@
         el.appendChild(im);
       } else { el.textContent='🤖'; }
     }
-    // 站点在门户配置的头像优先（覆盖挂件传入的默认头像，如落地页的 favicon）
+    // 挂件配置直接传入的头像优先（如落地页指定的图标）；未传入时再按 apiKey 拉取站点 style_config 的头像
     async function loadBotAvatar(){
-      if (!apiKey) return;
+      if (botAvatarUrl || !apiKey) return;
       try {
         var r = await fetch(PORTAL_API+'/api/upload/public-style-config?apiKey='+encodeURIComponent(apiKey));
         if (!r.ok) return;
