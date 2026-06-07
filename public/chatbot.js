@@ -150,7 +150,14 @@
             z-index: 10001;
             transition: all 0.3s ease;
         `;
-        
+
+        // With a real avatar image, drop the gradient background so it doesn't
+        // show as a colored ring around the (transparent) avatar disk.
+        if (finalConfig.avatarUrl) {
+            minimizeButton.style.background = 'transparent';
+            minimizeButton.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.18)';
+        }
+
         // Add hover effects (matching index.html style)
         minimizeButton.addEventListener('mouseenter', function() {
             this.style.transform = 'scale(1.1)';
