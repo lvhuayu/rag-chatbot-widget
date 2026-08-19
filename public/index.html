@@ -93,6 +93,38 @@
     /* 语言下拉 */
     .lang-dd { display:none; }
     .lang-dd.show { display:block; }
+    .pricing-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1.25rem; }
+    .pricing-card {
+      position:relative; display:flex; flex-direction:column; min-height:100%;
+      padding:2rem; border:1px solid rgba(255,255,255,.1); border-radius:1.5rem;
+      background:rgba(255,255,255,.03); transition:transform .25s ease, border-color .25s ease, background .25s ease;
+    }
+    .pricing-card:hover { transform:translateY(-6px); border-color:rgba(167,139,250,.45); background:rgba(255,255,255,.05); }
+    .pricing-card.featured {
+      border-color:rgba(167,139,250,.75);
+      background:linear-gradient(180deg,rgba(139,92,246,.16),rgba(255,255,255,.04));
+      box-shadow:0 24px 70px rgba(76,29,149,.28);
+    }
+    .pricing-badge {
+      position:absolute; top:-.85rem; left:50%; transform:translateX(-50%);
+      padding:.4rem 1rem; border-radius:999px; white-space:nowrap;
+      background:linear-gradient(90deg,#6366f1,#d946ef); color:#fff; font-size:.75rem; font-weight:700;
+    }
+    .pricing-price { display:flex; align-items:baseline; gap:.5rem; margin:1.5rem 0; color:#fff; }
+    .pricing-price strong { font-size:2.75rem; line-height:1; }
+    .pricing-price span { color:#94a3b8; font-size:.875rem; }
+    .pricing-features { display:grid; gap:.85rem; margin:0 0 1.75rem; color:#cbd5e1; font-size:.875rem; }
+    .pricing-features li { display:flex; gap:.65rem; line-height:1.5; }
+    .pricing-features li:before { content:"✓"; color:#c4b5fd; font-weight:800; }
+    .pricing-action {
+      display:block; margin-top:auto; padding:.8rem 1rem; border:1px solid rgba(167,139,250,.55);
+      border-radius:.75rem; color:#ddd6fe; text-align:center; font-weight:600; transition:.2s ease;
+    }
+    .pricing-action:hover, .pricing-card.featured .pricing-action {
+      color:#fff; border-color:transparent; background:linear-gradient(90deg,#6366f1,#d946ef);
+      box-shadow:0 12px 30px rgba(88,28,135,.35);
+    }
+    @media (max-width:900px) { .pricing-grid { grid-template-columns:1fr; } }
   </style>
 </head>
 <body class="min-h-screen">
@@ -284,8 +316,56 @@
     <div id="scenarioGrid" class="max-w-6xl mx-auto mt-14 grid sm:grid-cols-2 lg:grid-cols-3 gap-5"></div>
   </section>
 
-  <!-- Pricing / CTA -->
+  <!-- Pricing -->
   <section id="pricing" class="relative z-10 px-6 md:px-10 lg:px-16 py-24 border-t border-white/5">
+    <div class="max-w-2xl mx-auto text-center">
+      <p class="text-xs tracking-[0.3em] uppercase text-violet-300/80">PRICING</p>
+      <h2 class="font-serif-sc mt-3 text-3xl md:text-5xl font-bold tracking-tight text-white" data-i18n="pricing_title">选择适合您的方案</h2>
+      <p class="mt-4 text-slate-300/85" data-i18n="pricing_subtitle">从免费体验到企业级部署，随业务成长灵活升级。</p>
+    </div>
+    <div class="pricing-grid max-w-6xl mx-auto mt-14">
+      <article class="pricing-card">
+        <h3 class="font-serif-sc text-2xl font-bold text-white" data-i18n="pricing_free_name">免费版</h3>
+        <p class="mt-3 text-sm text-slate-300/85 leading-relaxed" data-i18n="pricing_free_desc">适合个人体验和小型网站快速验证。</p>
+        <div class="pricing-price"><strong>¥0</strong><span data-i18n="pricing_forever">永久免费</span></div>
+        <ul class="pricing-features">
+          <li data-i18n="pricing_free_feature_1">单站点聊天机器人接入</li>
+          <li data-i18n="pricing_free_feature_2">基础 RAG 知识库</li>
+          <li data-i18n="pricing_free_feature_3">标准聊天组件</li>
+          <li data-i18n="pricing_free_feature_4">社区支持</li>
+        </ul>
+        <a class="pricing-action" href="https://portal.lingwenai.cn/register" data-i18n="pricing_free_action">免费开始</a>
+      </article>
+      <article class="pricing-card featured">
+        <span class="pricing-badge" data-i18n="pricing_recommended">最受欢迎</span>
+        <h3 class="font-serif-sc text-2xl font-bold text-white" data-i18n="pricing_pro_name">专业版</h3>
+        <p class="mt-3 text-sm text-slate-300/85 leading-relaxed" data-i18n="pricing_pro_desc">面向需要稳定智能客服能力的成长型团队。</p>
+        <div class="pricing-price"><strong>¥99</strong><span data-i18n="pricing_per_month">/ 月</span></div>
+        <ul class="pricing-features">
+          <li data-i18n="pricing_pro_feature_1">完整 RAG 知识库能力</li>
+          <li data-i18n="pricing_pro_feature_2">多文档内容管理</li>
+          <li data-i18n="pricing_pro_feature_3">自定义欢迎语和主题</li>
+          <li data-i18n="pricing_pro_feature_4">优先技术支持</li>
+        </ul>
+        <a class="pricing-action" href="https://portal.lingwenai.cn/" data-i18n="pricing_pro_action">立即升级</a>
+      </article>
+      <article class="pricing-card">
+        <h3 class="font-serif-sc text-2xl font-bold text-white" data-i18n="pricing_enterprise_name">企业版</h3>
+        <p class="mt-3 text-sm text-slate-300/85 leading-relaxed" data-i18n="pricing_enterprise_desc">为复杂业务、数据安全和规模化部署而设计。</p>
+        <div class="pricing-price"><strong data-i18n="pricing_contact_price">定制</strong><span data-i18n="pricing_contact_sales">联系销售</span></div>
+        <ul class="pricing-features">
+          <li data-i18n="pricing_enterprise_feature_1">多站点与团队管理</li>
+          <li data-i18n="pricing_enterprise_feature_2">私有化部署方案</li>
+          <li data-i18n="pricing_enterprise_feature_3">定制系统集成</li>
+          <li data-i18n="pricing_enterprise_feature_4">专属技术支持</li>
+        </ul>
+        <a class="pricing-action" href="mailto:ask.lingwenai@gmail.com" data-i18n="pricing_enterprise_action">联系咨询</a>
+      </article>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="relative z-10 px-6 md:px-10 lg:px-16 py-24 border-t border-white/5">
     <div class="max-w-5xl mx-auto relative overflow-hidden rounded-[2rem] p-10 md:p-16 border border-white/10">
       <div class="absolute inset-0 bg-gradient-to-br from-indigo-600/40 via-violet-600/30 to-fuchsia-600/40"></div>
       <div class="absolute -top-32 -left-32 w-80 h-80 rounded-full bg-fuchsia-500/30 blur-3xl"></div>
@@ -368,6 +448,13 @@
         demo_win:'演示对话窗口', send:'发送',
         int_title:'3 分钟，从 0 到上线', int_desc:'无需后端、无需训练，复制即用。', copy:'复制',
         sc_title:'覆盖每一个对话场景', sc_desc:'从售前到内部协作，让每个团队都拥有专属 AI 同事。',
+        pricing_title:'选择适合您的方案', pricing_subtitle:'从免费体验到企业级部署，随业务成长灵活升级。',
+        pricing_free_name:'免费版', pricing_free_desc:'适合个人体验和小型网站快速验证。', pricing_forever:'永久免费',
+        pricing_free_feature_1:'单站点聊天机器人接入', pricing_free_feature_2:'基础 RAG 知识库', pricing_free_feature_3:'标准聊天组件', pricing_free_feature_4:'社区支持', pricing_free_action:'免费开始',
+        pricing_recommended:'最受欢迎', pricing_pro_name:'专业版', pricing_pro_desc:'面向需要稳定智能客服能力的成长型团队。', pricing_per_month:'/ 月',
+        pricing_pro_feature_1:'完整 RAG 知识库能力', pricing_pro_feature_2:'多文档内容管理', pricing_pro_feature_3:'自定义欢迎语和主题', pricing_pro_feature_4:'优先技术支持', pricing_pro_action:'立即升级',
+        pricing_enterprise_name:'企业版', pricing_enterprise_desc:'为复杂业务、数据安全和规模化部署而设计。', pricing_contact_price:'定制', pricing_contact_sales:'联系销售',
+        pricing_enterprise_feature_1:'多站点与团队管理', pricing_enterprise_feature_2:'私有化部署方案', pricing_enterprise_feature_3:'定制系统集成', pricing_enterprise_feature_4:'专属技术支持', pricing_enterprise_action:'联系咨询',
         cta_title:'准备好让 AI 加入您的团队了吗？', cta_sub:'免费版即可在您的网站上线体验，3 分钟快速接入，立即拥有专属 AI 客服。',
         cta_start:'启动聊天机器人', cta_remove:'移除机器人', cta_ready:'准备就绪 · 点击启动按钮开始体验',
         foot_tag:'本地化中文智能客服平台 · 让每个企业都拥有自己的 AI 同事。', foot_product:'产品', foot_resource:'资源', foot_company:'公司',
@@ -396,6 +483,13 @@
         demo_win:'Demo chat', send:'Send',
         int_title:'From zero to live in 3 minutes', int_desc:'No backend, no training — copy and paste.', copy:'Copy',
         sc_title:'Every conversation, covered', sc_desc:'From pre-sales to internal ops — an AI teammate for every team.',
+        pricing_title:'Choose the Right Plan', pricing_subtitle:'Start free and upgrade as your customer service needs grow.',
+        pricing_free_name:'Free', pricing_free_desc:'For personal trials and small websites validating the experience.', pricing_forever:'Free forever',
+        pricing_free_feature_1:'Single-site chatbot integration', pricing_free_feature_2:'Basic RAG knowledge base', pricing_free_feature_3:'Standard chat widget', pricing_free_feature_4:'Community support', pricing_free_action:'Start Free',
+        pricing_recommended:'Most Popular', pricing_pro_name:'Professional', pricing_pro_desc:'For growing teams that need reliable AI customer service.', pricing_per_month:'/ month',
+        pricing_pro_feature_1:'Full RAG knowledge capabilities', pricing_pro_feature_2:'Multi-document management', pricing_pro_feature_3:'Custom welcome message and theme', pricing_pro_feature_4:'Priority technical support', pricing_pro_action:'Upgrade Now',
+        pricing_enterprise_name:'Enterprise', pricing_enterprise_desc:'Designed for complex workflows, data security, and deployment at scale.', pricing_contact_price:'Custom', pricing_contact_sales:'Contact sales',
+        pricing_enterprise_feature_1:'Multi-site and team management', pricing_enterprise_feature_2:'Private deployment options', pricing_enterprise_feature_3:'Custom system integrations', pricing_enterprise_feature_4:'Dedicated technical support', pricing_enterprise_action:'Contact Us',
         cta_title:'Ready to add AI to your team?', cta_sub:'Go live on your site with the free plan — integrate in 3 minutes and instantly get your own AI assistant.',
         cta_start:'Launch chatbot', cta_remove:'Remove bot', cta_ready:'Ready · click launch to start',
         foot_tag:'A localized Chinese AI support platform — an AI teammate for every company.', foot_product:'Product', foot_resource:'Resources', foot_company:'Company',
