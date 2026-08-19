@@ -629,6 +629,150 @@
       margin-top: 60px;
       margin-bottom: 47px;
     }
+    .pricing-section {
+      margin-top: 70px;
+      padding: 56px 36px;
+      border-radius: 28px;
+      background:
+        radial-gradient(circle at top right, rgba(124, 58, 237, 0.14), transparent 34%),
+        linear-gradient(145deg, #ffffff, #f4f0ff);
+      box-shadow: 0 24px 60px rgba(76, 29, 149, 0.1);
+    }
+    .pricing-subtitle {
+      max-width: 620px;
+      margin: 0 auto;
+      color: #64748b;
+      text-align: center;
+      font-size: 1.05rem;
+      line-height: 1.7;
+    }
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 22px;
+      margin-top: 42px;
+      align-items: stretch;
+    }
+    .pricing-card {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      padding: 32px 28px;
+      border: 1px solid #e9e2ff;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.94);
+      box-shadow: 0 14px 36px rgba(30, 41, 59, 0.08);
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .pricing-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 22px 46px rgba(76, 29, 149, 0.14);
+    }
+    .pricing-card.featured {
+      border: 2px solid #7c3aed;
+      background: linear-gradient(180deg, #ffffff, #faf7ff);
+      box-shadow: 0 20px 48px rgba(124, 58, 237, 0.18);
+    }
+    .pricing-badge {
+      position: absolute;
+      top: -14px;
+      left: 50%;
+      padding: 7px 18px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #7c3aed, #6366f1);
+      color: white;
+      font-size: 0.82rem;
+      font-weight: 700;
+      transform: translateX(-50%);
+      white-space: nowrap;
+    }
+    .pricing-plan {
+      margin: 0 0 8px;
+      color: #312e81;
+      font-size: 1.35rem;
+    }
+    .pricing-description {
+      min-height: 48px;
+      margin: 0;
+      color: #64748b;
+      line-height: 1.5;
+    }
+    .pricing-price {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      margin: 24px 0;
+      color: #1e1b4b;
+    }
+    .pricing-price strong {
+      font-size: 2.7rem;
+      line-height: 1;
+    }
+    .pricing-price span {
+      color: #64748b;
+      font-size: 0.95rem;
+    }
+    .pricing-features {
+      display: grid;
+      gap: 14px;
+      margin: 0 0 30px;
+      padding: 0;
+      list-style: none;
+      color: #475569;
+    }
+    .pricing-features li {
+      display: flex;
+      gap: 10px;
+      line-height: 1.5;
+    }
+    .pricing-features li::before {
+      content: '✓';
+      color: #7c3aed;
+      font-weight: 800;
+    }
+    .pricing-action {
+      display: block;
+      margin-top: auto;
+      padding: 13px 20px;
+      border: 1px solid #7c3aed;
+      border-radius: 12px;
+      color: #6d28d9;
+      text-align: center;
+      text-decoration: none;
+      font-weight: 700;
+      transition: all 0.25s ease;
+    }
+    .pricing-action:hover,
+    .pricing-card.featured .pricing-action {
+      background: linear-gradient(135deg, #7c3aed, #6366f1);
+      color: white;
+      box-shadow: 0 10px 24px rgba(124, 58, 237, 0.24);
+    }
+    @media (max-width: 860px) {
+      .pricing-grid {
+        grid-template-columns: 1fr;
+      }
+      .pricing-description {
+        min-height: auto;
+      }
+    }
+    @media (max-width: 560px) {
+      header h1 {
+        font-size: 2.3rem;
+      }
+      .pricing-section {
+        padding: 46px 18px;
+      }
+      .pricing-card {
+        padding: 30px 22px;
+      }
+      .nav-menu {
+        gap: 8px;
+      }
+      .nav-link {
+        padding: 8px 10px;
+      }
+    }
     .nav-link.rag-platform {
         background: #a5b4fc;
         color: #2a4365 !important;
@@ -662,6 +806,7 @@
           </a>
           <ul class="nav-menu">
               <!-- <li><a href="chat-ui.html" class="nav-link">💬 在线体验</a></li> -->
+              <li><a href="#pricing" class="nav-link" data-i18n="nav_pricing">价格</a></li>
               <li><a href="https://portal.lingwenai.cn/" class="nav-link rag-platform"><span style="margin-left:6px;" data-i18n="rag_platform">登录</span></a></li>
               <li>
                 <div class="language-switcher">
@@ -744,6 +889,61 @@
       </div>
     </section>
 
+    <section class="pricing-section" id="pricing">
+      <h2 data-i18n="pricing_title">选择适合您的方案</h2>
+      <p class="pricing-subtitle" data-i18n="pricing_subtitle">从免费体验到企业级部署，随业务成长灵活升级。</p>
+      <div class="pricing-grid">
+        <article class="pricing-card">
+          <h3 class="pricing-plan" data-i18n="pricing_free_name">免费版</h3>
+          <p class="pricing-description" data-i18n="pricing_free_desc">适合个人体验和小型网站快速验证。</p>
+          <div class="pricing-price">
+            <strong>¥0</strong>
+            <span data-i18n="pricing_forever">永久免费</span>
+          </div>
+          <ul class="pricing-features">
+            <li data-i18n="pricing_free_feature_1">单站点聊天机器人接入</li>
+            <li data-i18n="pricing_free_feature_2">基础 RAG 知识库</li>
+            <li data-i18n="pricing_free_feature_3">标准聊天组件</li>
+            <li data-i18n="pricing_free_feature_4">社区支持</li>
+          </ul>
+          <a class="pricing-action" href="https://portal.lingwenai.cn/" data-i18n="pricing_free_action">免费开始</a>
+        </article>
+
+        <article class="pricing-card featured">
+          <span class="pricing-badge" data-i18n="pricing_recommended">最受欢迎</span>
+          <h3 class="pricing-plan" data-i18n="pricing_pro_name">专业版</h3>
+          <p class="pricing-description" data-i18n="pricing_pro_desc">面向需要稳定智能客服能力的成长型团队。</p>
+          <div class="pricing-price">
+            <strong>¥99</strong>
+            <span data-i18n="pricing_per_month">/ 月</span>
+          </div>
+          <ul class="pricing-features">
+            <li data-i18n="pricing_pro_feature_1">完整 RAG 知识库能力</li>
+            <li data-i18n="pricing_pro_feature_2">多文档内容管理</li>
+            <li data-i18n="pricing_pro_feature_3">自定义欢迎语和主题</li>
+            <li data-i18n="pricing_pro_feature_4">优先技术支持</li>
+          </ul>
+          <a class="pricing-action" href="https://portal.lingwenai.cn/" data-i18n="pricing_pro_action">立即升级</a>
+        </article>
+
+        <article class="pricing-card">
+          <h3 class="pricing-plan" data-i18n="pricing_enterprise_name">企业版</h3>
+          <p class="pricing-description" data-i18n="pricing_enterprise_desc">为复杂业务、数据安全和规模化部署而设计。</p>
+          <div class="pricing-price">
+            <strong data-i18n="pricing_contact_price">定制</strong>
+            <span data-i18n="pricing_contact_sales">联系销售</span>
+          </div>
+          <ul class="pricing-features">
+            <li data-i18n="pricing_enterprise_feature_1">多站点与团队管理</li>
+            <li data-i18n="pricing_enterprise_feature_2">私有化部署方案</li>
+            <li data-i18n="pricing_enterprise_feature_3">定制系统集成</li>
+            <li data-i18n="pricing_enterprise_feature_4">专属技术支持</li>
+          </ul>
+          <a class="pricing-action" href="mailto:ask.lingwenai@gmail.com" data-i18n="pricing_enterprise_action">联系咨询</a>
+        </article>
+      </div>
+    </section>
+
     <div class="highlight-box" id="chatbot">
         <h3 data-i18n="demo_box_title">🎯 立即体验</h3>
         <p data-i18n="demo_box_desc">点击下方按钮启动智能RAG聊天机器人，体验本地化AI助手的强大功能</p>
@@ -766,6 +966,7 @@
               'zh-CN': {
           'title': '凌问 AI - 智嵌客服',
           'nav-logo-main': '凌问',
+          'nav_pricing': '价格',
           'rag_platform': '登录',
           'hero_title': '💬 一行代码，即刻拥有中文智能客服',
           'hero_subtitle': '本地部署 · 私有数据 · 智能语义理解',
@@ -788,6 +989,34 @@
           'scenario_two_desc': '智能答疑用户问题，提升品牌形象与访问转化率。',
           'scenario_three_title': '📁 内部问答',
           'scenario_three_desc': '为员工提供制度流程文档自动化查询，提升效率。',
+          'pricing_title': '选择适合您的方案',
+          'pricing_subtitle': '从免费体验到企业级部署，随业务成长灵活升级。',
+          'pricing_free_name': '免费版',
+          'pricing_free_desc': '适合个人体验和小型网站快速验证。',
+          'pricing_forever': '永久免费',
+          'pricing_free_feature_1': '单站点聊天机器人接入',
+          'pricing_free_feature_2': '基础 RAG 知识库',
+          'pricing_free_feature_3': '标准聊天组件',
+          'pricing_free_feature_4': '社区支持',
+          'pricing_free_action': '免费开始',
+          'pricing_recommended': '最受欢迎',
+          'pricing_pro_name': '专业版',
+          'pricing_pro_desc': '面向需要稳定智能客服能力的成长型团队。',
+          'pricing_per_month': '/ 月',
+          'pricing_pro_feature_1': '完整 RAG 知识库能力',
+          'pricing_pro_feature_2': '多文档内容管理',
+          'pricing_pro_feature_3': '自定义欢迎语和主题',
+          'pricing_pro_feature_4': '优先技术支持',
+          'pricing_pro_action': '立即升级',
+          'pricing_enterprise_name': '企业版',
+          'pricing_enterprise_desc': '为复杂业务、数据安全和规模化部署而设计。',
+          'pricing_contact_price': '定制',
+          'pricing_contact_sales': '联系销售',
+          'pricing_enterprise_feature_1': '多站点与团队管理',
+          'pricing_enterprise_feature_2': '私有化部署方案',
+          'pricing_enterprise_feature_3': '定制系统集成',
+          'pricing_enterprise_feature_4': '专属技术支持',
+          'pricing_enterprise_action': '联系咨询',
           'demo_box_title': '🎯 立即体验',
           'demo_box_desc': '点击下方按钮启动智能RAG聊天机器人，体验本地化AI助手的强大功能',
           'demo_start_button': '🚀 启动聊天机器人',
@@ -801,6 +1030,7 @@
               'en-US': {
           'title': 'LingAsk AI - Smart Customer Service',
           'nav-logo-main': 'Ling',
+          'nav_pricing': 'Pricing',
           'rag_platform': 'Login',
           'hero_title': '💬 One Line of Code, Instant Smart Customer Service',
           'hero_subtitle': 'Local Deployment · Private Data · Intelligent Semantic Understanding',
@@ -823,6 +1053,34 @@
           'scenario_two_desc': 'Intelligent Q&A for user questions, enhancing brand image and conversion rates.',
           'scenario_three_title': '📁 Internal Q&A',
           'scenario_three_desc': 'Provide automated document queries for employees, improving efficiency.',
+          'pricing_title': 'Choose the Right Plan',
+          'pricing_subtitle': 'Start free and upgrade as your customer service needs grow.',
+          'pricing_free_name': 'Free',
+          'pricing_free_desc': 'For personal trials and small websites validating the experience.',
+          'pricing_forever': 'Free forever',
+          'pricing_free_feature_1': 'Single-site chatbot integration',
+          'pricing_free_feature_2': 'Basic RAG knowledge base',
+          'pricing_free_feature_3': 'Standard chat widget',
+          'pricing_free_feature_4': 'Community support',
+          'pricing_free_action': 'Start Free',
+          'pricing_recommended': 'Most Popular',
+          'pricing_pro_name': 'Professional',
+          'pricing_pro_desc': 'For growing teams that need reliable AI customer service.',
+          'pricing_per_month': '/ month',
+          'pricing_pro_feature_1': 'Full RAG knowledge capabilities',
+          'pricing_pro_feature_2': 'Multi-document management',
+          'pricing_pro_feature_3': 'Custom welcome message and theme',
+          'pricing_pro_feature_4': 'Priority technical support',
+          'pricing_pro_action': 'Upgrade Now',
+          'pricing_enterprise_name': 'Enterprise',
+          'pricing_enterprise_desc': 'Designed for complex workflows, data security, and deployment at scale.',
+          'pricing_contact_price': 'Custom',
+          'pricing_contact_sales': 'Contact sales',
+          'pricing_enterprise_feature_1': 'Multi-site and team management',
+          'pricing_enterprise_feature_2': 'Private deployment options',
+          'pricing_enterprise_feature_3': 'Custom system integrations',
+          'pricing_enterprise_feature_4': 'Dedicated technical support',
+          'pricing_enterprise_action': 'Contact Us',
           'demo_box_title': '🎯 Try Now',
           'demo_box_desc': 'Click the button below to launch the smart RAG chatbot and experience the powerful features of localized AI assistant',
           'demo_start_button': '🚀 Launch Chatbot',
