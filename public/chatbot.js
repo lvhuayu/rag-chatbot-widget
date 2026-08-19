@@ -8,6 +8,11 @@
     let userId = null;
     let privateKey = null;
     let publicKey = null;
+
+    const scriptUrl = document.currentScript && document.currentScript.src;
+    const defaultChatUiUrl = scriptUrl
+        ? new URL('chat-ui.html', scriptUrl).href
+        : new URL('./chat-ui.html', window.location.href).href;
     
     // Detect environment and set API base URL
     const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
@@ -32,6 +37,7 @@
             ragThreshold: 0.7,
             maxRAGResults: 3,
             backendUrl: API_BASE_URL, // Use detected API base URL
+            chatUiUrl: defaultChatUiUrl,
             ollamaUrl: 'http://localhost:11434',
             
             // Multi-tenant configuration
@@ -106,7 +112,7 @@
         // Create iframe element
         const iframe = document.createElement('iframe');
         iframe.id = 'rag-chatbot-iframe';
-        iframe.src = './chat-ui.html';
+        iframe.src = finalConfig.chatUiUrl;
         iframe.style.cssText = `
             position: fixed;
             bottom: 20px;
