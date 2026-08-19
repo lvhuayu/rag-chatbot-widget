@@ -16,7 +16,7 @@
     
     // Detect environment and set API base URL
     const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-    const API_BASE_URL = isLocalhost ? "http://localhost:8001" : "https://essayformatter.com";
+    const API_BASE_URL = isLocalhost ? "http://localhost:8001" : "https://portal.lingwenai.cn";
     console.log(isLocalhost)
     // Global function to initialize the chatbot
     window.initRAGChatbot = async function(config) {
@@ -133,7 +133,11 @@
         // Create minimize button
         const minimizeButton = document.createElement('div');
         minimizeButton.id = 'rag-chatbot-minimize';
-        minimizeButton.innerHTML = '🤖';
+        if (finalConfig.avatarUrl) {
+            minimizeButton.innerHTML = '<img src="' + finalConfig.avatarUrl + '" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;">';
+        } else {
+            minimizeButton.innerHTML = '🤖';
+        }
         minimizeButton.style.cssText = `
             position: fixed;
             bottom: 20px;
@@ -152,7 +156,14 @@
             z-index: 10001;
             transition: all 0.3s ease;
         `;
-        
+
+        // With a real avatar image, drop the gradient background so it doesn't
+        // show as a colored ring around the (transparent) avatar disk.
+        if (finalConfig.avatarUrl) {
+            minimizeButton.style.background = 'transparent';
+            minimizeButton.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.18)';
+        }
+
         // Add hover effects (matching index.html style)
         minimizeButton.addEventListener('mouseenter', function() {
             this.style.transform = 'scale(1.1)';
@@ -744,7 +755,7 @@
                         const chunk = decoder.decode(value, { stream: true });
                         chunk.split('\n').forEach(line => {
                             if (line.startsWith('data:')) {
-                                const text = line.replace(/^data:/, '').trim();
+                                const text = line.replace(/^data: ?/, '');
                                 if (text) {
                                     fullMsg += text;
                                     if (onData) onData(fullMsg);

@@ -266,11 +266,12 @@
 <body>
   <div class="chatbot-container" id="chatbot-container">
     <div class="chatbot-header">
-      <h3>🤖 AI 助手</h3>
+      <h3><span id="chatbot-title-icon">🤖</span> AI 助手</h3>
       <div class="chatbot-status">
         <span class="status-dot" id="connection-status"></span>
         <span id="status-text">Connecting...</span>
         <span class="auth-indicator" id="auth-indicator" style="display:none;">🔐 Auth</span>
+        <button class="minimize-btn" onclick="openLeadForm()" title="留言" style="margin-right:4px;">✍️</button>
         <button class="minimize-btn" onclick="window.parent.postMessage({ type: 'MINIMIZE_CHATBOT' }, '*')" title="最小化">−</button>
       </div>
     </div>
@@ -292,6 +293,18 @@
         </button>
       </div>
     </div>
+    <div id="lead-form" style="display:none; position:absolute; inset:0; background:#fff; z-index:30; padding:18px; flex-direction:column; border-radius:12px;">
+      <div style="font-weight:700; font-size:16px; margin-bottom:4px;">✍️ 给我们留言</div>
+      <div style="font-size:12px; color:#888; margin-bottom:14px;">留下您的联系方式，我们会尽快联系您。</div>
+      <input id="lead-name" placeholder="称呼（选填）" style="width:100%; box-sizing:border-box; border:1px solid #e5e7eb; border-radius:8px; padding:10px; margin-bottom:10px; font-size:14px;" />
+      <input id="lead-contact" placeholder="联系方式：手机 / 微信 / 邮箱 *" style="width:100%; box-sizing:border-box; border:1px solid #e5e7eb; border-radius:8px; padding:10px; margin-bottom:10px; font-size:14px;" />
+      <textarea id="lead-message" rows="4" placeholder="留言内容 *" style="width:100%; box-sizing:border-box; border:1px solid #e5e7eb; border-radius:8px; padding:10px; margin-bottom:8px; font-size:14px; resize:none; font-family:inherit;"></textarea>
+      <div id="lead-msg" style="font-size:12px; color:#e11d48; min-height:16px; margin-bottom:8px;"></div>
+      <div style="display:flex; gap:10px;">
+        <button id="lead-submit" onclick="submitLead()" style="flex:1; background:linear-gradient(135deg,#667eea,#764ba2); color:#fff; border:none; border-radius:8px; padding:11px; font-size:15px; cursor:pointer;">提交</button>
+        <button onclick="closeLeadForm()" style="flex:0 0 auto; background:#f3f4f6; color:#444; border:none; border-radius:8px; padding:11px 18px; font-size:15px; cursor:pointer;">取消</button>
+      </div>
+    </div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
@@ -301,13 +314,69 @@
       gfm: true
     });
     const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-    const API_BASE_URL = isLocalhost ? "http://localhost:8001" : "https://essayformatter.com";
+    const API_BASE_URL = isLocalhost ? "http://localhost:8001" : "https://portal.lingwenai.cn";
+    // 留言接口在 uploader（门户）后端；首页在 lingwenai.cn，需绝对指向 portal（CORS 已放行 lingwenai.cn）
+    const PORTAL_API = isLocalhost ? "http://localhost:5000" : "https://portal.lingwenai.cn";
+    function openLeadForm(){ var f=document.getElementById('lead-form'); if(f) f.style.display='flex'; }
+    function closeLeadForm(){ var f=document.getElementById('lead-form'); if(f) f.style.display='none'; var m=document.getElementById('lead-msg'); if(m) m.textContent=''; }
+    async function submitLead(){
+      var name=(document.getElementById('lead-name').value||'').trim();
+      var contact=(document.getElementById('lead-contact').value||'').trim();
+      var message=(document.getElementById('lead-message').value||'').trim();
+      var out=document.getElementById('lead-msg');
+      if(!apiKey){ out.textContent='未配置 apiKey，无法提交。'; return; }
+      if(!contact||!message){ out.textContent='请填写联系方式和留言内容。'; return; }
+      var btn=document.getElementById('lead-submit'); btn.disabled=true;
+      try{
+        var r=await fetch(PORTAL_API+'/api/upload/public-message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({apiKey:apiKey,name:name,contact:contact,message:message})});
+        var d=await r.json().catch(function(){return {};});
+        if(r.ok){ document.getElementById('lead-name').value=''; document.getElementById('lead-contact').value=''; document.getElementById('lead-message').value=''; closeLeadForm(); addChatMessage('bot', d.message||'留言已提交，我们会尽快联系您。'); }
+        else { out.textContent=d.message||'提交失败，请稍后再试。'; }
+      }catch(e){ out.textContent='提交失败，请稍后再试。'; }
+      finally{ btn.disabled=false; }
+    }
     let chatbotInitialized = false;
     let sending = false;
     // 新增：用于存储通过 postMessage 传递的 apiKey
     let apiKey = null;
     // 新增：用于存储通过 postMessage 传递的 welcomeMessage
     let welcomeMessage = null;
+    // 多轮对话历史（基础版记忆）
+    let convHistory = [];
+    // 机器人头像：优先用挂件配置里传入的 avatarUrl，否则按 apiKey 拉取站点 style_config 里的头像
+    let botAvatarUrl = null;
+    function applyBotAvatar(el){
+      if (botAvatarUrl){
+        el.textContent='';
+        el.style.background='transparent';
+        el.style.overflow='hidden';
+        var im=document.createElement('img');
+        im.src=botAvatarUrl; im.alt='';
+        im.style.cssText='width:100%;height:100%;object-fit:cover;border-radius:50%';
+        el.appendChild(im);
+      } else { el.textContent='🤖'; }
+    }
+    // 挂件配置直接传入的头像优先（如落地页指定的图标）；未传入时再按 apiKey 拉取站点 style_config 的头像
+    async function loadBotAvatar(){
+      if (botAvatarUrl || !apiKey) return;
+      try {
+        var r = await fetch(PORTAL_API+'/api/upload/public-style-config?apiKey='+encodeURIComponent(apiKey));
+        if (!r.ok) return;
+        var d = await r.json();
+        if (d && d.style_config){ var c = JSON.parse(d.style_config); if (c.avatarUrl) botAvatarUrl = c.avatarUrl; }
+      } catch(e){}
+    }
+    // 顶部标题旁的图标也用头像
+    function applyHeaderAvatar(){
+      if (!botAvatarUrl) return;
+      var icon = document.getElementById('chatbot-title-icon');
+      if (!icon) return;
+      icon.innerHTML='';
+      var im=document.createElement('img');
+      im.src=botAvatarUrl; im.alt='';
+      im.style.cssText='width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle';
+      icon.appendChild(im);
+    }
     // 监听 postMessage，接收 config.apiKey 和 config.welcomeMessage
     window.addEventListener('message', function(event) {
       if (event.data && event.data.type === 'CHATBOT_CONFIG') {
@@ -317,11 +386,27 @@
         if (event.data.config && event.data.config.welcomeMessage) {
           welcomeMessage = event.data.config.welcomeMessage;
         }
+        if (event.data.config && event.data.config.avatarUrl) {
+          botAvatarUrl = event.data.config.avatarUrl;
+        }
         // 可选：自动初始化
         if (!chatbotInitialized) {
           initChatbot();
         }
       }
+    });
+    // 兜底：支持通过 URL 参数 ?apikey= 传入 apiKey（便于直接用 iframe 嵌入，无需 postMessage）
+    window.addEventListener('load', function() {
+      try {
+        const p = new URLSearchParams(window.location.search);
+        const k = p.get('apikey') || p.get('apiKey');
+        if (k && !apiKey) {
+          apiKey = k;
+          const w = p.get('welcome');
+          if (w) welcomeMessage = w;
+          if (!chatbotInitialized) initChatbot();
+        }
+      } catch (e) {}
     });
     function updateStatus(message, type = 'info') {}
     // 连接状态检测
@@ -350,6 +435,8 @@
         chatbotContainer.style.display = 'flex';
         const messagesContainer = document.getElementById('chatbot-messages');
         messagesContainer.innerHTML = '';
+        await loadBotAvatar();
+        applyHeaderAvatar();
         addChatMessage('bot', welcomeMessage || '嗨，我是凌问AI小助手！\n\n我可以帮您解答一些问题， 例如：\n- 资费\n- 功能特点\n- 适用场景\n\n有问题直接问我就行，我马上告诉您！');
         chatbotInitialized = true;
     }
@@ -359,14 +446,14 @@
         messageDiv.className = `chatbot-message ${sender}`;
         const avatar = document.createElement('div');
         avatar.className = 'message-avatar';
-        avatar.textContent = sender === 'user' ? 'U' : '🤖';
+        if (sender === 'user') { avatar.textContent = 'U'; } else { applyBotAvatar(avatar); }
         const messageContent = document.createElement('div');
         messageContent.className = 'message-content';
         if (sender === 'bot') {
             const markdownHtml = marked.parse(fixMarkdownList(content));
             const sanitizedHtml = DOMPurify.sanitize(markdownHtml, {
-                ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote'],
-                ALLOWED_ATTR: []
+                ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote', 'a', 'hr', 'del', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+                ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'align']
             });
             messageContent.innerHTML = sanitizedHtml;
         } else {
@@ -384,7 +471,7 @@
         typingDiv.id = 'typing-indicator';
         const avatar = document.createElement('div');
         avatar.className = 'message-avatar';
-        avatar.textContent = '🤖';
+        applyBotAvatar(avatar);
         const typingContent = document.createElement('div');
         typingContent.className = 'typing-indicator';
         typingContent.innerHTML = `
@@ -410,6 +497,8 @@
         const sendBtn = document.getElementById('chatbot-send');
         const message = input.value.trim();
         if (!message || !chatbotInitialized) { sending = false; return; }
+        const history = convHistory.slice(-6);
+        convHistory.push({ role: 'user', content: message });
         addChatMessage('user', message);
         input.value = '';
         sendBtn.disabled = true;
@@ -453,7 +542,7 @@
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify({ query: message, top_k: 1 })
+                    body: JSON.stringify({ query: message, top_k: 1, history })
                 });
                 const contentType = response.headers.get('content-type') || '';
                 if (contentType.includes('text/event-stream')) {
@@ -472,7 +561,7 @@
                             const chunk = decoder.decode(value, { stream: true });
                             chunk.split('\n').forEach(line => {
                                 if (line.startsWith('data:')) {
-                                    const text = line.replace(/^data:/, '').trim();
+                                    const text = line.replace(/^data: ?/, '');
                                     if (text) {
                                         fullMsg += text;
                                         if (!messageDiv) {
@@ -483,7 +572,7 @@
                                             messageDiv.id = 'streaming-message';
                                             const avatar = document.createElement('div');
                                             avatar.className = 'message-avatar';
-                                            avatar.textContent = '🤖';
+                                            applyBotAvatar(avatar);
                                             messageContent = document.createElement('div');
                                             messageContent.className = 'message-content';
                                             messageDiv.appendChild(avatar);
@@ -492,8 +581,8 @@
                                         }
                                         const markdownHtml = marked.parse(fixMarkdownList(fullMsg));
                                         const sanitizedHtml = DOMPurify.sanitize(markdownHtml, {
-                                            ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote'],
-                                            ALLOWED_ATTR: []
+                                            ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote', 'a', 'hr', 'del', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+                                            ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'align']
                                         });
                                         messageContent.innerHTML = sanitizedHtml;
                                         messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -503,12 +592,13 @@
                         }
                     }
                     if (messageDiv) messageDiv.removeAttribute('id');
+                    if (fullMsg) convHistory.push({ role: 'assistant', content: fullMsg });
                     // --- 新增：流结束后，做一次完整的markdown修正和最终渲染 ---
                     if (messageContent && fullMsg) {
                         const finalHtml = marked.parse(fixMarkdownList(fullMsg));
                         const sanitizedHtml = DOMPurify.sanitize(finalHtml, {
-                            ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote'],
-                            ALLOWED_ATTR: []
+                            ALLOWED_TAGS: ['p', 'br', 'strong', 'b', 'em', 'i', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'code', 'pre', 'blockquote', 'a', 'hr', 'del', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+                            ALLOWED_ATTR: ['href', 'title', 'target', 'rel', 'align']
                         });
                         messageContent.innerHTML = sanitizedHtml;
                     }
@@ -554,19 +644,24 @@
         updateAuthStatus(true);
         // initChatbot(); // 注释掉，防止页面加载时自动显示默认欢迎语
     });
+    // 让 markdown 链接在新标签打开并加 noopener（避免在 iframe 内跳走 + 安全）
+    if (window.DOMPurify && DOMPurify.addHook) {
+      DOMPurify.addHook('afterSanitizeAttributes', function (node) {
+        if (node.tagName === 'A') {
+          node.setAttribute('target', '_blank');
+          node.setAttribute('rel', 'noopener noreferrer');
+        }
+      });
+    }
     function fixMarkdownList(text) {
       if (!text || text.length < 3) return text;
       text = text.replace(/\\n/g, '\n');
-      text = text.replace(/^(-{2,})\s*(.*)$/gm, (_, dashes, content) => {
-        const level = Math.min(dashes.length, 6);
-        return `${'  '.repeat(level - 1)}- ${content.trim()}`;
-      });
-      text = text.replace(/(?<![\n\r])-(\S)/g, '\n- $1');
+      // 多个连字符的嵌套列表标记；内容为空(如 --- 分割线)时保持原样，不要变成空列表项
+      text = text.replace(/^(-{2,})\s*(.*)$/gm, (m, dashes, content) => content ? `${'  '.repeat(Math.min(dashes.length, 6) - 1)}- ${content.trim()}` : m);
+      // 转义 < 防止答案中的 <script> 等被当成 HTML 标签，导致后续内容被吞掉
+      // （会拆连字符词、把 如需/如果 强制分段的旧启发式已移除——后端已保留真实换行）
+      text = text.replace(/</g, '&lt;');
       text = text.replace(/([^\n])\n([ \t]*[-*] )/g, '$1\n\n$2');
-      text = text.replace(
-        /([^\n])((如需|如果)[^\n]*)/g,
-        '$1\n\n$2'
-      );
       return text.trim();
     }
   </script>

@@ -1,7 +1,7 @@
 // RAG Service Client - Communicates with Python Backend
 
 export class RAGServiceClient {
-    constructor(backendUrl = 'https://essayformatter.com:8001') {
+    constructor(backendUrl = 'https://portal.lingwenai.cn') {
         this.backendUrl = backendUrl;
         this.isInitialized = false;
         this.initPromise = null;
@@ -110,7 +110,7 @@ export class RAGServiceClient {
                         const chunk = decoder.decode(value, { stream: true });
                         chunk.split('\n').forEach(line => {
                             if (line.startsWith('data:')) {
-                                const text = line.replace(/^data:/, '').trim();
+                                const text = line.replace(/^data: ?/, '');
                                 if (text) {
                                     fullMsg += text;
                                     if (onData) onData(fullMsg);

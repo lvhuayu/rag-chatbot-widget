@@ -17,7 +17,7 @@
             enableContentIngestion: false,
             ingestEndpoint: 'https://yourdomain.com/api/ingest',
             enableRAG: true,
-            backendUrl: 'https://essayformatter.com:8001', // Python 后端地址
+            backendUrl: 'https://portal.lingwenai.cn', // RAG 后端（经 nginx 反代到 8001）
             ragThreshold: 0.7,
             maxRAGResults: 3
         };

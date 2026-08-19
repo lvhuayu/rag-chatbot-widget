@@ -31,7 +31,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization
 import rag_storage_prisma as storage
 import sqlite3
-from openai import OpenAI
+from openai import OpenAI, AzureOpenAI
 from fastapi.responses import StreamingResponse
 from fastapi_limiter import FastAPILimiter
 from fastapi_limiter.depends import RateLimiter
@@ -51,12 +51,13 @@ app = FastAPI(title="RAG Chatbot Backend (Prisma)", version="2.0.0")
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://lingwenai.cn",
-        "http://localhost:5500",
-        "https://portal.lingwenai.cn"
-    ],
-    allow_credentials=True,
+    # Widget (chatbot.js) embeds on arbitrary customer sites, so any Origin must be
+    # allowed at the CORS layer. Real tenant control happens in /auth/token, which
+    # validates the apiKey against its registered allowed_origins.
+    allow_origin_regex=".*",
+    # 鉴权走 Authorization: Bearer（非 cookie），无需带凭据；置为 False 可消除
+    # “反射任意 Origin + 允许携带凭据”这一危险组合。
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -64,11 +65,47 @@ app.add_middleware(
 
 # Security
 security = HTTPBearer()
-JWT_SECRET = "your-secret-key-change-in-production"
+JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
 JWT_ALGORITHM = "HS256"
 
-# Initialize storage 
+# Initialize storage
 storage = PrismaRAGStorage()
+
+# ===== 套餐每日对话限额（按 plan_id；None = 不限）=====
+import redis as _redis_lib
+_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rag_database.db")
+_quota_redis = _redis_lib.Redis(host="localhost", port=6379, db=0, decode_responses=True)
+PLAN_DAILY_CHATS = {"free": 100, "pro": 2000, "enterprise": None}
+
+def _resolve_plan_id(site_id: str) -> str:
+    try:
+        now_ms = int(datetime.utcnow().timestamp() * 1000)
+        conn = sqlite3.connect(_DB_PATH)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT plan_id FROM site_subscriptions WHERE site_id=? AND (expire_date IS NULL OR expire_date > ?) ORDER BY start_date DESC LIMIT 1",
+            (site_id, now_ms),
+        )
+        row = cur.fetchone()
+        conn.close()
+        return row[0] if row else "free"
+    except Exception:
+        return "free"
+
+def check_daily_quota(site_id: str):
+    """返回 (allowed, limit, count)；allowed 时把今日计数 +1。Redis 故障时放行。"""
+    plan_id = _resolve_plan_id(site_id)
+    limit = PLAN_DAILY_CHATS.get(plan_id, 100)
+    if limit is None:
+        return True, None, 0
+    try:
+        key = "chatquota:%s:%s" % (site_id, datetime.utcnow().strftime("%Y%m%d"))
+        cnt = _quota_redis.incr(key)
+        if cnt == 1:
+            _quota_redis.expire(key, 90000)  # ~25h
+        return cnt <= limit, limit, cnt
+    except Exception:
+        return True, limit, 0
 
 # In-memory storage for challenges and sessions (in production, use Redis)
 challenges = {}
@@ -89,6 +126,7 @@ class SearchRequest(BaseModel):
     threshold: Optional[float] = 0.2  # Adjusted for better recall with BGE model
     site_id: Optional[str] = None
     history: Optional[List[Dict[str, str]]] = None  # 新增多轮对话历史
+    has_payqr: Optional[bool] = False  # 本站点是否配置了收款码（由前端告知），用于让模型决定是否展示
 
 class SearchResult(BaseModel):
     document: Document
@@ -199,9 +237,9 @@ class AdminLoginResponse(BaseModel):
     token: str
     expires_in: int
 
-# Hardcoded admin credentials (replace with DB/env in production)
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "admin123"  # Change in production!
+# Admin credentials (from env; do NOT hardcode in production)
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
 
 # Admin JWT verification
 def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> User:
@@ -229,6 +267,29 @@ async def admin_login(request: AdminLoginRequest):
         return AdminLoginResponse(token=token, expires_in=8*3600)
     else:
         raise HTTPException(status_code=401, detail="Invalid admin credentials")
+
+@app.post("/admin/token", response_model=AdminLoginResponse)
+async def admin_token_from_basic(authorization: Optional[str] = Header(None)):
+    """单次登录辅助：此接口位于 nginx Basic 认证保护的 /rag/ 之后，浏览器会自动带上
+    已缓存的 Basic 凭据。若凭据有效即直接签发与 /admin/login 相同的管理员 JWT，
+    从而免去 dashboard 的第二次表单登录。"""
+    if not authorization or not authorization.lower().startswith("basic "):
+        raise HTTPException(status_code=401, detail="Basic credentials required")
+    try:
+        decoded = base64.b64decode(authorization.split(" ", 1)[1]).decode("utf-8")
+        user, _, pw = decoded.partition(":")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid Basic header")
+    if user == ADMIN_USERNAME and pw == ADMIN_PASSWORD:
+        payload = {
+            "id": "admin",
+            "username": ADMIN_USERNAME,
+            "is_admin": True,
+            "exp": datetime.utcnow() + timedelta(hours=8)
+        }
+        token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+        return AdminLoginResponse(token=token, expires_in=8*3600)
+    raise HTTPException(status_code=401, detail="Invalid admin credentials")
 
 # --- User Management Endpoints (admin only) ---
 @app.get("/users")
@@ -587,7 +648,15 @@ def is_chitchat(query: str) -> bool:
     return any(kw in q for kw in CHITCHAT_KEYWORDS)
 
 @app.post("/search", response_model=RAGResponse)
-async def search_documents(request: SearchRequest):
+async def search_documents(request: SearchRequest, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    # 鉴权：site_id 一律从 token 解析，忽略请求体里的 site_id，防止任何人传别人的 site_id 读取其知识库
+    try:
+        _payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        token_site_id = _payload.get("siteId")
+    except Exception:
+        raise HTTPException(status_code=403, detail="Invalid or expired token")
+    if not token_site_id:
+        raise HTTPException(status_code=403, detail="Invalid token: missing siteId")
     # 闲聊意图识别
     if is_chitchat(request.query):
         return RAGResponse(
@@ -596,9 +665,9 @@ async def search_documents(request: SearchRequest):
         )
     """Search for relevant document segments with multi-tenant support, 返回 context 来源信息"""
     try:
-        user_documents, user_embeddings = storage.get_documents_by_site(request.site_id)
+        user_documents, user_embeddings = storage.get_documents_by_site(token_site_id)
         if not user_documents:
-            logger.info(f"No documents available for site: {request.site_id}")
+            logger.info(f"No documents available for site: {token_site_id}")
             return RAGResponse(
                 context="I don't have any information in my knowledge base to answer your question. Please contact support or check our documentation for more details.",
                 documents=[]
@@ -614,7 +683,7 @@ async def search_documents(request: SearchRequest):
         best_similarity = similarities[0][1] if similarities else 0.0
         quality_threshold = 0.25
         if best_similarity < quality_threshold:
-            logger.info(f"Query: '{request.query}', Best similarity {best_similarity:.3f} below quality threshold {quality_threshold}")
+            logger.info(f"Query: '{request.query}', Best similarity {best_similarity:.3f} below quality threshold {quality_threshold} (/search)")
             return RAGResponse(
                 context="I don't have enough relevant information to answer your question. Please try rephrasing your query or ask about a different topic.",
                 documents=[]
@@ -656,8 +725,9 @@ async def search_documents(request: SearchRequest):
         raise HTTPException(status_code=500, detail=f"Error searching documents: {str(e)}")
 
 @app.get("/documents", response_model=List[Document])
-async def list_documents(site_id: Optional[str] = None):
-    """List all documents for a site or all documents if no site specified"""
+async def list_documents(site_id: Optional[str] = None, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """List all documents for a site or all documents if no site specified (admin only)"""
+    verify_admin_token(credentials)
     try:
         if site_id:
             documents, _ = storage.get_documents_by_site(site_id)
@@ -679,8 +749,9 @@ async def list_documents(site_id: Optional[str] = None):
         raise HTTPException(status_code=500, detail=f"Error listing documents: {str(e)}")
 
 @app.delete("/clear-documents")
-async def clear_documents(site_id: Optional[str] = None):
-    """Clear all documents for a site or all documents if no site specified"""
+async def clear_documents(site_id: Optional[str] = None, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Clear all documents for a site or all documents if no site specified (admin only)"""
+    verify_admin_token(credentials)
     try:
         if site_id:
             storage.clear_documents_by_user(site_id)
@@ -693,8 +764,9 @@ async def clear_documents(site_id: Optional[str] = None):
         raise HTTPException(status_code=500, detail=f"Error clearing documents: {str(e)}")
 
 @app.get("/stats")
-async def get_stats(site_id: Optional[str] = None):
-    """Get statistics about documents"""
+async def get_stats(site_id: Optional[str] = None, credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Get statistics about documents (admin only)"""
+    verify_admin_token(credentials)
     try:
         stats = storage.get_user_stats(site_id)
         return stats
@@ -733,7 +805,7 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
         hint_block = ""
         if matched_suggestions:
             hint_block = "\n\n您可能想问：\n" + "\n".join(f"- {s}" for s in matched_suggestions)
-        return random.choice(fallback_templates) + hint_block
+        return random.choice(fallback_templates) + hint_block + "\n\n如需人工帮助，您可以点右上角「✍️ 留言」留下联系方式，我们会尽快联系您。"
 
     async def event_stream():
         try:
@@ -748,13 +820,44 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                 yield f"data: [ERROR] Invalid or expired token: {str(e)}\n\n"
                 return
 
+            # Step 0.5: 每日对话次数限额（按套餐）
+            allowed, qlimit, qcount = check_daily_quota(site_id)
+            if not allowed:
+                yield f"data: 今日对话次数已达上限（{qlimit} 次/天），请升级套餐后继续使用。\n\n"
+                return
+
             # Step 1: Search for relevant documents
             user_documents, user_embeddings = storage.get_documents_by_site(site_id)
             if not user_documents:
-                yield f"data: 我的知识库中没有相关信息来回答您的问题。请联系客服或查看我们的文档获取更多详情。\n\n"
+                yield f"data: 我的知识库中没有相关信息来回答您的问题。您可以点右上角「✍️ 留言」留下联系方式，我们会尽快联系您。\n\n"
                 return
 
-            query_embedding = generate_simple_embedding(request.query)
+            # 跨语言检索：知识库多为中文。若用户用非中文提问，先把问题翻译成中文再做向量检索，
+            # 否则英文 query 与中文文档向量相似度过低会检索不到。最终回答仍用用户原始语言。
+            retrieval_query = request.query
+            if not any('一' <= ch <= '鿿' for ch in request.query):
+                try:
+                    _tc = AzureOpenAI(
+                        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                        api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
+                    )
+                    _tr = _tc.chat.completions.create(
+                        model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1"),
+                        messages=[
+                            {"role": "system", "content": "你是翻译助手。把用户输入翻译成简体中文，只输出译文本身，不要加任何解释或引号。"},
+                            {"role": "user", "content": request.query},
+                        ],
+                        temperature=0,
+                        max_tokens=200,
+                    )
+                    _zh = (_tr.choices[0].message.content or "").strip()
+                    if _zh:
+                        retrieval_query = _zh
+                except Exception:
+                    retrieval_query = request.query
+
+            query_embedding = generate_simple_embedding(retrieval_query)
             similarities = []
             for i, doc in enumerate(user_documents):
                 if i < len(user_embeddings) and len(user_embeddings[i]) > 0:
@@ -765,7 +868,8 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
             best_similarity = similarities[0][1] if similarities else 0.0
             quality_threshold = 0.25
             if best_similarity < quality_threshold:
-                yield f"data: {get_friendly_fallback_response(request.query)}\n\n"
+                _fb = get_friendly_fallback_response(request.query).replace('\r', '').replace('\n', '\\n')
+                yield f"data: {_fb}\n\n"
                 return
 
             filtered_results = [
@@ -782,7 +886,7 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
             other_snippets = []
             for doc, similarity, idx in filtered_results:
                 content = doc["content"]
-                if query_terms_match(content, request.query):
+                if query_terms_match(content, retrieval_query):
                     priority_snippets.append((content, similarity))
                 else:
                     other_snippets.append((content, similarity))
@@ -793,13 +897,14 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                 context_parts.extend([content for content, _ in other_snippets[:request.top_k - len(context_parts)]])
             context = "\n\n".join(context_parts)
 
-            # Step 2: LLM流式生成
-            client = OpenAI(
-                api_key="sk-9ae65ad2fb8e4564be06f2a7bddf609a",
-                base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            # Step 2: LLM流式生成 (Azure OpenAI)
+            client = AzureOpenAI(
+                api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+                azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+                api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
             )
             prompt = f"""
-                         你是一位专业的中文 AI 客服助手，专门基于提供的知识内容，准确、清晰地回答用户提出的问题。
+                         你是一位专业的 AI 客服助手，专门基于提供的知识内容，准确、清晰地回答用户提出的问题。请使用与用户提问相同的语言作答（用户用中文就用中文，用英文就用英文）。
                         
                         【上下文信息】
                          {context}
@@ -811,17 +916,33 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                          1. 仅根据上述上下文信息和历史对话作答，不能编造或推测。
                          2. 若上下文信息中包含电话号码、时间、地点等，请直接引用并明确告知用户。
                          3. 若上下文中没有足够信息，请根据情况， 自行回答，尽量不要虚构内容。
-                         4. 回答应尽量简洁明了，语气自然亲切，使用中文。
+                         4. 回答应尽量简洁明了，语气自然亲切，并与用户提问的语言保持一致。
                          5. 若内容复杂，可适当使用换行、编号等格式提升可读性。编号尽量少一些，可以通过描述来补充。
 
                          现在请开始回答：
                     """             
+            if getattr(request, "has_payqr", False):
+                prompt += "\n\n【特别指令·最高优先级】本店已配置收款码。如果用户【本条】消息是想要付款/支付/扫码付钱/结账，你必须在回答的最末尾另起一行、原样输出标记 [[SHOW_PAYQR]]（只输出这串标记本身，不要加引号、不要解释、不要翻译）。如果用户只是说已经付过款、询问是否到账、要求退款，或与付款无关，则绝对不要输出该标记。"
+            # 基础版多轮记忆：system + 最近历史轮次 + 当前问题(含检索上下文)
+            sys_content = "你是一个专业的AI助手。"
+            if getattr(request, "has_payqr", False):
+                sys_content += (
+                    "\n本店已配置收款码（付款二维码）。当且仅当顾客明确表达想要付款/支付/扫码付钱时，"
+                    "在你的回复正文之后另起一行单独输出标记 [[SHOW_PAYQR]]。"
+                    "若顾客只是表示已经付过款、询问是否到账、要求退款，或与付款无关，则不要输出该标记。"
+                    "不要向顾客解释这个标记的含义。"
+                )
+            chat_messages = [{"role": "system", "content": sys_content}]
+            if request.history:
+                for turn in request.history[-6:]:
+                    role = turn.get("role")
+                    content = (turn.get("content") or "").strip()
+                    if role in ("user", "assistant") and content:
+                        chat_messages.append({"role": role, "content": content})
+            chat_messages.append({"role": "user", "content": prompt})
             response = client.chat.completions.create(
-                model="qwen-plus",
-                messages=[
-                    {"role": "system", "content": "你是一个专业的AI助手。"},
-                    {"role": "user", "content": prompt},
-                ],
+                model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1"),
+                messages=chat_messages,
                 stream=True,
                 temperature=0.3,
                 max_tokens=500,
@@ -830,18 +951,23 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
             
             # 逐字流式推送
             for chunk in response:
+                # Azure OpenAI 的首个 chunk 可能 choices 为空(内容过滤元数据)，需跳过
+                if not chunk.choices:
+                    continue
                 delta = chunk.choices[0].delta.content
                 if delta:
-                    # 将大段文本拆分成更小的片段
-                    import re
-                    # 按标点符号和空格拆分，确保每个片段都不太大
+                    # 将大段文本拆分成更小的片段以模拟打字效果
+                    import re, asyncio
+                    # 按标点/空白拆分；保留普通空格（英文词间空格不能丢），仅跳过换行/制表符
                     segments = re.split(r'([。！？，；：\s])', delta)
                     for segment in segments:
-                        if segment.strip():  # 跳过空片段
-                            yield f"data: {segment}\n\n"
-                            # 添加小延迟，模拟真实的打字效果
-                            import asyncio
-                            await asyncio.sleep(0.05)  # 50ms 延迟
+                        if segment in ('', '\r', '\t'):
+                            continue
+                        # 保留换行：转义为 \n 以兼容 SSE 分帧，前端 fixMarkdownList 会还原成真换行，
+                        # 保证 markdown 的有序/无序列表、分段能正确渲染（不能整段丢换行）。
+                        out = segment.replace('\n', '\\n')
+                        yield f"data: {out}\n\n"
+                        await asyncio.sleep(0.02)
         except Exception as e:
             yield f"data: [ERROR] {str(e)}\n\n"
     return StreamingResponse(event_stream(), media_type="text/event-stream")
@@ -853,10 +979,10 @@ from openai import OpenAI
 logger = logging.getLogger(__name__)
 
 async def generate_with_ollama(query: str, context: str, history: Optional[List[Dict[str, str]]] = None) -> str:
-    """Generate answer using DashScope (Qwen) with RAG context"""
-    api_key = "sk-9ae65ad2fb8e4564be06f2a7bddf609a"
+    """Generate answer using Azure OpenAI with RAG context"""
+    api_key = os.getenv("AZURE_OPENAI_API_KEY")
     if not api_key:
-        raise RuntimeError("DASHSCOPE_API_KEY not set in environment")
+        raise RuntimeError("AZURE_OPENAI_API_KEY not set in environment")
 
     try:
         # 拼接历史对话
@@ -865,7 +991,7 @@ async def generate_with_ollama(query: str, context: str, history: Optional[List[
             for turn in history[-6:]:  # 只取最近6条
                 role = "用户" if turn.get("role") == "user" else "AI"
                 history_text += f"{role}：{turn.get('content', '')}\n"
-        prompt = f"""你是一位专业的中文 AI 客服助手，专门基于提供的知识内容，准确、清晰地回答用户提出的问题。
+        prompt = f"""你是一位专业的 AI 客服助手，专门基于提供的知识内容，准确、清晰地回答用户提出的问题。请使用与用户提问相同的语言作答（用户用中文就用中文，用英文就用英文）。
 
 【历史对话】
 {history_text}
@@ -880,19 +1006,20 @@ async def generate_with_ollama(query: str, context: str, history: Optional[List[
 1. 仅根据上述上下文信息和历史对话作答，不能编造或推测。
 2. 若上下文信息中包含电话号码、时间、地点等，请直接引用并明确告知用户。
 3. 若上下文中没有足够信息，请根据情况， 自行回答，尽量不要虚构内容。
-4. 回答应尽量简洁明了，语气自然亲切，使用中文。
+4. 回答应尽量简洁明了，语气自然亲切，并与用户提问的语言保持一致。
 5. 若内容复杂，可适当使用换行、编号等格式提升可读性。
 
 现在请开始回答：
 """
 
 
-        client = OpenAI(
+        client = AzureOpenAI(
             api_key=api_key,
-            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
         )
         response = client.chat.completions.create(
-            model="qwen-plus",  # 根据实际模型名替换，如 "qwen-max"
+            model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1"),
             messages=[
                 {"role": "system", "content": "你是一个专业的AI助手。"},
                 {"role": "user", "content": prompt},

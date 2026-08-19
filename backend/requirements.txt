@@ -1,15 +1,23 @@
 fastapi==0.104.1
 uvicorn==0.24.0
-numpy==1.24.3
-torch==2.0.1
+# numpy 2.x is REQUIRED: stored embeddings were pickled with numpy 2.x; numpy 1.x
+# cannot unpickle them (ModuleNotFoundError: numpy._core) -> search silently returns nothing.
+numpy>=2.0,<3
+# torch>=2.1 supports numpy 2 (2.0.1 requires numpy<2). Installed on the VM: 2.12.x
+torch>=2.1
 sentence-transformers==2.2.2
 huggingface-hub==0.16.4
+# NOTE: chromadb 0.4.18 is NOT numpy-2 compatible (uses removed np.float_). The Prisma
+# server (rag_server_prisma.py) does NOT import chromadb, so this is harmless here.
+# If you actually need chromadb, upgrade to a numpy-2 compatible release (>=0.5.x).
 chromadb==0.4.18
 pydantic==2.5.0
 python-multipart==0.0.6
 requests==2.31.0
-PyJWT==2.8.0 
-cryptography 
+PyJWT==2.8.0
+cryptography
 openai
-fastapi-limiter
+# 0.2.0 breaks `from fastapi_limiter import FastAPILimiter`; 0.1.5 matches the aioredis-based code.
+fastapi-limiter==0.1.5
+aioredis==2.0.1
 redis
