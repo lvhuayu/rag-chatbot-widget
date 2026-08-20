@@ -1,87 +1,207 @@
-name: 🚀 Deploy to ECS Node
+name: Deploy immutable release
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
+    name: Build verified release
     runs-on: ubuntu-latest
-
     steps:
-    - name: 📦 Checkout repo
-      uses: actions/checkout@v3
+      - name: Checkout exact commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
 
-    - name: 🔐 Setup SSH key
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.10'
+
+      - name: Install test dependencies
+        run: |
+          npm ci --ignore-scripts
+          python -m pip install "numpy>=2.0,<3" "PyJWT>=2.8,<3"
+
+      - name: Run release gates
+        run: |
+          npx tailwindcss -c tailwind.config.js -i tailwind-src.css -o "${RUNNER_TEMP}/styles.css" --minify
+          npx prisma validate --schema prisma/schema.prisma
+          node --check public/chatbot.js
+          python -m py_compile backend/rag_server_prisma.py backend/rag_storage_prisma.py backend/tenant_auth.py backend/rag_context.py backend/rag_contract.py backend/rag_evaluation.py
+          python -m unittest discover -s tests -p "test_rag_storage_prisma_security.py" -v
+          python -m unittest discover -s tests -p "test_tenant_ingestion_auth.py" -v
+          python -m unittest discover -s tests -p "test_chunk_retrieval.py" -v
+          python -m unittest discover -s tests -p "test_rag_contract.py" -v
+          python -m unittest discover -s tests -p "test_deployment_contract.py" -v
+          if git grep -n -E '^(<<<<<<<|=======|>>>>>>>)' -- ':!package-lock.json'; then
+            echo "Unresolved merge conflict markers found."
+            exit 1
+          fi
+
+      - name: Build commit-addressed artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact="rag-chatbot-widget-${GITHUB_SHA}.tar.gz"
+          git archive \
+            --format=tar.gz \
+            --output="${artifact}" \
+            "${GITHUB_SHA}" \
+            -- . \
+            ':(exclude)backend/rag_database.db' \
+            ':(exclude)prisma/prisma/rag_database.db'
+          sha256sum "${artifact}" > "${artifact}.sha256"
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ github.sha }}
+          path: |
+            rag-chatbot-widget-${{ github.sha }}.tar.gz
+            rag-chatbot-widget-${{ github.sha }}.tar.gz.sha256
+          retention-days: 30
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy and verify
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+    - name: Download verified artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: release-${{ github.sha }}
+
+    - name: Configure SSH
       run: |
-        set -e
+        set -euo pipefail
         mkdir -p ~/.ssh
-        echo "${{ secrets.ECS_KEY }}" > ~/.ssh/id_rsa
+        printf '%s\n' "${{ secrets.ECS_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
-        ssh-keyscan -H ${{ secrets.ECS1_HOST }} >> ~/.ssh/known_hosts
+        ssh-keyscan -H "${{ secrets.ECS1_HOST }}" >> ~/.ssh/known_hosts
 
-    - name: 🚀 Deploy to ECS1
+    - name: Copy release to ECS1
       run: |
-        ssh ${{ secrets.ECS_USER }}@${{ secrets.ECS1_HOST }} << 'EOF'
-          set -e
-          echo "🚀 Starting deployment on ECS1..."
+        set -euo pipefail
+        artifact="rag-chatbot-widget-${GITHUB_SHA}.tar.gz"
+        scp "${artifact}" "${artifact}.sha256" \
+          "${{ secrets.ECS_USER }}@${{ secrets.ECS1_HOST }}:/tmp/"
 
-          # 创建目录
-          if [ ! -d "/opt/rag-chatbot-widget" ]; then
-            echo "📁 Creating project directory..."
-            sudo mkdir -p /opt/rag-chatbot-widget
-            sudo chown $USER:$USER /opt/rag-chatbot-widget
+    - name: Activate release with rollback
+      env:
+        HEALTH_URL: ${{ secrets.ECS_HEALTH_URL }}
+      run: |
+        set -euo pipefail
+        ssh "${{ secrets.ECS_USER }}@${{ secrets.ECS1_HOST }}" \
+          "DEPLOY_SHA='${GITHUB_SHA}' HEALTH_URL='${HEALTH_URL}' bash -s" <<'EOF'
+        set -euo pipefail
+
+        app_root="/opt/rag-chatbot-widget"
+        releases_root="/opt/rag-chatbot-widget-releases"
+        data_root="/opt/rag-chatbot-widget-data"
+        release_dir="${releases_root}/${DEPLOY_SHA}"
+        artifact="/tmp/rag-chatbot-widget-${DEPLOY_SHA}.tar.gz"
+        checksum="${artifact}.sha256"
+        health_url="${HEALTH_URL:-http://127.0.0.1:8001/health/ready}"
+        previous_target=""
+
+        sudo mkdir -p "${releases_root}" "${data_root}"
+        sudo chown "$USER:$USER" "${releases_root}" "${data_root}"
+        cd /tmp
+        sha256sum --check "${checksum}"
+
+        if [ -L "${app_root}" ]; then
+          previous_target="$(readlink -f "${app_root}")"
+        elif [ -d "${app_root}" ]; then
+          previous_target="${releases_root}/legacy-$(date -u +%Y%m%d%H%M%S)"
+          if [ -f "${app_root}/backend/rag_database.db" ] && [ ! -f "${data_root}/rag_database.db" ]; then
+            python3.10 - \
+              "${app_root}/backend/rag_database.db" \
+              "${data_root}/rag_database.db" <<'PY'
+        import sqlite3
+        import sys
+
+        source = sqlite3.connect(sys.argv[1])
+        destination = sqlite3.connect(sys.argv[2])
+        try:
+            source.backup(destination)
+        finally:
+            destination.close()
+            source.close()
+        PY
           fi
+        fi
 
-          cd /opt/rag-chatbot-widget
+        if [ ! -f "${data_root}/rag_database.db" ]; then
+          echo "Persistent production database was not found; refusing to deploy."
+          exit 1
+        fi
 
-          # 克隆或更新仓库
-          if [ ! -d ".git" ]; then
-            echo "📥 Cloning repository..."
-            git clone https://github.com/lvhuayu/rag-chatbot-widget.git .
-          else
-            echo "📥 Pulling latest changes..."
-            git pull origin main
+        mkdir -p "${release_dir}"
+        tar -xzf "${artifact}" -C "${release_dir}"
+        rm -f "${release_dir}/backend/rag_database.db"
+        ln -s "${data_root}/rag_database.db" "${release_dir}/backend/rag_database.db"
+
+        python3.10 -m venv "${release_dir}/backend/venv"
+        "${release_dir}/backend/venv/bin/python" -m pip install \
+          --disable-pip-version-check \
+          -r "${release_dir}/backend/requirements.lock"
+
+        rollback() {
+          if [ -n "${previous_target}" ] && [ -e "${previous_target}" ]; then
+            sudo ln -sfn "${previous_target}" "${app_root}.next"
+            sudo mv -Tf "${app_root}.next" "${app_root}"
           fi
-
-          # 安装 python3-venv（确保可以创建虚拟环境）
-          sudo apt-get update
-          sudo apt-get install -y python3-venv python3.10-venv
-
-          # 创建虚拟环境
-          if [ ! -d "backend/venv" ]; then
-            echo "🐍 Creating virtual environment..."
-            python3 -m venv backend/venv
-          fi
-
-          source backend/venv/bin/activate
-          echo "🐍 Virtual environment activated"
-
-          # 升级 pip
-          pip install --upgrade pip -i https://mirrors.aliyun.com/pypi/simple
-
-          # 安装依赖
-          pip install -r backend/requirements.txt -i https://mirrors.aliyun.com/pypi/simple
-          echo "📦 Python dependencies installed"
-
-          # 安装 Node.js 和 Prisma（用于 npx prisma generate）
-          if ! command -v npx &> /dev/null; then
-            curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-            sudo apt-get install -y nodejs
-            sudo npm install -g prisma
-          fi
-
-          # 生成 Prisma 客户端
-          cd backend
-          npx prisma generate --schema=../prisma/schema.prisma
-          cd ..
-
-          # 重启 systemd 服务
-          sudo systemctl daemon-reload
           sudo systemctl restart rag-backend
-          echo "✅ Service restarted"
+        }
+        trap rollback ERR
 
-          # 检查状态
-          sudo systemctl status rag-backend --no-pager
+        sudo systemctl stop rag-backend
+        if [ -d "${app_root}" ] && [ ! -L "${app_root}" ]; then
+          sudo mv "${app_root}" "${previous_target}"
+          rm -f \
+            "${previous_target}/backend/rag_database.db" \
+            "${previous_target}/backend/rag_database.db-shm" \
+            "${previous_target}/backend/rag_database.db-wal"
+          ln -s \
+            "${data_root}/rag_database.db" \
+            "${previous_target}/backend/rag_database.db"
+        fi
+
+        sudo ln -sfn "${release_dir}" "${app_root}.next"
+        sudo mv -Tf "${app_root}.next" "${app_root}"
+        sudo systemctl restart rag-backend
+
+        for attempt in $(seq 1 12); do
+          if curl --fail --silent --show-error --max-time 10 "${health_url}" >/tmp/rag-readiness.json; then
+            break
+          fi
+          if [ "${attempt}" -eq 12 ]; then
+            echo "Readiness probe failed after deployment."
+            exit 1
+          fi
+          sleep 5
+        done
+
+        curl --fail --silent --show-error --max-time 10 \
+          "https://lingwenai.cn/chatbot.js" >/dev/null
+        sudo systemctl is-active --quiet rag-backend
+        trap - ERR
+        echo "Deployed ${DEPLOY_SHA} and passed readiness checks."
         EOF
