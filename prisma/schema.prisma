@@ -35,6 +35,11 @@ model chat_logs {
   answer      String
   model_used  String?
   token_usage Int?
+  input_tokens Int?
+  output_tokens Int?
+  retrieval_latency_ms Int?
+  llm_latency_ms Int?
+  tenant_tier String?
   timestamp   DateTime @default(now())
   sites       sites    @relation(fields: [site_id], references: [site_id])
 }
