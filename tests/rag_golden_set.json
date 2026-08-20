@@ -1,0 +1,50 @@
+[
+  {
+    "name": "support phone",
+    "answerable": true,
+    "answer": "客服电话是 400-100-1000。[1]",
+    "sources": [{"citation": 1, "source_id": "support:0"}],
+    "expected_source_ids": ["support:0"],
+    "retrieved_source_ids": ["support:0", "billing:0"]
+  },
+  {
+    "name": "business hours",
+    "answerable": true,
+    "answer": "营业时间为工作日 09:00–18:00。[1]",
+    "sources": [{"citation": 1, "source_id": "hours:0"}],
+    "expected_source_ids": ["hours:0"],
+    "retrieved_source_ids": ["hours:0", "support:0"]
+  },
+  {
+    "name": "refund window",
+    "answerable": true,
+    "answer": "退款申请需在购买后七天内提交。[1]",
+    "sources": [{"citation": 1, "source_id": "refund:1"}],
+    "expected_source_ids": ["refund:1"],
+    "retrieved_source_ids": ["refund:1", "refund:0"]
+  },
+  {
+    "name": "enterprise privacy",
+    "answerable": true,
+    "answer": "企业知识库按租户隔离存储。[1]",
+    "sources": [{"citation": 1, "source_id": "privacy:2"}],
+    "expected_source_ids": ["privacy:2"],
+    "retrieved_source_ids": ["privacy:2", "security:0"]
+  },
+  {
+    "name": "integration",
+    "answerable": true,
+    "answer": "网站可通过一段脚本嵌入聊天机器人。[1]",
+    "sources": [{"citation": 1, "source_id": "integration:0"}],
+    "expected_source_ids": ["integration:0"],
+    "retrieved_source_ids": ["integration:0", "setup:0"]
+  },
+  {
+    "name": "unsupported shipping",
+    "answerable": false,
+    "answer": "无法根据现有知识库回答该问题",
+    "sources": [],
+    "expected_source_ids": [],
+    "retrieved_source_ids": []
+  }
+]

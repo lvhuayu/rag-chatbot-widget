@@ -35,6 +35,7 @@ class PrismaRAGStorage:
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
             self._ensure_chunk_columns(connection)
+            self._ensure_telemetry_columns(connection)
         logger.info("RAG storage initialized with database: %s", self.database_path)
 
     @staticmethod
@@ -53,6 +54,27 @@ class PrismaRAGStorage:
             if column not in columns:
                 connection.execute(
                     f"ALTER TABLE embeddings ADD COLUMN {column} {definition}"
+                )
+
+    @staticmethod
+    def _ensure_telemetry_columns(connection: sqlite3.Connection) -> None:
+        columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(chat_logs)").fetchall()
+        }
+        if not columns:
+            return
+        additions = {
+            "input_tokens": "INTEGER",
+            "output_tokens": "INTEGER",
+            "retrieval_latency_ms": "INTEGER",
+            "llm_latency_ms": "INTEGER",
+            "tenant_tier": "TEXT",
+        }
+        for column, definition in additions.items():
+            if column not in columns:
+                connection.execute(
+                    f"ALTER TABLE chat_logs ADD COLUMN {column} {definition}"
                 )
 
     def _resolve_database_path(self) -> str:
@@ -567,6 +589,91 @@ class PrismaRAGStorage:
         except Exception as error:
             logger.error("Error getting logs: %s", error)
             return []
+
+    def record_rag_telemetry(
+        self,
+        site_id: str,
+        model: str,
+        tenant_tier: str,
+        input_tokens: int,
+        output_tokens: int,
+        retrieval_latency_ms: int,
+        llm_latency_ms: int,
+    ) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO chat_logs (
+                    id, site_id, question, answer, model_used, token_usage,
+                    input_tokens, output_tokens, retrieval_latency_ms,
+                    llm_latency_ms, tenant_tier, timestamp
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(uuid.uuid4()),
+                    site_id,
+                    "[redacted]",
+                    "[redacted]",
+                    model,
+                    input_tokens + output_tokens,
+                    input_tokens,
+                    output_tokens,
+                    retrieval_latency_ms,
+                    llm_latency_ms,
+                    tenant_tier,
+                    self._timestamp(None),
+                ),
+            )
+
+    def get_rag_metrics(self) -> List[Dict[str, Any]]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT
+                    model_used,
+                    COALESCE(tenant_tier, 'unknown') AS tenant_tier,
+                    input_tokens,
+                    output_tokens,
+                    retrieval_latency_ms,
+                    llm_latency_ms
+                FROM chat_logs
+                WHERE retrieval_latency_ms IS NOT NULL
+                  AND llm_latency_ms IS NOT NULL
+                """
+            ).fetchall()
+        groups: Dict[Tuple[str, str], List[sqlite3.Row]] = {}
+        for row in rows:
+            key = (row["model_used"] or "unknown", row["tenant_tier"])
+            groups.setdefault(key, []).append(row)
+
+        def percentile(values: List[int], percentile_value: float) -> int:
+            ordered = sorted(values)
+            index = max(0, min(len(ordered) - 1, int(np.ceil(len(ordered) * percentile_value)) - 1))
+            return ordered[index]
+
+        metrics = []
+        for (model, tenant_tier), group_rows in sorted(groups.items()):
+            metrics.append(
+                {
+                    "model": model,
+                    "tenant_tier": tenant_tier,
+                    "request_count": len(group_rows),
+                    "p95_retrieval_latency_ms": percentile(
+                        [row["retrieval_latency_ms"] for row in group_rows], 0.95
+                    ),
+                    "p95_llm_latency_ms": percentile(
+                        [row["llm_latency_ms"] for row in group_rows], 0.95
+                    ),
+                    "input_tokens": sum(
+                        row["input_tokens"] or 0 for row in group_rows
+                    ),
+                    "output_tokens": sum(
+                        row["output_tokens"] or 0 for row in group_rows
+                    ),
+                }
+            )
+        return metrics
 
 
 def get_prisma_storage() -> PrismaRAGStorage:

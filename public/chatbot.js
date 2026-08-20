@@ -748,20 +748,33 @@
                 const decoder = new TextDecoder();
                 let done = false;
                 let fullMsg = '';
+                let buffer = '';
                 while (!done) {
                     const { value, done: doneReading } = await reader.read();
                     done = doneReading;
                     if (value) {
-                        const chunk = decoder.decode(value, { stream: true });
-                        chunk.split('\n').forEach(line => {
-                            if (line.startsWith('data:')) {
-                                const text = line.replace(/^data: ?/, '');
+                        buffer += decoder.decode(value, { stream: true });
+                        let boundary;
+                        while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+                            const block = buffer.slice(0, boundary);
+                            buffer = buffer.slice(boundary + 2);
+                            let eventName = 'message';
+                            const dataLines = [];
+                            block.split(/\r?\n/).forEach(line => {
+                                if (line.startsWith('event:')) {
+                                    eventName = line.replace(/^event: ?/, '');
+                                } else if (line.startsWith('data:')) {
+                                    dataLines.push(line.replace(/^data: ?/, ''));
+                                }
+                            });
+                            if (eventName === 'message') {
+                                const text = dataLines.join('\n');
                                 if (text) {
                                     fullMsg += text;
                                     if (onData) onData(fullMsg);
                                 }
                             }
-                        });
+                        }
                     }
                 }
                 return [{ document: { id: '', url: '', title: '', content: fullMsg, timestamp: new Date().toISOString() }, similarity: 1 }];

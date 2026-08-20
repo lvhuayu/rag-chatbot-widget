@@ -15,6 +15,7 @@ import requests
 import logging
 import string
 import math
+import time
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, Depends, status, Request, Header, Body
@@ -41,6 +42,12 @@ import aioredis
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.rag_storage_prisma import PrismaRAGStorage
 from backend.rag_context import build_context
+from backend.rag_contract import (
+    build_grounded_context,
+    citation_metrics,
+    estimate_tokens,
+    sse_event,
+)
 from backend.tenant_auth import (
     SiteIdentity,
     TenantAuthError,
@@ -822,6 +829,16 @@ async def get_stats(site_id: Optional[str] = None, credentials: HTTPAuthorizatio
         logger.error(f"Error getting stats: {e}")
         raise HTTPException(status_code=500, detail=f"Error getting stats: {str(e)}")
 
+
+@app.get("/rag-metrics")
+async def get_rag_metrics(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    """Return tenant-tier and model-level RAG latency and token metrics."""
+    verify_admin_token(credentials)
+    return {"metrics": storage.get_rag_metrics()}
+
+
 import random
 from fastapi import HTTPException, Depends
 from fastapi.security import HTTPAuthorizationCredentials
@@ -875,6 +892,7 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                 return
 
             # Step 1: Search for relevant documents
+            retrieval_started = time.perf_counter()
             user_documents, user_embeddings = storage.get_documents_by_site(site_id)
             if not user_documents:
                 yield f"data: 我的知识库中没有相关信息来回答您的问题。您可以点右上角「✍️ 留言」留下联系方式，我们会尽快联系您。\n\n"
@@ -929,21 +947,33 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                 query_terms = query.split()
                 return any(term in text for term in query_terms)
 
-            context_parts = []
             priority_snippets = []
             other_snippets = []
             for doc, similarity, idx in filtered_results:
                 content = doc["content"]
                 if query_terms_match(content, retrieval_query):
-                    priority_snippets.append((content, similarity))
+                    priority_snippets.append((doc, similarity))
                 else:
-                    other_snippets.append((content, similarity))
+                    other_snippets.append((doc, similarity))
             priority_snippets.sort(key=lambda x: x[1], reverse=True)
             other_snippets.sort(key=lambda x: x[1], reverse=True)
-            context_parts.extend([content for content, _ in priority_snippets[:3]])
-            if len(context_parts) < request.top_k:
-                context_parts.extend([content for content, _ in other_snippets[:request.top_k - len(context_parts)]])
-            context = build_context(context_parts, RAG_CONTEXT_TOKEN_BUDGET)
+            selected_documents = [
+                document for document, _ in priority_snippets[:3]
+            ]
+            if len(selected_documents) < request.top_k:
+                selected_documents.extend(
+                    document
+                    for document, _ in other_snippets[
+                        : request.top_k - len(selected_documents)
+                    ]
+                )
+            context, sources = build_grounded_context(
+                selected_documents, RAG_CONTEXT_TOKEN_BUDGET
+            )
+            retrieval_latency_ms = int(
+                (time.perf_counter() - retrieval_started) * 1000
+            )
+            yield sse_event("sources", {"sources": sources})
 
             # Step 2: LLM流式生成 (Azure OpenAI)
             client = AzureOpenAI(
@@ -961,9 +991,9 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                          {request.query}
 
                         【回答要求】
-                         1. 仅根据上述上下文信息和历史对话作答，不能编造或推测。
-                         2. 若上下文信息中包含电话号码、时间、地点等，请直接引用并明确告知用户。
-                         3. 若上下文中没有足够信息，请根据情况， 自行回答，尽量不要虚构内容。
+                         1. 仅根据上述上下文信息作答，不能使用外部知识、编造或推测。
+                         2. 每个事实性句子末尾必须使用 [编号] 引用对应来源。
+                         3. 若上下文不足，必须回答“无法根据现有知识库回答该问题”，不得自行补充答案。
                          4. 回答应尽量简洁明了，语气自然亲切，并与用户提问的语言保持一致。
                          5. 若内容复杂，可适当使用换行、编号等格式提升可读性。编号尽量少一些，可以通过描述来补充。
 
@@ -988,8 +1018,10 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                     if role in ("user", "assistant") and content:
                         chat_messages.append({"role": role, "content": content})
             chat_messages.append({"role": "user", "content": prompt})
+            model_name = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1")
+            llm_started = time.perf_counter()
             response = client.chat.completions.create(
-                model=os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1"),
+                model=model_name,
                 messages=chat_messages,
                 stream=True,
                 temperature=0.3,
@@ -998,6 +1030,7 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
             )
             
             # 逐字流式推送
+            answer_parts = []
             for chunk in response:
                 # Azure OpenAI 的首个 chunk 可能 choices 为空(内容过滤元数据)，需跳过
                 if not chunk.choices:
@@ -1014,10 +1047,41 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
                         # 保留换行：转义为 \n 以兼容 SSE 分帧，前端 fixMarkdownList 会还原成真换行，
                         # 保证 markdown 的有序/无序列表、分段能正确渲染（不能整段丢换行）。
                         out = segment.replace('\n', '\\n')
-                        yield f"data: {out}\n\n"
+                        answer_parts.append(segment)
+                        yield sse_event("message", out)
                         await asyncio.sleep(0.02)
+            llm_latency_ms = int((time.perf_counter() - llm_started) * 1000)
+            answer = "".join(answer_parts)
+            input_tokens = estimate_tokens(json.dumps(chat_messages, ensure_ascii=False))
+            output_tokens = estimate_tokens(answer)
+            contract = citation_metrics(answer, sources)
+            tenant_tier = _resolve_plan_id(site_id)
+            try:
+                storage.record_rag_telemetry(
+                    site_id=site_id,
+                    model=model_name,
+                    tenant_tier=tenant_tier,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    retrieval_latency_ms=retrieval_latency_ms,
+                    llm_latency_ms=llm_latency_ms,
+                )
+            except Exception as telemetry_error:
+                logger.error("Failed to record RAG telemetry: %s", telemetry_error)
+            yield sse_event("contract", contract)
+            yield sse_event(
+                "usage",
+                {
+                    "model": model_name,
+                    "tenant_tier": tenant_tier,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "retrieval_latency_ms": retrieval_latency_ms,
+                    "llm_latency_ms": llm_latency_ms,
+                },
+            )
         except Exception as e:
-            yield f"data: [ERROR] {str(e)}\n\n"
+            yield sse_event("message", f"[ERROR] {str(e)}")
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 import os
@@ -1051,9 +1115,9 @@ async def generate_with_ollama(query: str, context: str, history: Optional[List[
 {query}
 
 【回答要求】
-1. 仅根据上述上下文信息和历史对话作答，不能编造或推测。
-2. 若上下文信息中包含电话号码、时间、地点等，请直接引用并明确告知用户。
-3. 若上下文中没有足够信息，请根据情况， 自行回答，尽量不要虚构内容。
+1. 仅根据上述上下文信息作答，不能使用外部知识、编造或推测。
+2. 每个事实性句子末尾必须使用 [编号] 引用对应来源。
+3. 若上下文不足，必须回答“无法根据现有知识库回答该问题”，不得自行补充答案。
 4. 回答应尽量简洁明了，语气自然亲切，并与用户提问的语言保持一致。
 5. 若内容复杂，可适当使用换行、编号等格式提升可读性。
 

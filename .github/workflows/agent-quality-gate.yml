@@ -39,7 +39,7 @@ jobs:
         run: node --check public/chatbot.js
 
       - name: Check Python syntax
-        run: python -m py_compile backend/rag_server_prisma.py backend/rag_storage_prisma.py backend/tenant_auth.py backend/rag_context.py
+        run: python -m py_compile backend/rag_server_prisma.py backend/rag_storage_prisma.py backend/tenant_auth.py backend/rag_context.py backend/rag_contract.py backend/rag_evaluation.py
 
       - name: Run security regression tests
         run: |
@@ -47,6 +47,7 @@ jobs:
           python -m unittest discover -s tests -p "test_rag_storage_prisma_security.py" -v
           python -m unittest discover -s tests -p "test_tenant_ingestion_auth.py" -v
           python -m unittest discover -s tests -p "test_chunk_retrieval.py" -v
+          python -m unittest discover -s tests -p "test_rag_contract.py" -v
 
       - name: Reject unresolved conflict markers
         run: |
