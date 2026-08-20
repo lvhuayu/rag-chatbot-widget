@@ -16,6 +16,7 @@ import logging
 import string
 import math
 import time
+import asyncio
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, Depends, status, Request, Header, Body
@@ -33,7 +34,7 @@ from cryptography.hazmat.primitives import serialization
 import rag_storage_prisma as storage
 import sqlite3
 from openai import OpenAI, AzureOpenAI
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi_limiter import FastAPILimiter
 from fastapi_limiter.depends import RateLimiter
 import aioredis
@@ -367,13 +368,75 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    db_info = storage.get_database_info()
-    return {
-        "status": "healthy", 
-        "model": "simple-character-frequency", 
-        "storage": "Prisma Unified Database",
-        "database_info": db_info
-    }
+    return {"status": "healthy"}
+
+
+@app.get("/health/live")
+async def liveness_check():
+    return {"status": "alive"}
+
+
+def _probe_llm_dependency() -> None:
+    required_settings = (
+        "AZURE_OPENAI_API_KEY",
+        "AZURE_OPENAI_ENDPOINT",
+        "AZURE_OPENAI_DEPLOYMENT",
+    )
+    missing = [name for name in required_settings if not os.getenv(name)]
+    if missing:
+        raise RuntimeError("Azure OpenAI configuration is incomplete")
+
+    client = AzureOpenAI(
+        api_key=os.environ["AZURE_OPENAI_API_KEY"],
+        azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+        api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
+        max_retries=0,
+        timeout=5.0,
+    )
+    client.models.list()
+
+
+@app.get("/health/ready")
+async def readiness_check():
+    checks: Dict[str, Dict[str, str]] = {}
+
+    try:
+        with sqlite3.connect(storage.database_path, timeout=5) as connection:
+            connection.execute("SELECT 1").fetchone()
+        checks["database"] = {"status": "ok"}
+    except Exception as error:
+        logger.warning("Database readiness probe failed: %s", type(error).__name__)
+        checks["database"] = {"status": "error"}
+
+    try:
+        redis_client = getattr(app.state, "redis", None)
+        if redis_client is None or not await redis_client.ping():
+            raise RuntimeError("Redis is unavailable")
+        checks["redis"] = {"status": "ok"}
+    except Exception as error:
+        logger.warning("Redis readiness probe failed: %s", type(error).__name__)
+        checks["redis"] = {"status": "error"}
+
+    try:
+        if embedding_model.get_sentence_embedding_dimension() <= 0:
+            raise RuntimeError("Embedding model has no output dimension")
+        checks["embedding_model"] = {"status": "ok"}
+    except Exception as error:
+        logger.warning("Embedding readiness probe failed: %s", type(error).__name__)
+        checks["embedding_model"] = {"status": "error"}
+
+    try:
+        await asyncio.to_thread(_probe_llm_dependency)
+        checks["llm_provider"] = {"status": "ok"}
+    except Exception as error:
+        logger.warning("LLM readiness probe failed: %s", type(error).__name__)
+        checks["llm_provider"] = {"status": "error"}
+
+    ready = all(check["status"] == "ok" for check in checks.values())
+    return JSONResponse(
+        status_code=200 if ready else 503,
+        content={"status": "ready" if ready else "not_ready", "checks": checks},
+    )
 
 @app.post("/auth/request-challenge", response_model=ChallengeResponse)
 async def request_challenge(request: ChallengeRequest):
@@ -1148,12 +1211,20 @@ async def generate_with_ollama(query: str, context: str, history: Optional[List[
         logger.exception("Error calling DashScope")
         raise
 
-import asyncio
-
 @app.on_event("startup")
 async def startup():
-    redis = await aioredis.from_url("redis://localhost:6379", encoding="utf8", decode_responses=True)
-    await FastAPILimiter.init(redis)
+    app.state.redis = None
+    try:
+        redis = await aioredis.from_url(
+            os.getenv("REDIS_URL", "redis://localhost:6379"),
+            encoding="utf8",
+            decode_responses=True,
+        )
+        await redis.ping()
+        await FastAPILimiter.init(redis)
+        app.state.redis = redis
+    except Exception as error:
+        logger.error("Redis initialization failed: %s", type(error).__name__)
 
 # Add a global dependency for rate limiting (60 req/min per IP)
 app_dependency = [Depends(RateLimiter(times=60, seconds=60))]
@@ -1161,6 +1232,8 @@ app_dependency = [Depends(RateLimiter(times=60, seconds=60))]
 # Patch all endpoints to use the global rate limiter
 def patch_routes_with_limiter(app):
     for route in app.routes:
+        if getattr(route, "path", "") in {"/health", "/health/live", "/health/ready"}:
+            continue
         if hasattr(route, "dependencies") and getattr(route, "include_in_schema", False):
             if not any(getattr(dep, 'dependency', None) == RateLimiter for dep in route.dependencies):
                 route.dependencies.append(Depends(RateLimiter(times=60, seconds=60)))
