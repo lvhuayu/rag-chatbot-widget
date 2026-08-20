@@ -1,0 +1,37 @@
+name: Agent guarded auto-merge
+
+on:
+  pull_request_target:
+    types: [labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  enable-auto-merge:
+    if: >-
+      github.event.label.name == 'ai-review-passed' &&
+      github.event.pull_request.user.login == 'copilot-swe-agent[bot]' &&
+      !contains(github.event.pull_request.labels.*.name, 'ai-review-blocked')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify trusted labeler
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LABELER: ${{ github.actor }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if [ "$LABELER" != "copilot-swe-agent[bot]" ]; then
+            permission="$(gh api "repos/${REPOSITORY}/collaborators/${LABELER}/permission" --jq '.permission')"
+            case "$permission" in
+              admin|maintain|write) ;;
+              *) echo "The review label was not applied by a trusted actor."; exit 1 ;;
+            esac
+          fi
+
+      - name: Enable squash auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge "$PR_URL" --auto --squash --delete-branch
