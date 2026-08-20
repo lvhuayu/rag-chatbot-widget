@@ -1,0 +1,75 @@
+name: Copilot issue agent
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: copilot-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    if: github.event.label.name == 'agent-ready' && github.event.issue.state == 'open'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify trusted labeler
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LABELER: ${{ github.actor }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          permission="$(gh api "repos/${REPOSITORY}/collaborators/${LABELER}/permission" --jq '.permission')"
+          case "$permission" in
+            admin|maintain|write) ;;
+            *) echo "The labeler does not have write permission."; exit 1 ;;
+          esac
+
+      - name: Dispatch issue to LingWen maintainer agent
+        env:
+          COPILOT_AGENT_PAT: ${{ secrets.COPILOT_AGENT_PAT }}
+          REPOSITORY: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_URL: ${{ github.event.issue.html_url }}
+        run: |
+          test -n "$COPILOT_AGENT_PAT" || {
+            echo "COPILOT_AGENT_PAT is not configured."
+            exit 1
+          }
+
+          jq -n \
+            --arg title "$ISSUE_TITLE" \
+            --arg url "$ISSUE_URL" \
+            --arg issue "$ISSUE_NUMBER" \
+            '{
+              prompt: (
+                "Implement the approved issue \"" + $title + "\" at " + $url +
+                ". Open a focused pull request, include Fixes #" + $issue +
+                ", run all relevant validation, and perform a security and tenant-isolation self-review before submission."
+              ),
+              base_ref: "main",
+              create_pull_request: true,
+              custom_agent: "lingwen-maintainer"
+            }' > agent-task.json
+
+          curl --fail-with-body \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer ${COPILOT_AGENT_PAT}" \
+            --header "X-GitHub-Api-Version: 2026-03-10" \
+            "https://api.github.com/agents/repos/${REPOSITORY}/tasks" \
+            --data-binary @agent-task.json
+
+      - name: Record dispatch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" \
+            --repo "${{ github.repository }}" \
+            --body "🤖 Started the LingWen maintainer agent. A focused pull request will be opened after implementation and validation."
