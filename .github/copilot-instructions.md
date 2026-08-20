@@ -10,7 +10,7 @@ This repository contains the LingWen AI embeddable chatbot, its Python FastAPI R
 - Preserve tenant isolation. Derive tenant identity from authenticated server-side claims, never from an untrusted request field.
 - Never add secrets, tokens, credentials, production data, or database files to commits or logs.
 - Do not weaken authentication, authorization, origin validation, rate limits, branch protection, tests, or security checks.
-- Do not modify `.github/workflows/**`, `.github/agents/**`, `.github/copilot-instructions.md`, deployment credentials, or repository settings unless the issue explicitly has the `agent-infrastructure-approved` label.
+- Do not modify `.github/workflows/**`, `.github/copilot-instructions.md`, deployment credentials, or repository settings unless the repository owner explicitly requests it.
 
 ## Validation
 
