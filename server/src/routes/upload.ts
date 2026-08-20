@@ -45,7 +45,13 @@ const upload = multer({
 });
 
 // Function to extract text and index the document
-async function processAndIndexFile(file: any, description: string, siteId: string) {
+async function processAndIndexFile(
+    file: any,
+    description: string,
+    siteId: string,
+    authorization: string,
+    origin?: string
+) {
     let content = '';
     const filePath = file.path;
 
@@ -75,7 +81,13 @@ async function processAndIndexFile(file: any, description: string, siteId: strin
                 content: content,
                 site_id: siteId  // Use site_id for tenant-scoped storage
             }],
-            { headers: { 'Content-Type': 'application/json' } }
+            {
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: authorization,
+                    ...(origin ? { Origin: origin } : {}),
+                }
+            }
         );
 
         // Save document metadata to database (only allowed fields)
@@ -134,9 +146,14 @@ router.post('/', authenticateToken, upload.array('files', 5), async (req: any, r
 
     const descriptions = req.body.descriptions || [];
     const files = req.files as any[];
+    const authorization = req.headers.authorization;
+    if (!authorization) {
+        return res.status(401).send({ message: 'Authorization header is required.' });
+    }
+    const origin = typeof req.headers.origin === 'string' ? req.headers.origin : undefined;
 
     const processingPromises = files.map((file, idx) =>
-        processAndIndexFile(file, descriptions[idx] || '', siteId)
+        processAndIndexFile(file, descriptions[idx] || '', siteId, authorization, origin)
     );
 
     try {

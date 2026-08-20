@@ -40,6 +40,13 @@ import aioredis
 # Add the parent directory to the path to import the Prisma storage
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.rag_storage_prisma import PrismaRAGStorage
+from backend.tenant_auth import (
+    SiteIdentity,
+    TenantAuthError,
+    authenticate_site_token,
+    issue_api_key_token,
+    resolve_site_id,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -65,11 +72,29 @@ app.add_middleware(
 
 # Security
 security = HTTPBearer()
+ingestion_security = HTTPBearer(auto_error=False)
 JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
 JWT_ALGORITHM = "HS256"
 
 # Initialize storage
 storage = PrismaRAGStorage()
+
+
+def verify_ingestion_identity(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(ingestion_security),
+) -> SiteIdentity:
+    token = credentials.credentials if credentials else None
+    try:
+        return authenticate_site_token(
+            storage.database_path,
+            token,
+            request.headers.get("origin"),
+            JWT_SECRET,
+            JWT_ALGORITHM,
+        )
+    except TenantAuthError as error:
+        raise HTTPException(status_code=error.status_code, detail=error.detail) from error
 
 # ===== 套餐每日对话限额（按 plan_id；None = 不限）=====
 import redis as _redis_lib
@@ -453,24 +478,16 @@ async def get_token_by_apikey(request: Request):
     try:
         data = await request.json()
         api_key = data.get('apiKey') or data.get('api_key')
-        if not api_key:
-            raise HTTPException(status_code=400, detail="apiKey is required")
-        DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "rag_database.db"))
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("SELECT site_id, allowed_origins FROM api_keys WHERE api_key = ? AND is_active = 1", (api_key,))
-        row = cursor.fetchone()
-        conn.close()
-        if not row:
-            raise HTTPException(status_code=401, detail="Invalid or inactive apiKey")
-        site_id, allowed_origins = row
-        payload = {
-            "siteId": site_id,
-            # "origin": origin,  # 不再校验 origin
-            "exp": datetime.utcnow() + timedelta(hours=1)
-        }
-        token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+        token, site_id = issue_api_key_token(
+            storage.database_path,
+            api_key,
+            request.headers.get("origin"),
+            JWT_SECRET,
+            JWT_ALGORITHM,
+        )
         return SiteTokenResponse(token=token, siteId=site_id, expires_in=3600)
+    except TenantAuthError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from e
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -508,11 +525,21 @@ def split_text(text, max_length=300):
     return [c for c in merged if c.strip()]
 
 @app.post("/add-documents", response_model=Dict[str, Any])
-async def add_documents(documents: List[Document]):
+async def add_documents(
+    documents: List[Document],
+    identity: SiteIdentity = Depends(verify_ingestion_identity),
+):
     """批量上传多个文档，每个文档自动分段批量入库"""
+    for doc in documents:
+        try:
+            resolve_site_id(identity, doc.site_id)
+        except TenantAuthError as error:
+            raise HTTPException(
+                status_code=error.status_code, detail=error.detail
+            ) from error
     all_results = []
     for doc in documents:
-        site_id = doc.site_id or "default_site"
+        site_id = identity.site_id
         url = doc.url
         title = doc.title
         timestamp = doc.timestamp or datetime.now().isoformat()
@@ -557,14 +584,23 @@ class ScrapedDocument(BaseModel):
     metadata: Dict[str, Any]
 
 class ScrapedDataRequest(BaseModel):
-    site_id: str
+    site_id: Optional[str] = None
     documents: List[ScrapedDocument]
 
 @app.post("/add-scraped-data", response_model=Dict[str, Any])
-async def add_scraped_data(request: ScrapedDataRequest):
+async def add_scraped_data(
+    request: ScrapedDataRequest,
+    identity: SiteIdentity = Depends(verify_ingestion_identity),
+):
     """直接接收爬虫数据并存储到向量数据库"""
     try:
-        logger.info(f"开始处理爬取数据，站点: {request.site_id}, 文档数: {len(request.documents)}")
+        try:
+            site_id = resolve_site_id(identity, request.site_id)
+        except TenantAuthError as error:
+            raise HTTPException(
+                status_code=error.status_code, detail=error.detail
+            ) from error
+        logger.info(f"开始处理爬取数据，站点: {site_id}, 文档数: {len(request.documents)}")
         
         all_results = []
         total_chunks = 0
@@ -586,7 +622,7 @@ async def add_scraped_data(request: ScrapedDataRequest):
                     url=url,
                     title=title,
                     content=text,
-                    site_id=request.site_id,
+                    site_id=site_id,
                     timestamp=datetime.now().isoformat()
                 )
                 
@@ -596,7 +632,7 @@ async def add_scraped_data(request: ScrapedDataRequest):
                     embedding = generate_simple_embedding(chunk)
                     embedding_id = storage.add_embedding(
                         document_id=document_id,
-                        site_id=request.site_id,
+                        site_id=site_id,
                         embedding=embedding,
                         timestamp=datetime.now().isoformat()
                     )
@@ -627,7 +663,7 @@ async def add_scraped_data(request: ScrapedDataRequest):
         
         return {
             "success": True,
-            "site_id": request.site_id,
+            "site_id": site_id,
             "total_documents": len(request.documents),
             "total_chunks": total_chunks,
             "processed_documents": len(all_results),
@@ -635,6 +671,8 @@ async def add_scraped_data(request: ScrapedDataRequest):
             "documents": all_results
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ 处理爬取数据失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"处理爬取数据失败: {str(e)}")
