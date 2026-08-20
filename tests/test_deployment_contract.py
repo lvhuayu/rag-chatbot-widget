@@ -12,7 +12,10 @@ class DeploymentContractTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn("ref: ${{ github.sha }}", workflow)
+        self.assertIn("workflow_run:", workflow)
+        self.assertIn("ref: ${{ env.RELEASE_SHA }}", workflow)
+        self.assertIn("EXPECTED_HEAD_SHA", workflow)
+        self.assertIn("head_repository", workflow)
         self.assertIn("sha256sum --check", workflow)
         self.assertIn("requirements.lock", workflow)
         self.assertIn("rollback()", workflow)
