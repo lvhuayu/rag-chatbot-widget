@@ -1,25 +1,96 @@
 name: Deploy immutable release
 
 on:
-  push:
-    branches: [main]
+  workflow_run:
+    workflows: [Agent quality gate]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Merged pull request number to deploy
+        required: true
+        type: number
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: production
   cancel-in-progress: false
 
 jobs:
+  resolve:
+    name: Resolve trusted merge commit
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request')
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.merge.outputs.sha }}
+    steps:
+      - name: Wait for verified PR merge
+        id: merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number || inputs.pr_number }}
+          REPOSITORY: ${{ github.repository }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${PR_NUMBER}" ]]; then
+            echo "The successful quality-gate run is not associated with a PR."
+            exit 1
+          fi
+
+          for attempt in $(seq 1 30); do
+            pr="$(gh api "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"
+            state="$(jq -r '.state' <<<"${pr}")"
+            merged="$(jq -r '.merged' <<<"${pr}")"
+
+            if [[ "${merged}" == "true" ]]; then
+              base="$(jq -r '.base.ref' <<<"${pr}")"
+              head_sha="$(jq -r '.head.sha' <<<"${pr}")"
+              head_repository="$(jq -r '.head.repo.full_name' <<<"${pr}")"
+              author="$(jq -r '.user.login' <<<"${pr}")"
+              merge_sha="$(jq -r '.merge_commit_sha' <<<"${pr}")"
+
+              [[ "${base}" == "main" ]]
+              if [[ -n "${EXPECTED_HEAD_SHA}" ]]; then
+                [[ "${head_sha}" == "${EXPECTED_HEAD_SHA}" ]]
+              fi
+              [[ "${head_repository}" == "${REPOSITORY}" ]]
+              [[ "${author}" == "${REPOSITORY_OWNER}" ]]
+              [[ "${merge_sha}" =~ ^[0-9a-f]{40}$ ]]
+
+              echo "sha=${merge_sha}" >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+
+            if [[ "${state}" == "closed" ]]; then
+              echo "PR ${PR_NUMBER} closed without merging."
+              exit 1
+            fi
+            sleep 10
+          done
+
+          echo "PR ${PR_NUMBER} was not merged within five minutes."
+          exit 1
+
   build:
     name: Build verified release
+    needs: resolve
     runs-on: ubuntu-latest
+    env:
+      RELEASE_SHA: ${{ needs.resolve.outputs.sha }}
     steps:
       - name: Checkout exact commit
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ env.RELEASE_SHA }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
@@ -57,11 +128,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          artifact="rag-chatbot-widget-${GITHUB_SHA}.tar.gz"
+          artifact="rag-chatbot-widget-${RELEASE_SHA}.tar.gz"
           git archive \
             --format=tar.gz \
             --output="${artifact}" \
-            "${GITHUB_SHA}" \
+            "${RELEASE_SHA}" \
             -- . \
             ':(exclude)backend/rag_database.db' \
             ':(exclude)prisma/prisma/rag_database.db'
@@ -70,23 +141,25 @@ jobs:
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: release-${{ github.sha }}
+          name: release-${{ env.RELEASE_SHA }}
           path: |
-            rag-chatbot-widget-${{ github.sha }}.tar.gz
-            rag-chatbot-widget-${{ github.sha }}.tar.gz.sha256
+            rag-chatbot-widget-${{ env.RELEASE_SHA }}.tar.gz
+            rag-chatbot-widget-${{ env.RELEASE_SHA }}.tar.gz.sha256
           retention-days: 30
           if-no-files-found: error
 
   deploy:
     name: Deploy and verify
-    needs: build
+    needs: [resolve, build]
     runs-on: ubuntu-latest
     environment: production
+    env:
+      RELEASE_SHA: ${{ needs.resolve.outputs.sha }}
     steps:
     - name: Download verified artifact
       uses: actions/download-artifact@v4
       with:
-        name: release-${{ github.sha }}
+        name: release-${{ env.RELEASE_SHA }}
 
     - name: Configure SSH
       run: |
@@ -99,7 +172,7 @@ jobs:
     - name: Copy release to ECS1
       run: |
         set -euo pipefail
-        artifact="rag-chatbot-widget-${GITHUB_SHA}.tar.gz"
+        artifact="rag-chatbot-widget-${RELEASE_SHA}.tar.gz"
         scp "${artifact}" "${artifact}.sha256" \
           "${{ secrets.ECS_USER }}@${{ secrets.ECS1_HOST }}:/tmp/"
 
@@ -109,7 +182,7 @@ jobs:
       run: |
         set -euo pipefail
         ssh "${{ secrets.ECS_USER }}@${{ secrets.ECS1_HOST }}" \
-          "DEPLOY_SHA='${GITHUB_SHA}' HEALTH_URL='${HEALTH_URL}' bash -s" <<'EOF'
+          "DEPLOY_SHA='${RELEASE_SHA}' HEALTH_URL='${HEALTH_URL}' bash -s" <<'EOF'
         set -euo pipefail
 
         app_root="/opt/rag-chatbot-widget"
