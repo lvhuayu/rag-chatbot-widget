@@ -40,6 +40,7 @@ import aioredis
 # Add the parent directory to the path to import the Prisma storage
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from backend.rag_storage_prisma import PrismaRAGStorage
+from backend.rag_context import build_context
 from backend.tenant_auth import (
     SiteIdentity,
     TenantAuthError,
@@ -75,6 +76,8 @@ security = HTTPBearer()
 ingestion_security = HTTPBearer(auto_error=False)
 JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
 JWT_ALGORITHM = "HS256"
+EMBEDDING_MODEL_NAME = "BAAI/bge-large-zh-v1.5"
+RAG_CONTEXT_TOKEN_BUDGET = int(os.getenv("RAG_CONTEXT_TOKEN_BUDGET", "2000"))
 
 # Initialize storage
 storage = PrismaRAGStorage()
@@ -205,13 +208,16 @@ class SiteTokenResponse(BaseModel):
 
 # 加载中文/多语言 SOTA embedding 模型（如 BAAI/bge-large-zh-v1.5）
 # 你可以根据需要更换为其他模型，如 all-MiniLM-L6-v2
-embedding_model = SentenceTransformer('BAAI/bge-large-zh-v1.5')
+embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
 # embedding_model = SentenceTransformer(os.path.join(os.path.dirname(__file__), 'bge-large-zh-v1.5'))
 
 def generate_simple_embedding(text: str) -> list:
     """用 SOTA embedding 生成文本向量，支持中文和多语言"""
     emb = embedding_model.encode(text, normalize_embeddings=True)
     return emb.tolist() if isinstance(emb, np.ndarray) else list(emb)
+
+
+
 
 def calculate_similarity(embedding1: List[float], embedding2: List[float]) -> float:
     """Calculate cosine similarity between two embeddings"""
@@ -560,7 +566,10 @@ async def add_documents(
                 document_id=document_id,
                 site_id=site_id,
                 embedding=embedding,
-                timestamp=timestamp
+                timestamp=timestamp,
+                chunk_text=chunk,
+                chunk_index=idx,
+                embedding_model=EMBEDDING_MODEL_NAME,
             )
             results.append({
                 "embedding_id": embedding_id,
@@ -634,7 +643,10 @@ async def add_scraped_data(
                         document_id=document_id,
                         site_id=site_id,
                         embedding=embedding,
-                        timestamp=datetime.now().isoformat()
+                        timestamp=datetime.now().isoformat(),
+                        chunk_text=chunk,
+                        chunk_index=idx,
+                        embedding_model=EMBEDDING_MODEL_NAME,
                     )
                     chunk_results.append({
                         "embedding_id": embedding_id,
@@ -746,12 +758,10 @@ async def search_documents(request: SearchRequest, credentials: HTTPAuthorizatio
                 similarity=similarity
             ))
         # context 拼接top_k条最相关段内容，不带来源信息
-        context = None
-        if search_results:
-            context_parts = []
-            for i, result in enumerate(search_results[:request.top_k]):
-                context_parts.append(result.document.content[:1000])
-            context = "\n".join(context_parts)
+        context = build_context(
+            [result.document.content for result in search_results[:request.top_k]],
+            RAG_CONTEXT_TOKEN_BUDGET,
+        ) or None
         return RAGResponse(
             context=context,
             documents=search_results
@@ -933,7 +943,7 @@ async def rag_generate(request: SearchRequest, credentials: HTTPAuthorizationCre
             context_parts.extend([content for content, _ in priority_snippets[:3]])
             if len(context_parts) < request.top_k:
                 context_parts.extend([content for content, _ in other_snippets[:request.top_k - len(context_parts)]])
-            context = "\n\n".join(context_parts)
+            context = build_context(context_parts, RAG_CONTEXT_TOKEN_BUDGET)
 
             # Step 2: LLM流式生成 (Azure OpenAI)
             client = AzureOpenAI(

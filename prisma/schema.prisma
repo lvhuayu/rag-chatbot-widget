@@ -56,6 +56,10 @@ model embeddings {
   site_id          String
   embedding_vector Bytes
   dimension        Int
+  chunk_text       String?
+  chunk_index      Int?
+  embedding_model  String?
+  migration_status String    @default("pending")
   created_at       DateTime  @default(now())
   sites            sites     @relation(fields: [site_id], references: [site_id])
   documents        documents @relation(fields: [document_id], references: [id])

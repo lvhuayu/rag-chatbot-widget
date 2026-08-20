@@ -34,7 +34,26 @@ class PrismaRAGStorage:
         os.makedirs(database_dir, exist_ok=True)
         with self._connect() as connection:
             connection.execute("PRAGMA journal_mode=WAL")
+            self._ensure_chunk_columns(connection)
         logger.info("RAG storage initialized with database: %s", self.database_path)
+
+    @staticmethod
+    def _ensure_chunk_columns(connection: sqlite3.Connection) -> None:
+        columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(embeddings)").fetchall()
+        }
+        additions = {
+            "chunk_text": "TEXT",
+            "chunk_index": "INTEGER",
+            "embedding_model": "TEXT",
+            "migration_status": "TEXT NOT NULL DEFAULT 'pending'",
+        }
+        for column, definition in additions.items():
+            if column not in columns:
+                connection.execute(
+                    f"ALTER TABLE embeddings ADD COLUMN {column} {definition}"
+                )
 
     def _resolve_database_path(self) -> str:
         prisma_dir = os.path.dirname(self.prisma_schema_path)
@@ -110,44 +129,67 @@ class PrismaRAGStorage:
             "site_id": row["site_id"],
         }
 
-    def _first_embedding(self, document_id: str) -> np.ndarray:
-        with self._connect() as connection:
-            row = connection.execute(
-                """
-                SELECT embedding_vector
-                FROM embeddings
-                WHERE document_id = ?
-                ORDER BY created_at ASC
-                LIMIT 1
-                """,
-                (document_id,),
-            ).fetchone()
-        if not row:
-            return np.array([])
-        try:
-            return pickle.loads(bytes(row["embedding_vector"]))
-        except Exception as error:
-            logger.warning(
-                "Error loading embedding for document %s: %s", document_id, error
-            )
-            return np.array([])
-
     def _get_documents(
         self, where_clause: str = "", params: Tuple[Any, ...] = ()
     ) -> Tuple[List[Dict[str, Any]], List[np.ndarray]]:
         query = """
-            SELECT d.id, d.url, d.title, d.content, d.created_at, d.site_id
+            SELECT
+                d.id,
+                d.url,
+                d.title,
+                d.content AS document_content,
+                d.created_at,
+                d.site_id,
+                e.embedding_vector,
+                e.chunk_text,
+                e.chunk_index,
+                e.embedding_model,
+                e.migration_status
             FROM documents AS d
             JOIN sites AS s ON s.site_id = d.site_id
             JOIN users AS u ON u.id = s.user_id
+            LEFT JOIN embeddings AS e ON e.document_id = d.id
         """
         if where_clause:
             query += f" WHERE {where_clause}"
-        query += " ORDER BY d.created_at DESC"
+        query += """
+            ORDER BY
+                d.created_at DESC,
+                CASE WHEN e.chunk_index IS NULL THEN 1 ELSE 0 END,
+                e.chunk_index ASC,
+                e.created_at ASC
+        """
         with self._connect() as connection:
             rows = connection.execute(query, params).fetchall()
-        documents = [self._document_from_row(row) for row in rows]
-        embeddings = [self._first_embedding(row["id"]) for row in rows]
+        documents = []
+        embeddings = []
+        for row in rows:
+            documents.append(
+                {
+                    "id": row["id"],
+                    "url": row["url"],
+                    "title": row["title"],
+                    "content": row["chunk_text"] or row["document_content"],
+                    "created_at": self._datetime_value(row["created_at"]),
+                    "site_id": row["site_id"],
+                    "chunk_index": row["chunk_index"],
+                    "embedding_model": row["embedding_model"],
+                    "migration_status": row["migration_status"] or "pending",
+                }
+            )
+            if row["embedding_vector"] is None:
+                embeddings.append(np.array([]))
+                continue
+            try:
+                embeddings.append(pickle.loads(bytes(row["embedding_vector"])))
+            except Exception as error:
+                logger.warning(
+                    "Error loading embedding for document %s chunk %s: %s",
+                    row["id"],
+                    row["chunk_index"],
+                    error,
+                )
+                embeddings.append(np.array([]))
         return documents, embeddings
 
     def add_document_entry(
@@ -181,6 +223,9 @@ class PrismaRAGStorage:
         site_id: str,
         embedding: List[float],
         timestamp: Optional[str] = None,
+        chunk_text: Optional[str] = None,
+        chunk_index: Optional[int] = None,
+        embedding_model: Optional[str] = None,
     ) -> str:
         embedding_id = str(uuid.uuid4())
         embedding_blob = pickle.dumps(np.array(embedding))
@@ -188,9 +233,11 @@ class PrismaRAGStorage:
             connection.execute(
                 """
                 INSERT INTO embeddings (
-                    id, document_id, site_id, embedding_vector, dimension, created_at
+                    id, document_id, site_id, embedding_vector, dimension,
+                    chunk_text, chunk_index, embedding_model, migration_status,
+                    created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     embedding_id,
@@ -198,6 +245,10 @@ class PrismaRAGStorage:
                     site_id,
                     sqlite3.Binary(embedding_blob),
                     len(embedding),
+                    chunk_text,
+                    chunk_index,
+                    embedding_model,
+                    "ready" if chunk_text is not None else "pending",
                     self._timestamp(timestamp),
                 ),
             )
@@ -251,9 +302,17 @@ class PrismaRAGStorage:
         self,
     ) -> Tuple[List[Dict[str, Any]], List[np.ndarray]]:
         try:
-            result = self._get_documents()
-            logger.info("Retrieved %s total documents", len(result[0]))
-            return result
+            with self._connect() as connection:
+                rows = connection.execute(
+                    """
+                    SELECT d.id, d.url, d.title, d.content, d.created_at, d.site_id
+                    FROM documents AS d
+                    ORDER BY d.created_at DESC
+                    """
+                ).fetchall()
+            documents = [self._document_from_row(row) for row in rows]
+            logger.info("Retrieved %s total documents", len(documents))
+            return documents, [np.array([]) for _ in documents]
         except Exception as error:
             logger.error("Error getting all documents: %s", error)
             return [], []
@@ -331,6 +390,13 @@ class PrismaRAGStorage:
                 dimension_row = connection.execute(
                     "SELECT dimension FROM embeddings LIMIT 1"
                 ).fetchone()
+                pending_chunks = connection.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM embeddings
+                    WHERE migration_status != 'ready' OR chunk_text IS NULL
+                    """
+                ).fetchone()[0]
             database_size_mb = 0
             if os.path.exists(self.database_path):
                 database_size_mb = round(
@@ -348,6 +414,7 @@ class PrismaRAGStorage:
                 "documents": total_documents,
                 "embeddings": total_embeddings,
                 "users": total_users,
+                "chunks_pending_migration": pending_chunks,
                 "schema": "Unified (User Management + RAG)",
             }
         except Exception as error:
