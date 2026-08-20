@@ -45,6 +45,10 @@ ollama pull mistral
    ```
 4. **Open** `http://localhost:5500` in your browser
 
+### Maintainer workflow
+
+See [Local pull-request auto-merge](local-pr-auto-merge.md) for the protected local branch and pull-request workflow.
+
 ## 📦 Project Structure
 
 ```
