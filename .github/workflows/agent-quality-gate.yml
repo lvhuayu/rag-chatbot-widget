@@ -38,6 +38,11 @@ jobs:
       - name: Check Python syntax
         run: python -m py_compile backend/rag_server_prisma.py backend/rag_storage_prisma.py
 
+      - name: Run storage security regression tests
+        run: |
+          python -m pip install "numpy>=2.0,<3"
+          python -m unittest discover -s tests -p "test_rag_storage_prisma_security.py" -v
+
       - name: Reject unresolved conflict markers
         run: |
           if git grep -n -E '^(<<<<<<<|=======|>>>>>>>)' -- ':!package-lock.json'; then
