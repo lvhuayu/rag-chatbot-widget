@@ -111,7 +111,12 @@ def verify_ingestion_identity(
 import redis as _redis_lib
 _DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rag_database.db")
 _quota_redis = _redis_lib.Redis(host="localhost", port=6379, db=0, decode_responses=True)
-PLAN_DAILY_CHATS = {"free": 100, "pro": 2000, "enterprise": None}
+PLAN_DAILY_CHATS = {
+    "free": 100,
+    "pro": 2000,
+    "enterprise": None,
+    "public-beta": None,
+}
 
 def _resolve_plan_id(site_id: str) -> str:
     try:

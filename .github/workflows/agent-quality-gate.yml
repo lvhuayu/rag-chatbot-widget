@@ -49,6 +49,7 @@ jobs:
           python -m unittest discover -s tests -p "test_chunk_retrieval.py" -v
           python -m unittest discover -s tests -p "test_rag_contract.py" -v
           python -m unittest discover -s tests -p "test_deployment_contract.py" -v
+          python -m unittest discover -s tests -p "test_public_beta_site.py" -v
 
       - name: Reject unresolved conflict markers
         run: |
